@@ -1,0 +1,31 @@
+{
+  "default": "I'm a healthcare assistant. I can provide general health information, but I'm not a substitute for professional medical advice.",
+  
+  "headache": "Headaches can have many causes including stress, dehydration, lack of sleep, or eye strain. For occasional headaches, rest, hydration, and over-the-counter pain relievers might help. If you're experiencing severe, persistent, or unusual headaches, please consult a healthcare professional.",
+  
+  "covid": "COVID-19 symptoms may include fever, cough, shortness of breath, fatigue, body aches, headache, loss of taste or smell, sore throat, congestion, nausea, or diarrhea. If you're experiencing symptoms, consider getting tested and follow local health guidelines.",
+  
+  "diabetes": "Diabetes is a chronic condition that affects how your body turns food into energy. There are several types, with Type 1, Type 2, and gestational diabetes being the most common. Management typically involves monitoring blood sugar, medication or insulin therapy, healthy eating, and regular physical activity.",
+  
+  "exercise": "Regular physical activity offers numerous health benefits including improved cardiovascular health, stronger muscles and bones, better weight management, enhanced mental health, and reduced risk of chronic diseases. The CDC recommends at least 150 minutes of moderate-intensity exercise per week for adults.",
+  
+  "diet": "A balanced diet typically includes a variety of fruits, vegetables, whole grains, lean proteins, and healthy fats. It's recommended to limit processed foods, added sugars, and excessive salt. Different dietary patterns may be appropriate for different individuals based on their health needs.",
+  
+  "sleep": "Adults generally need 7-9 hours of quality sleep per night. Good sleep hygiene includes maintaining a consistent sleep schedule, creating a restful environment, limiting screen time before bed, avoiding caffeine and alcohol near bedtime, and regular physical activity. Chronic sleep deprivation can contribute to various health problems.",
+  
+  "anxiety": "Anxiety disorders are characterized by persistent, excessive worry or fear that can interfere with daily activities. Common symptoms include restlessness, fatigue, difficulty concentrating, irritability, muscle tension, and sleep disturbances. Treatment options include therapy, medication, lifestyle changes, and stress management techniques.",
+  
+  "heart": "Heart health can be promoted by maintaining a healthy diet low in saturated fats and sodium, regular physical activity, not smoking, limiting alcohol, managing stress, and regular check-ups to monitor blood pressure, cholesterol, and blood sugar. Heart disease remains the leading cause of death worldwide, making prevention crucial.",
+  
+  "blood pressure": "Blood pressure is measured using two numbers: systolic pressure (top number) and diastolic pressure (bottom number). Normal blood pressure is generally considered to be below 120/80 mm Hg. High blood pressure (hypertension) is a common condition that can lead to serious health problems like heart disease and stroke if not managed.",
+  
+  "vaccine": "Vaccines work by training your immune system to recognize and fight specific pathogens. They are extensively tested for safety and effectiveness before approval for public use. Routine vaccinations have dramatically reduced the prevalence of many serious diseases and continue to be one of the most important public health interventions.",
+  
+  "pregnancy": "Prenatal care is important for monitoring the health of both the mother and developing baby. This typically includes regular check-ups, screening tests, nutritional guidance, and education about pregnancy and childbirth. Pregnant individuals should avoid alcohol, tobacco, and certain medications, and should discuss all health concerns with their healthcare provider.",
+  
+  "cancer": "Cancer screening recommendations vary by age, gender, family history, and other risk factors. Common screenings include mammograms for breast cancer, colonoscopies for colorectal cancer, Pap tests for cervical cancer, and skin examinations for skin cancer. Early detection through appropriate screening can significantly improve treatment outcomes.",
+  
+  "mental health": "Mental health is an essential component of overall wellbeing. Common mental health conditions include depression, anxiety disorders, bipolar disorder, and schizophrenia. Treatment options may include therapy, medication, lifestyle changes, and support groups. Seeking help for mental health concerns is a sign of strength, not weakness.",
+  
+  "allergy": "Allergies occur when your immune system reacts to a foreign substance that doesn't cause a reaction in most people. Common allergens include pollen, pet dander, certain foods, and medications. Symptoms can range from mild (sneezing, itching) to severe (anaphylaxis). Management strategies include avoiding triggers, medication, and in some cases, immunotherapy."
+}

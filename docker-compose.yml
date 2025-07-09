@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=http://api:5000
+    depends_on:
+      - api
+    volumes:
+      - ./src:/app/src
+      - ./public:/app/public
+
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
+    environment:
+      - FLASK_ENV=production
+      - FLASK_DEBUG=False
+      - CORS_ORIGINS=http://localhost:5173
+    volumes:
+      - ./api:/app
+    env_file:
+      - ./api/.env 

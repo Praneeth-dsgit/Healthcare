@@ -1,0 +1,96 @@
+[
+  {
+    "Disease": "Gout",
+    "Description": "A form of inflammatory arthritis characterized by sudden, severe attacks of pain, redness, and tenderness in joints caused by deposition of urate crystals.",
+    "Symptoms": [
+      "Intense joint pain, often in the big toe",
+      "Swelling and redness",
+      "Limited range of motion",
+      "Warmth around the affected joint"
+    ],
+    "Causes": [
+      "High levels of uric acid in the blood",
+      "Diet rich in purines (red meat, seafood)",
+      "Alcohol consumption",
+      "Obesity",
+      "Certain medications"
+    ],
+    "Common Treatments": [
+      "Nonsteroidal anti-inflammatory drugs (NSAIDs)",
+      "Colchicine",
+      "Corticosteroids",
+      "Lifestyle changes (diet and weight management)"
+    ]
+  },
+  {
+    "Disease": "Diabetes Mellitus",
+    "Description": "A chronic condition characterized by high blood sugar levels due to the body's inability to produce or use insulin effectively.",
+    "Symptoms": [
+      "Increased thirst and hunger",
+      "Frequent urination",
+      "Fatigue",
+      "Blurred vision",
+      "Slow healing of wounds"
+    ],
+    "Causes": [
+      "Genetic factors",
+      "Obesity",
+      "Physical inactivity",
+      "Poor diet",
+      "Autoimmune destruction of insulin-producing cells (Type 1)"
+    ],
+    "Common Treatments": [
+      "Insulin therapy",
+      "Oral hypoglycemic agents",
+      "Diet and lifestyle modification",
+      "Regular blood glucose monitoring"
+    ]
+  },
+  {
+    "Disease": "Hypertension",
+    "Description": "A condition in which the force of the blood against the artery walls is too high, often called high blood pressure.",
+    "Symptoms": [
+      "Often asymptomatic",
+      "Headaches",
+      "Shortness of breath",
+      "Nosebleeds (in severe cases)"
+    ],
+    "Causes": [
+      "Genetics",
+      "Excess salt intake",
+      "Obesity",
+      "Lack of physical activity",
+      "Stress"
+    ],
+    "Common Treatments": [
+      "Lifestyle changes (diet, exercise)",
+      "Diuretics",
+      "ACE inhibitors",
+      "Beta blockers",
+      "Calcium channel blockers"
+    ]
+  },
+  {
+    "Disease": "Asthma",
+    "Description": "A chronic respiratory disease marked by inflammation and narrowing of the airways, leading to wheezing, shortness of breath, and coughing.",
+    "Symptoms": [
+      "Wheezing",
+      "Shortness of breath",
+      "Chest tightness",
+      "Coughing, especially at night or early morning"
+    ],
+    "Causes": [
+      "Allergens (dust mites, pollen, pet dander)",
+      "Respiratory infections",
+      "Exercise",
+      "Cold air",
+      "Air pollutants"
+    ],
+    "Common Treatments": [
+      "Inhaled corticosteroids",
+      "Short-acting beta agonists (bronchodilators)",
+      "Leukotriene modifiers",
+      "Avoidance of triggers"
+    ]
+  }
+]
