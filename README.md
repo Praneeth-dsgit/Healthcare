@@ -1,6 +1,6 @@
 # Healthcare Chatbot
 
-A modern healthcare chatbot application built with React and Flask, powered by the Llama 3.1 Aloe model.
+A modern healthcare chatbot application built with React and Flask, powered by the Llama and openai models.
 
 ## Features
 
@@ -20,7 +20,7 @@ A modern healthcare chatbot application built with React and Flask, powered by t
 
 ### Backend
 - Flask (Python)
-- Transformers library with Llama 3.1 Aloe model
+- Transformers library with Llama model
 - Docker containerization
 - pytest for testing
 
@@ -35,7 +35,7 @@ A modern healthcare chatbot application built with React and Flask, powered by t
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/healthcare-chatbot.git
+git clone https://github.com/praneeth-dsgit/H_AI.git
 cd healthcare-chatbot
 ```
 
