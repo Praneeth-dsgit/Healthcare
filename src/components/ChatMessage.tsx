@@ -33,60 +33,6 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewClick }) =>
     }
   }, [copied]);
   
-  const renderMedicalContent = (content: string) => {
-    // Remove '#' from section headers and style them
-    const cleanedContent = content
-      .replace(/^#\s*/gm, '') // Remove leading '# '
-      .replace(/^\s*[-•]\s*/gm, '- ') // Normalize list items
-      .trim();
-    
-    return (
-      <div className="prose prose-sm max-w-none prose-headings:font-semibold prose-headings:text-blue-700 prose-p:text-gray-600 prose-li:text-gray-600">
-        <ReactMarkdown
-          components={{
-            // Render lines that were headers as styled divs
-            h1: ({node, ...props}) => <div className="text-lg font-bold text-blue-700 mb-2 mt-4" {...props} />,
-            h2: ({node, ...props}) => <div className="text-base font-semibold text-blue-700 mb-2 mt-3" {...props} />,
-            h3: ({node, ...props}) => <div className="text-base font-semibold text-blue-700 mb-2 mt-3" {...props} />,
-            // Customize list rendering
-            ul: ({node, ...props}) => <ul className="space-y-1 my-2" {...props} />,
-            li: ({node, ...props}) => (
-              <li className="text-sm flex items-start">
-                <span className="mr-2 mt-1">•</span>
-                <span className="flex-1">{props.children}</span>
-              </li>
-            ),
-            // Customize paragraph rendering
-            p: ({node, ...props}) => {
-              const text = String(props.children).trim();
-              if (text.startsWith('Note:')) {
-                return (
-                  <p className="text-sm my-2 whitespace-pre-line font-semibold bg-yellow-100 text-yellow-900 rounded px-2 py-1">
-                    {props.children}
-                  </p>
-                );
-              }
-              if (text.startsWith('Warning:') || text.startsWith('Caution:')) {
-                return (
-                  <p className="text-sm my-2 whitespace-pre-line font-semibold bg-red-100 text-red-800 rounded px-2 py-1">
-                    {props.children}
-                  </p>
-                );
-              }
-              return (
-                <p className="text-sm my-2 whitespace-pre-line">
-                  {props.children}
-                </p>
-              );
-            }
-          }}
-        >
-          {cleanedContent}
-        </ReactMarkdown>
-      </div>
-    );
-  };
-  
   // Helper to get formatted date/time
   const getFormattedDate = () => {
     const d = new Date(message.timestamp);
@@ -200,7 +146,15 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewClick }) =>
           message.content ? <p className="whitespace-pre-wrap text-base leading-relaxed">{message.content}</p> : null
         ) : (
           <>
-            {renderMedicalContent(message.content)}
+            <div className="prose prose-sm max-w-none">
+              <ReactMarkdown
+                components={{
+                  a: ({node, ...props}) => <a {...props} className="text-blue-600 underline" target="_blank" rel="noopener noreferrer" />
+                }}
+              >
+                {message.content}
+              </ReactMarkdown>
+            </div>
             {/* Download/Copy buttons for assistant messages */}
             <div className="flex gap-1 mt-2 justify-end relative">
               <button

@@ -199,7 +199,32 @@ def detect_query_type(query):
     else:
         return 'general'
 
-def generate_prompt(query, patient_info=None, matched_disease = None):
+def generate_prompt(query, patient_info=None, file_context=None, file_findings=None, previous_ai_message=None, reset_message=None, matched_disease = None):
+    if reset_message:
+        polite_responses = {
+            "thank you": "You're welcome! If you have more questions, feel free to ask.",
+            "thanks": "You're welcome! Let me know if you need anything else.",
+            "bye": "Goodbye! Take care.",
+            "see you": "See you! Stay healthy.",
+            "leave it": "Okay, let me know if you need anything else.",
+            "ok": "Alright! Let me know if you need anything else.",
+            "okay": "Alright! Let me know if you need anything else.",
+            "cancel": "Okay, let me know if you need anything else.",
+            "ignore": "Okay, let me know if you need anything else.",
+            "new topic": "Sure! Please tell me your new question or topic.",
+            "start over": "Sure! Please tell me your new question or topic.",
+            "that's all": "Thank you for your message! Let me know if you need further assistance.",
+            "thats good": "Thank you for your message! Let me know if you need further assistance.",
+            "thats good enough": "Thank you for your message! Let me know if you need further assistance.",
+            "thats good enough": "Thank you for your message! Let me know if you need further assistance.",
+        }
+        return polite_responses.get(reset_message, "Thank you for your message! Let me know if you need further assistance.")
+    if file_context:
+        print(f"[generate_prompt] file_context: {file_context}")
+    if file_findings:
+        print(f"[generate_prompt] file_findings: {file_findings}")
+    if previous_ai_message:
+        print(f"[generate_prompt] previous_ai_message: {previous_ai_message}")
     query_type = detect_query_type(query)
 
     # Build detailed patient context if possible
@@ -360,19 +385,31 @@ References:
 
 Note: This information is for healthcare professionals, not for personal use."""
 
+    # Add file_findings to the prompt
+    if file_findings:
+        file_section = f"\n\n[File Findings / Uploaded File Analysis]\n{file_findings}\n"
+    else:
+        file_section = ""
+
+    # Prepend previous_ai_message to the prompt if present
+    if previous_ai_message:
+        previous_section = f"\n[Previous AI Findings or Context]\n{previous_ai_message}\n"
+    else:
+        previous_section = ""
+
     # Prompt routing based on query type
     if query_type == 'diagnosis':
-        return diagnosis_prompt.format(patient_context=patient_context, query=query, matched_disease=matched_disease)
+        return previous_section + diagnosis_prompt.format(patient_context=patient_context, query=query, matched_disease=matched_disease) + file_section
     elif query_type == 'treatment':
-        return treatment_prompt.format(patient_context=patient_context, query=query, matched_disease=matched_disease)
+        return previous_section + treatment_prompt.format(patient_context=patient_context, query=query, matched_disease=matched_disease) + file_section
     elif query_type == 'lab':
-        return lab_prompt.format(patient_context=patient_context, query=query, matched_disease=matched_disease)
+        return previous_section + lab_prompt.format(patient_context=patient_context, query=query, matched_disease=matched_disease) + file_section
     elif query_type == 'emergency':
-        return emergency_prompt.format(patient_context=patient_context, query=query, matched_disease=matched_disease)
+        return previous_section + emergency_prompt.format(patient_context=patient_context, query=query, matched_disease=matched_disease) + file_section
     elif query_type == 'chronic':
-        return chronic_prompt.format(patient_context=patient_context, query=query, matched_disease=matched_disease)
+        return previous_section + chronic_prompt.format(patient_context=patient_context, query=query, matched_disease=matched_disease) + file_section
     else:
-        return general_prompt.format(query=query, matched_disease=matched_disease)
+        return previous_section + general_prompt.format(query=query, matched_disease=matched_disease) + file_section
 
 
 @app.route('/api/chat', methods=['POST'])
@@ -416,8 +453,12 @@ def chat_stream():
         
         user_message = data.get('message', '')
         patient_info = data.get('patientInfo')
+        file_context = data.get('fileContext')
+        file_findings = data.get('fileFindings')
+        previous_ai_message = data.get('previousAiMessage')
+        reset_message = data.get('resetMessage')  # <-- new
         
-        logger.info(f"Processing message: '{user_message}' with patient info: {patient_info}")
+        logger.info(f"Processing message: '{user_message}' with patient info: {patient_info}, file context: {file_context}, file findings: {file_findings}, previous_ai_message: {previous_ai_message}, reset_message: {reset_message}")
         
         if not user_message:
             logger.warning("Empty message received")
@@ -433,7 +474,7 @@ def chat_stream():
 
         def generate():
             try:
-                prompt = generate_prompt(user_message, patient_info)
+                prompt = generate_prompt(user_message, patient_info, file_context, file_findings, previous_ai_message, reset_message)
                 logger.info(f"Generated prompt:\n{prompt}")
                 response_text = ""
                 
@@ -489,7 +530,7 @@ def interpret_image_with_openai(image_bytes):
         "- Use clear, concise, and professional language suitable for a healthcare provider."
     )
     response = openai.ChatCompletion.create(
-        model="gpt-4o",  # or "gpt-4o" if available
+        model="gpt-4.1",  # or "gpt-4o" if available
         messages=[
             {"role": "system", "content": prompt},
             {"role": "user", "content": [

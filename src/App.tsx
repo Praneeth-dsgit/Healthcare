@@ -23,6 +23,17 @@ import { GlobalWorkerOptions, getDocument } from 'pdfjs-dist';
 import workerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url';
 GlobalWorkerOptions.workerSrc = workerUrl;
 
+function shouldResetContext(input: string): boolean {
+  const trimmed = input.trim().toLowerCase();
+  const resetPhrases = [
+    "okay", "ok", "leave it", "thanks", "thank you", "new topic", "start over", "ignore", "cancel"
+  ];
+  return (
+    trimmed.length < 5 ||
+    resetPhrases.includes(trimmed)
+  );
+}
+
 const App: FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -58,6 +69,13 @@ const App: FC = () => {
   const [panStart, setPanStart] = useState<{ x: number; y: number } | null>(null);
   const [panOffset, setPanOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [isDragActive, setIsDragActive] = useState(false);
+  const [lastUploadedFile, setLastUploadedFile] = useState<{
+    fileName: string;
+    fileType: string;
+    fileUrl: string;
+  } | null>(null);
+  const [lastFileFindings, setLastFileFindings] = useState<string | null>(null);
+  const [lastAiMessage, setLastAiMessage] = useState<string | null>(null);
 
   // Timer for analyzing
   useEffect(() => {
@@ -189,18 +207,26 @@ const App: FC = () => {
     setMessages(prev => [...prev, tempMessage]);
 
     try {
+      const resetContext = shouldResetContext(userMessage.content);
+      const isFollowUp = !resetContext;
+      const resetMessage = resetContext ? userMessage.content.trim().toLowerCase() : null;
       const response = await fetch('http://localhost:5000/api/chat/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           message: userMessage.content,
-          patientInfo: info
+          patientInfo: info,
+          fileContext: resetContext ? null : lastUploadedFile,
+          fileFindings: resetContext ? null : lastFileFindings,
+          previousAiMessage: isFollowUp ? lastAiMessage : null,
+          resetMessage,
         }),
       });
 
       const reader = response.body?.getReader();
       if (!reader) throw new Error('No reader available');
 
+      let assistantContent = '';
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -211,6 +237,7 @@ const App: FC = () => {
           if (line.startsWith('data: ')) {
             const content = line.slice(6);
             const processedContent = content.replace(/\\n/g, '\n');
+            assistantContent += processedContent;
             setMessages(prev =>
               prev.map(msg =>
                 msg.id === tempMessageId
@@ -221,6 +248,7 @@ const App: FC = () => {
           }
         }
       }
+      setLastAiMessage(assistantContent);
     } catch (error) {
       setMessages(prev =>
         prev.map(msg =>
@@ -233,6 +261,7 @@ const App: FC = () => {
             : msg
         )
       );
+      setLastAiMessage(null);
     } finally {
       setIsLoading(false);
     }
@@ -283,6 +312,9 @@ const App: FC = () => {
     setMessages(prev => [...prev, tempMessage]);
 
     try {
+      const resetContext = shouldResetContext(userMessage.content);
+      const isFollowUp = !resetContext;
+      const resetMessage = resetContext ? userMessage.content.trim().toLowerCase() : null;
       const response = await fetch('http://localhost:5000/api/chat/stream', {
         method: 'POST',
         headers: {
@@ -290,7 +322,11 @@ const App: FC = () => {
         },
         body: JSON.stringify({
           message: userMessage.content,
-          patientInfo: patientInfo
+          patientInfo: patientInfo,
+          fileContext: resetContext ? null : lastUploadedFile,
+          fileFindings: resetContext ? null : lastFileFindings,
+          previousAiMessage: isFollowUp ? lastAiMessage : null,
+          resetMessage,
         }),
       });
 
@@ -299,6 +335,7 @@ const App: FC = () => {
       const reader = response.body?.getReader();
       if (!reader) throw new Error('No reader available');
 
+      let assistantContent = '';
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -314,6 +351,7 @@ const App: FC = () => {
 
             const processedContent = content.replace(/\\n/g, '\n');
 
+            assistantContent += processedContent;
             setMessages(prev => prev.map(msg =>
               msg.id === tempMessageId
                 ? {
@@ -325,6 +363,7 @@ const App: FC = () => {
           }
         }
       }
+      setLastAiMessage(assistantContent);
 
     } catch (error) {
       console.error('Error:', error);
@@ -339,6 +378,7 @@ const App: FC = () => {
       setMessages(prev => prev.map(msg =>
         msg.id === tempMessageId ? errorMessage : msg
       ));
+      setLastAiMessage(null);
     } finally {
       setIsLoading(false);
     }
@@ -408,6 +448,11 @@ const App: FC = () => {
         pdfThumbnail: pdfThumbnail
       };
       setMessages(prev => [...prev, fileMessage]);
+      setLastUploadedFile({
+        fileName: file.name,
+        fileType: file.type,
+        fileUrl: fileUrl,
+      });
       // Upload to backend with progress
       const formData = new FormData();
       formData.append('file', file);
@@ -434,6 +479,8 @@ const App: FC = () => {
                 content: data.result || 'No interpretation available.',
                 timestamp: new Date().toISOString(),
               }]);
+              setLastFileFindings(data.result || null); // <-- store findings
+              setLastAiMessage(data.result || null);
             } catch (err) {
               setMessages(prev => [...prev, {
                 id: Date.now().toString() + '-err',
@@ -442,6 +489,8 @@ const App: FC = () => {
                 timestamp: new Date().toISOString(),
                 isError: true,
               }]);
+              setLastFileFindings(null);
+              setLastAiMessage(null);
             }
             setAnalyzing(false);
             resolve();
@@ -470,6 +519,7 @@ const App: FC = () => {
           timestamp: new Date().toISOString(),
           isError: true,
         }]);
+        setLastAiMessage(null);
       }
     }
   };
