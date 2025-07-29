@@ -1,4 +1,4 @@
-import { type FC, useState, useEffect, useRef } from 'react';
+import { type FC, useState, useEffect, useRef, useCallback } from 'react';
 import { ArrowUp, Bot, FileDown, UserCircle, Trash2, AlertCircle, Upload, FileText, Image as ImageIcon, Loader2, X, Settings, Heart, Activity, Square, Stethoscope} from 'lucide-react';
 import ChatMessage from './components/ChatMessage';
 import LoadingDots from './components/LoadingDots';
@@ -473,9 +473,28 @@ const App: FC = () => {
     clearMessages();
   }, []);
 
+  // Debounced scroll function for smoother performance
+  const debouncedScroll = useCallback(() => {
+    let timeoutId: number;
+    return () => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        if (messagesEndRef.current) {
+          messagesEndRef.current.scrollIntoView({ 
+            behavior: 'smooth',
+            block: 'end',
+            inline: 'nearest'
+          });
+        }
+      }, 50); // Small delay to batch rapid updates
+    };
+  }, []);
+
+  // Auto-scroll to bottom when new messages are added
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    const scrollToBottom = debouncedScroll();
+    requestAnimationFrame(scrollToBottom);
+  }, [messages, debouncedScroll]);
 
   useEffect(() => {
     saveMessages(messages);
@@ -1071,12 +1090,12 @@ const App: FC = () => {
                 {selectedCapability === 'engagement' ? (
                   <PatientEngagement />
                 ) : (
-                  <div className="bg-white rounded-lg shadow-md flex flex-col h-full relative">
-                    <div className="flex-1 overflow-y-auto p-4 space-y-4 hide-scrollbar">
-                      {messages.length === 0 ? (
+                  <div className="bg-white rounded-lg shadow-md flex flex-col h-full relative performance-optimized">
+                    <div className="flex-1 overflow-y-auto p-4 space-y-4 hide-scrollbar chat-container smooth-scroll">
+                      {messages.length === 0 && !showFileTypeModal ? (
                         <div className="flex flex-col items-center justify-center h-full text-center text-gray-500 space-y-4">
-                          <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-700 rounded-full flex items-center justify-center shadow-lg animate-professional-pulse">
-                            <Heart size={32} className="text-white animate-heartbeat" />
+                          <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-700 rounded-full flex items-center justify-center shadow-lg animate-professional-pulse">
+                            <Heart size={30} className="text-white animate-heartbeat" />
                           </div>
                           <div>
                             <div className={`inline-block px-3 py-1 rounded-full text-sm font-medium mb-3 ${getCapabilityInfo(selectedCapability).bgColor} ${getCapabilityInfo(selectedCapability).color}`}>
@@ -1094,14 +1113,14 @@ const App: FC = () => {
                             <div className="mt-4 flex items-center justify-center">
                               <button
                                 onClick={() => setShowCapabilitySelector(true)}
-                                className="flex items-center gap-2 px-3 py-2 text-sm text-blue-600 hover:text-gray-800 hover:bg-blue-400 rounded-lg transition-colors"
+                                className="flex items-center gap-2 px-3 py-2 text-sm text-blue-600 hover:text-gray-800 hover:bg-blue-400 rounded-lg transition-all duration-300 shadow-md shadow-blue-400 shine-effect relative overflow-hidden hover:shadow-lg hover:shadow-blue-500/50"
                               >
-                                <Settings size={16} />
+                                <Settings size={16}/>
                                 Change Assistant Mode
                               </button>
                             </div>
                           </div>
-                          <div className="flex items-center space-x-2 text-amber-600">
+                          <div className="flex items-center space-x-2 text-amber-600 animate-pulse">
                             <AlertCircle size={16} />
                             <span className="text-sm">For healthcare professionals only.</span>
                           </div>
@@ -1246,6 +1265,8 @@ const App: FC = () => {
                             <Upload size={20} className={`${!selectedCapability ? 'text-gray-400' : 'text-primary-600'}`} />
                           </span>
                         </label>
+                        
+
                         {/* Upload Progress Bar */}
                         {uploading && (
                           <div className="w-32 h-2 bg-gray-200 rounded-full overflow-hidden mr-2">
@@ -1349,7 +1370,7 @@ const App: FC = () => {
             </div>
           )}
 
-          <footer className="py-3 px-4 text-center text-sm text-gray-500 border-t border-gray-200">
+          <footer className="py-1 px-4 text-center text-sm text-amber-600 border-t border-gray-200">
             <p>© 2025 Healthcare Chatbot. {selectedCapability === 'engagement' ? 'Patient Engagement' : 'Assistance For Professional Medical Advice.'}</p>
           </footer>
         </div>

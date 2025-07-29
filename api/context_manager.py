@@ -127,28 +127,54 @@ class ContextManager:
         if not context.conversation_history:
             return analysis
         
-        # Calculate relevance to recent conversation
-        recent_turns = context.conversation_history[-3:]  # Last 3 turns
-        max_relevance = 0.0
-        most_relevant_context = None
+        # Check for follow-up indicators in the current query
+        follow_up_indicators = [
+            'above', 'this', 'that', 'it', 'the condition', 'the problem', 'the issue',
+            'what about', 'how about', 'and', 'also', 'too', 'treatment plan for',
+            'give me', 'provide', 'suggest', 'recommend'
+        ]
         
-        for turn in recent_turns:
-            relevance = self._calculate_query_relevance(current_query, turn.user_message, turn.ai_response)
-            if relevance > max_relevance:
-                max_relevance = relevance
-                most_relevant_context = turn
+        has_follow_up_indicators = any(indicator in current_query.lower() for indicator in follow_up_indicators)
         
-        analysis['relevance_score'] = max_relevance
-        analysis['is_follow_up'] = max_relevance > self.relevance_threshold
-        
-        if analysis['is_follow_up']:
+        if has_follow_up_indicators:
+            # For follow-up queries, prioritize the MOST RECENT conversation turn
+            most_recent_turn = context.conversation_history[-1]
+            relevance = self._calculate_query_relevance(current_query, most_recent_turn.user_message, most_recent_turn.ai_response)
+            
+            analysis['relevance_score'] = relevance
+            analysis['is_follow_up'] = True
             analysis['context_type'] = 'follow_up'
-            analysis['relevant_context'] = [most_relevant_context]
+            analysis['relevant_context'] = [most_recent_turn]
             analysis['suggested_context'] = {
-                'previous_ai_message': most_relevant_context.ai_response,
-                'previous_user_message': most_relevant_context.user_message,
-                'capability': most_relevant_context.capability
+                'previous_ai_message': most_recent_turn.ai_response,
+                'previous_user_message': most_recent_turn.user_message,
+                'capability': most_recent_turn.capability
             }
+            
+            logger.info(f"Follow-up query detected, using most recent context: {most_recent_turn.user_message[:50]}...")
+        else:
+            # For non-follow-up queries, check relevance to recent conversation (last 3 turns)
+            recent_turns = context.conversation_history[-3:]  # Last 3 turns
+            max_relevance = 0.0
+            most_relevant_context = None
+            
+            for turn in recent_turns:
+                relevance = self._calculate_query_relevance(current_query, turn.user_message, turn.ai_response)
+                if relevance > max_relevance:
+                    max_relevance = relevance
+                    most_relevant_context = turn
+            
+            analysis['relevance_score'] = max_relevance
+            analysis['is_follow_up'] = max_relevance > self.relevance_threshold
+            
+            if analysis['is_follow_up']:
+                analysis['context_type'] = 'follow_up'
+                analysis['relevant_context'] = [most_relevant_context]
+                analysis['suggested_context'] = {
+                    'previous_ai_message': most_relevant_context.ai_response,
+                    'previous_user_message': most_relevant_context.user_message,
+                    'capability': most_relevant_context.capability
+                }
         
         # Check if query references patient info
         if context.patient_info and self._references_patient_info(current_query, context.patient_info):
@@ -161,7 +187,14 @@ class ContextManager:
             analysis['suggested_context']['file_context'] = context.file_context
             analysis['suggested_context']['file_findings'] = context.last_file_findings
         
-        logger.info(f"Context analysis for session {session_id}: {analysis['context_type']}, relevance: {analysis['relevance_score']:.2f}")
+        # Log detailed context analysis for debugging
+        if analysis['is_follow_up'] and analysis['relevant_context']:
+            relevant_turn = analysis['relevant_context'][0]
+            logger.info(f"Context analysis for session {session_id}: {analysis['context_type']}, relevance: {analysis['relevance_score']:.2f}")
+            logger.info(f"Selected context: User: '{relevant_turn.user_message[:100]}...' | AI: '{relevant_turn.ai_response[:100]}...'")
+        else:
+            logger.info(f"Context analysis for session {session_id}: {analysis['context_type']}, relevance: {analysis['relevance_score']:.2f} (no follow-up context)")
+        
         return analysis
     
     def generate_contextual_prompt(self, session_id: str, current_query: str, 
@@ -220,10 +253,6 @@ class ContextManager:
         current_tokens += self._count_tokens(query_text)
         prompt_parts.append(query_text)
         
-        # Add token usage info for debugging
-        token_info = f"\n[TOKEN USAGE: {current_tokens}/{self.max_tokens}]"
-        prompt_parts.append(token_info)
-        
         # Combine all parts
         final_prompt = "\n\n".join(prompt_parts)
         
@@ -263,9 +292,16 @@ class ContextManager:
         relevance = len(intersection) / len(current_words)
         
         # Boost relevance for follow-up indicators
-        follow_up_indicators = ['this', 'that', 'it', 'the', 'what about', 'how about', 'and', 'also', 'too']
-        if any(indicator in current_query.lower() for indicator in follow_up_indicators):
-            relevance += 0.2
+        follow_up_indicators = [
+            'above', 'this', 'that', 'it', 'the condition', 'the problem', 'the issue',
+            'what about', 'how about', 'and', 'also', 'too', 'treatment plan for',
+            'give me', 'provide', 'suggest', 'recommend'
+        ]
+        
+        # Check for follow-up indicators and boost relevance significantly
+        follow_up_count = sum(1 for indicator in follow_up_indicators if indicator in current_query.lower())
+        if follow_up_count > 0:
+            relevance += (0.3 * follow_up_count)  # Boost by 0.3 for each indicator found
         
         return min(relevance, 1.0)
     

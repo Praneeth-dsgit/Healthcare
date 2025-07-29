@@ -2,16 +2,26 @@ import pymysql
 import os
 import re
 import json
+import traceback
 from typing import List, Dict, Optional
 from dotenv import load_dotenv
 import openai
 import logging
+from datetime import datetime, timedelta
 
 # Load environment variables
 load_dotenv()
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
+# Configure logging to write to app.log file (only if not already configured)
+if not logging.getLogger().handlers:
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler('app.log'),
+            logging.StreamHandler()  # Also log to console
+        ]
+    )
 logger = logging.getLogger(__name__)
 
 # OpenAI Configuration
@@ -41,17 +51,22 @@ DB_CONFIG = {
 class DatabaseAgent:
     def __init__(self):
         self.schema_cache = None
+        logger.info("DatabaseAgent instance created successfully")
     
     def get_database_schema(self):
         """Dynamically retrieve the actual database schema"""
         if self.schema_cache:
+            logger.info("Using cached schema")
             return self.schema_cache
             
         try:
+            logger.info("=== DATABASE CONNECTION START ===")
+            logger.info(f"Connecting to database with config: {DB_CONFIG}")
             conn = pymysql.connect(**DB_CONFIG)
             cursor = conn.cursor()
             
             # Get all tables
+            logger.info("Executing SHOW TABLES...")
             cursor.execute("SHOW TABLES")
             tables = [row[0] for row in cursor.fetchall()]
             
@@ -60,6 +75,7 @@ class DatabaseAgent:
             schema_info = {}
             for table in tables:
                 # Get column information for each table
+                logger.info(f"Getting schema for table: {table}")
                 cursor.execute(f"DESCRIBE {table}")
                 columns = cursor.fetchall()
                 schema_info[table] = {
@@ -80,10 +96,13 @@ class DatabaseAgent:
             conn.close()
             
             self.schema_cache = schema_info
+            logger.info("=== DATABASE CONNECTION SUCCESS ===")
             return schema_info
             
         except Exception as e:
             logger.error(f"Error retrieving schema: {e}")
+            logger.error(f"Full traceback: {traceback.format_exc()}")
+            logger.info("=== DATABASE CONNECTION FAILED ===")
             return {}
     
     def format_schema_for_gpt(self, schema):
@@ -134,46 +153,96 @@ class DatabaseAgent:
         return True, "Valid"
     
     def generate_sql(self, question):
-        """Generate SQL using GPT"""
+        """Generate SQL using GPT with simple prompt"""
+        logger.info("=== SQL GENERATION START ===")
+        logger.info(f"Getting database schema...")
         schema = self.get_database_schema()
-        formatted_schema = self.format_schema_for_gpt(schema)
+        logger.info(f"Schema keys: {list(schema.keys()) if schema else 'No schema'}")
         
-        prompt = f"""You are a database assistant that generates safe SQL queries.
+        formatted_schema = self.format_schema_for_gpt(schema)
+        logger.info(f"Formatted schema length: {len(formatted_schema)}")
+        
+        # Use simple prompt without normalization
+        prompt = f"""You are a database assistant that generates ONLY SELECT queries for data retrieval.
+
+CRITICAL: You must ONLY generate SELECT statements. NEVER generate INSERT, UPDATE, DELETE, DROP, CREATE, or ALTER statements.
 
 {formatted_schema}
 
-INSTRUCTIONS:
-1. Generate ONLY SELECT queries - no INSERT/UPDATE/DELETE
-2. Use proper JOIN clauses when needed
-3. Return only the SQL query, no explanations
-4. Use LIMIT to prevent large result sets
-5. Handle common date/time queries appropriately
-6. Use appropriate WHERE clauses for filtering
+MANDATORY SQL GENERATION RULES:
+1. ALWAYS start with SELECT - this is the ONLY allowed statement type
+2. NEVER use INSERT, UPDATE, DELETE, DROP, CREATE, ALTER, TRUNCATE
+3. Use proper JOIN clauses when querying related tables
+4. Use appropriate WHERE clauses for filtering
+5. Add LIMIT 100 to prevent large result sets
+6. Use DATE() function for date comparisons
+7. Use LIKE for partial string matches
+8. Use UPPER() or LOWER() for case-insensitive searches
 
-USER QUESTION: "{question}"
+SCHEMA RELATIONSHIPS:
+- doctors table has: id, name, department, specialization
+- patients table has: id, name, condition, age, gender
+- appointments table has: id, patient_id, doctor_id, appointment_time, status
+- departments table has: id, name, description
 
-SQL Query:"""
+Generate ONLY a SELECT query for: "{question}"
 
-        try:
-            response = openai.ChatCompletion.create(
-                model="gpt-4",
-                messages=[{"role": "user", "content": prompt}],
-                max_tokens=200,
-                temperature=0.1
-            )
-            
-            sql_query = response.choices[0].message['content'].strip()
-            
-            # Remove markdown formatting if present
-            sql_query = re.sub(r'^```sql\s*', '', sql_query)
-            sql_query = re.sub(r'```$', '', sql_query)
-            sql_query = sql_query.strip()
-            
-            return sql_query
-            
-        except Exception as e:
-            logger.error(f"Error generating SQL: {e}")
-            return None
+SQL Query (SELECT ONLY):"""
+        
+        logger.info(f"Original question: '{question}'")
+        logger.info(f"Prompt length: {len(prompt)}")
+        
+        # Try up to 3 times to generate valid SQL
+        for attempt in range(3):
+            try:
+                logger.info(f"Attempt {attempt + 1}: Calling OpenAI API...")
+                response = openai.ChatCompletion.create(
+                    model="gpt-4",
+                    messages=[{"role": "user", "content": prompt}],
+                    max_tokens=200,
+                    temperature=0.1
+                )
+                
+                sql_query = response.choices[0].message['content'].strip()
+                logger.info(f"Raw OpenAI response: '{sql_query}'")
+                
+                # Remove markdown formatting if present
+                sql_query = re.sub(r'^```sql\s*', '', sql_query)
+                sql_query = re.sub(r'```$', '', sql_query)
+                sql_query = sql_query.strip()
+                
+                logger.info(f"Generated SQL (attempt {attempt + 1}): '{sql_query}'")
+                
+                # Validate the generated SQL
+                logger.info(f"Validating SQL...")
+                is_valid, validation_message = self.validate_sql(sql_query)
+                logger.info(f"Validation result: {is_valid}, message: {validation_message}")
+                
+                if is_valid:
+                    logger.info("=== SQL GENERATION SUCCESS ===")
+                    return sql_query
+                else:
+                    logger.warning(f"Invalid SQL generated (attempt {attempt + 1}): {validation_message}")
+                    if attempt < 2:  # Not the last attempt
+                        # Add correction instruction to the prompt
+                        prompt += f"\n\nCORRECTION NEEDED: The previous SQL was invalid: {validation_message}. Please generate a valid SELECT query only."
+                        logger.info("Added correction instruction to prompt")
+                        continue
+                    else:
+                        logger.error(f"Failed to generate valid SQL after 3 attempts. Last error: {validation_message}")
+                        logger.info("=== SQL GENERATION FAILED ===")
+                        return None
+                
+            except Exception as e:
+                logger.error(f"Error generating SQL (attempt {attempt + 1}): {e}")
+                logger.error(f"Full traceback: {traceback.format_exc()}")
+                if attempt == 2:  # Last attempt
+                    logger.info("=== SQL GENERATION FAILED ===")
+                    return None
+                continue
+        
+        logger.info("=== SQL GENERATION FAILED ===")
+        return None
     
     def execute_query(self, sql_query):
         """Execute SQL query safely"""
@@ -237,18 +306,23 @@ SQL Query:"""
     def process_question_for_frontend(self, question, conversation_context=None):
         """Process question and return results in format expected by frontend"""
         try:
+            logger.info("=== DATABASE AGENT PROCESSING START ===")
             logger.info(f"Processing frontend question: '{question}'")
             if conversation_context:
                 logger.info(f"Conversation context: '{conversation_context[:200]}...'")
             
             # Check if this is a notification command
+            logger.info("Checking if this is a notification command...")
             if self.is_notification_command(question):
+                logger.info("This is a notification command, handling...")
                 return self.handle_notification_command(question, conversation_context)
             
+            logger.info("This is a database query, generating SQL...")
             # Generate SQL query
             sql_query = self.generate_sql(question)
             
             if not sql_query:
+                logger.error("Failed to generate SQL query")
                 return {
                     'success': False,
                     'error': 'Failed to generate SQL query',
@@ -258,6 +332,7 @@ SQL Query:"""
             logger.info(f"Generated SQL: {sql_query}")
             
             # Execute query
+            logger.info("Executing SQL query...")
             results, error = self.execute_query(sql_query)
             
             if error:
@@ -273,6 +348,7 @@ SQL Query:"""
                 logger.info(f"Sample result: {results[0]}")
             
             if not results:
+                logger.info("Query returned no results")
                 return {
                     'success': True,
                     'message': 'Query executed successfully but returned no results',
@@ -280,6 +356,7 @@ SQL Query:"""
                 }
             
             # Convert results to list of dictionaries for JSON serialization
+            logger.info("Formatting results for frontend...")
             formatted_results = []
             for row in results:
                 formatted_row = {}
@@ -294,17 +371,58 @@ SQL Query:"""
             logger.info(f"Returning {len(formatted_results)} results to frontend")
             
             # Format results using LLM for natural language
+            logger.info("Formatting results with LLM...")
+            try:
             formatted_natural_results = self.format_results_with_llm(formatted_results, question)
+            except Exception as e:
+                logger.error(f"LLM formatting failed: {e}")
+                # Use simple fallback formatting
+                formatted_natural_results = []
+                for i, result in enumerate(formatted_results, 1):
+                    if isinstance(result, dict):
+                        parts = []
+                        for key, value in result.items():
+                            if value is not None:
+                                formatted_key = key.replace('_', ' ').title()
+                                parts.append(f"{formatted_key}: {value}")
+                        formatted_natural_results.append(f"{i}. {', '.join(parts)}")
+                    else:
+                        formatted_natural_results.append(f"{i}. {str(result)}")
             
+            # Validate that we have complete results
+            if not formatted_natural_results or len(formatted_natural_results) == 0:
+                logger.warning("No natural results generated, using fallback")
+                formatted_natural_results = [f"Found {len(formatted_results)} result(s) for your query."]
+            
+            # Ensure all results are complete (not truncated)
+            validated_results = []
+            for i, result in enumerate(formatted_natural_results):
+                if result and len(result.strip()) > 0:
+                    # Check for common truncation indicators
+                    if not (result.endswith('...') or result.endswith('..') or len(result) < 10):
+                        validated_results.append(result)
+                    else:
+                        logger.warning(f"Result {i} appears truncated: {result}")
+                        # Use fallback for this result
+                        if i < len(formatted_results):
+                            fallback = f"Result {i+1}: {', '.join([f'{k}: {v}' for k, v in formatted_results[i].items() if v])}"
+                            validated_results.append(fallback)
+            
+            if not validated_results:
+                validated_results = [f"Found {len(formatted_results)} result(s) for your query."]
+            
+            logger.info(f"Returning {len(validated_results)} validated natural results")
+            logger.info("=== DATABASE AGENT PROCESSING COMPLETE ===")
             return {
                 'success': True,
                 'results': formatted_results,  # Keep raw results for debugging
-                'natural_results': formatted_natural_results,  # Add natural language results
+                'natural_results': validated_results,  # Add validated natural language results
                 'count': len(formatted_results)
             }
             
         except Exception as e:
             logger.error(f"Error processing frontend question: {e}")
+            logger.error(f"Full traceback: {traceback.format_exc()}")
             return {
                 'success': False,
                 'error': f"Internal server error: {str(e)}",
@@ -340,22 +458,33 @@ Follow these guidelines:
 Return only the formatted sentences, one per line, without any additional formatting or numbering.
 """
 
-            # Call OpenAI API
+            # Call OpenAI API with higher token limit to prevent truncation
             response = openai.ChatCompletion.create(
                 model="gpt-4",
                 messages=[
                     {"role": "system", "content": "You are a helpful assistant that converts database results into natural language."},
                     {"role": "user", "content": prompt}
                 ],
-                max_tokens=200,
-                temperature=0.1
+                max_tokens=2048,  # Increased from 512 to prevent truncation
+                temperature=0.1,
+                timeout=30  # Add timeout to prevent hanging
             )
             
             # Parse the response
             formatted_text = response.choices[0].message['content'].strip()
             
+            # Check if response was truncated
+            if formatted_text.endswith('...') or len(formatted_text) < 50:
+                logger.warning("LLM response appears to be truncated, using fallback formatting")
+                raise Exception("Response truncated")
+            
             # Split into individual sentences/results
             natural_results = [line.strip() for line in formatted_text.split('\n') if line.strip()]
+            
+            # Ensure we have at least one result for each database result
+            if len(natural_results) < len(results):
+                logger.warning(f"LLM returned {len(natural_results)} results for {len(results)} database results, using fallback")
+                raise Exception("Incomplete response")
             
             logger.info(f"LLM formatted {len(results)} results into {len(natural_results)} natural language responses")
             
@@ -365,19 +494,24 @@ Return only the formatted sentences, one per line, without any additional format
             logger.error(f"Error formatting results with LLM: {e}")
             # Fallback to simple formatting if LLM fails
             fallback_results = []
-            for result in results:
+            for i, result in enumerate(results, 1):
                 if isinstance(result, dict):
-                    # Simple fallback formatting
+                    # Simple fallback formatting with numbering
                     parts = []
                     for key, value in result.items():
                         if value is not None:
                             formatted_key = key.replace('_', ' ').title()
                             parts.append(f"{formatted_key}: {value}")
-                    fallback_results.append(", ".join(parts))
+                    fallback_results.append(f"{i}. {', '.join(parts)}")
                 else:
-                    fallback_results.append(str(result))
+                    fallback_results.append(f"{i}. {str(result)}")
             
-            return fallback_results if fallback_results else ["Results available but formatting failed."]
+            # Ensure we always return complete results
+            if not fallback_results:
+                fallback_results = ["Results available but formatting failed."]
+            
+            logger.info(f"Using fallback formatting for {len(results)} results")
+            return fallback_results
 
     def is_notification_command(self, question: str) -> bool:
         """Check if the question is a notification command"""
@@ -1259,4 +1393,5 @@ def main():
             print("❌ Invalid option. Please select 1-4.")
 
 if __name__ == "__main__":
+    logger.info("Database Agent module loaded successfully")
     main()

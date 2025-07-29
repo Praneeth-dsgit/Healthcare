@@ -521,6 +521,13 @@ Radiological Standards:
 - Follow ACR/ESR/IRIA reporting guidelines with demographic modifications
 - Limit to 400 words
 
+**STRICT RULES & SAFETY PROTOCOLS:** 
+- Limit response to a MAXIMUM of 200 words for comprehensive coverage
+- Pause between each step of the response
+- Include appropriate disclaimers for off-label medication use or experimental treatments
+- Audience: Healthcare professionals ONLY
+- Always consider patient safety first - when in doubt, recommend consultation with specialist
+
 STRICT RULE: If this query is NOT about medical imaging, respond with: "I specialize in radiology and medical imaging only. Please switch to General Medical or Lab mode for this question."
 
 Professional Focus: Board-certified radiologist with patient-specific interpretation expertise."""
@@ -583,6 +590,12 @@ Laboratory Standards:
 - Consider population and demographic-specific reference ranges
 - Limit to 400 words
 
+**STRICT RULES & SAFETY PROTOCOLS:** 
+- Limit response to a MAXIMUM of 200 words for comprehensive coverage
+- Pause between each step of the response
+- Include appropriate disclaimers for off-label medication use or experimental treatments
+- Audience: Healthcare professionals ONLY
+- Always consider patient safety first - when in doubt, recommend consultation with specialist
 STRICT RULE: If this query is NOT about laboratory testing or result interpretation, respond with: "I specialize in laboratory medicine only. Please switch to General Medical or Radiology mode for this question."
 
 Expert Level: Clinical pathologist with patient-contextualized interpretation expertise."""
@@ -608,7 +621,15 @@ I can only provide general guidance. For specialized assistance, please select a
 - Radiology Assistance for medical imaging interpretation  
 - Lab Interpretation for laboratory result analysis
 
-Please switch to the appropriate mode for detailed, expert-level assistance."""
+Please switch to the appropriate mode for detailed, expert-level assistance.
+
+**STRICT RULES & SAFETY PROTOCOLS:** 
+- Limit response to a MAXIMUM of 200 words for comprehensive coverage
+- Pause between each step of the response
+- Include appropriate disclaimers for off-label medication use or experimental treatments
+- Audience: Healthcare professionals ONLY
+- Always consider patient safety first - when in doubt, recommend consultation with specialist
+"""
 
     return previous_section + prompt + file_section
 
@@ -1286,15 +1307,46 @@ def login():
     # For now, just return a success message. Token/session can be added later.
     return jsonify({'message': 'Login successful.'}), 200
 
+@app.route('/api/patient-engagement/test', methods=['POST'])
+def patient_engagement_test():
+    """Test endpoint to verify if requests are reaching the backend"""
+    try:
+        logger.info("=== PATIENT ENGAGEMENT TEST ENDPOINT CALLED ===")
+        logger.info(f"Request method: {request.method}")
+        logger.info(f"Request headers: {dict(request.headers)}")
+        
+        data = request.get_json()
+        logger.info(f"Received data: {data}")
+        
+        return jsonify({
+            'success': True,
+            'message': 'Test endpoint reached successfully',
+            'received_data': data
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Test endpoint error: {e}")
+        return jsonify({'error': 'Test endpoint error'}), 500
+
 @app.route('/api/patient-engagement/query', methods=['POST'])
 def patient_engagement_query():
     """Handle patient engagement database queries"""
     try:
+        logger.info("=== PATIENT ENGAGEMENT QUERY ENDPOINT CALLED ===")
+        logger.info(f"Request method: {request.method}")
+        logger.info(f"Request headers: {dict(request.headers)}")
+        
         data = request.get_json()
+        logger.info(f"Received data: {data}")
+        
         query = data.get('query', '').strip()
         conversation_context = data.get('conversation_context', '').strip()
         
+        logger.info(f"Extracted query: '{query}'")
+        logger.info(f"Extracted conversation_context: '{conversation_context[:100]}...'")
+        
         if not query:
+            logger.warning("No query provided")
             return jsonify({'error': 'Query is required'}), 400
         
         # Import the DatabaseAgent functionality
@@ -1303,8 +1355,12 @@ def patient_engagement_query():
         # Create agent instance
         agent = DatabaseAgent()
         
+        logger.info("DatabaseAgent created successfully")
+        
         # Process the query using the frontend-specific method with context
         result = agent.process_question_for_frontend(query, conversation_context)
+        
+        logger.info(f"DatabaseAgent result: {result}")
         
         if result['success']:
             return jsonify(result), 200
@@ -1313,6 +1369,7 @@ def patient_engagement_query():
         
     except Exception as e:
         logger.error(f"Patient engagement query error: {e}")
+        logger.error(f"Full traceback: {traceback.format_exc()}")
         return jsonify({'error': 'Internal server error'}), 500
 
 @app.route('/api/patient-engagement/daily-appointments', methods=['GET'])
@@ -1429,6 +1486,155 @@ def send_bulk_appointment_reminders():
     except Exception as e:
         logger.error(f"Bulk appointment reminders error: {e}")
         return jsonify({'error': 'Internal server error'}), 500
+
+@app.route('/api/faqs/generate', methods=['POST'])
+def generate_dynamic_faqs():
+    """
+    Generate dynamic FAQs based on query history for a specific capability
+    """
+    try:
+        data = request.get_json()
+        capability = data.get('capability')
+        session_id = data.get('session_id')
+        
+        if not capability or not session_id:
+            return jsonify({
+                'success': False,
+                'error': 'Missing capability or session_id'
+            }), 400
+        
+        # Get query history from context manager
+        context_data = context_manager.get_context(session_id)
+        if not context_data or not context_data.get('messages'):
+            # Return default FAQs if no history
+            default_faqs = get_default_faqs(capability)
+            return jsonify({
+                'success': True,
+                'faqs': default_faqs
+            })
+        
+        # Extract user queries from history
+        user_queries = []
+        for message in context_data['messages']:
+            if message.get('role') == 'user' and message.get('content'):
+                user_queries.append(message['content'])
+        
+        if not user_queries:
+            # Return default FAQs if no user queries
+            default_faqs = get_default_faqs(capability)
+            return jsonify({
+                'success': True,
+                'faqs': default_faqs
+            })
+        
+        # Generate dynamic FAQs using LLM
+        dynamic_faqs = generate_faqs_from_history(user_queries, capability)
+        
+        return jsonify({
+            'success': True,
+            'faqs': dynamic_faqs
+        })
+        
+    except Exception as e:
+        logger.error(f"Error generating dynamic FAQs: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to generate FAQs'
+        }), 500
+
+def get_default_faqs(capability):
+    """Return default FAQs for each capability"""
+    default_faqs = {
+        'radiology': [
+            "How to interpret a chest X-ray?",
+            "What are the signs of pneumonia on imaging?",
+            "How to identify fractures on X-ray?",
+            "What does a normal CT scan of the brain look like?",
+            "How to read an MRI of the spine?",
+            "What are the radiological signs of stroke?",
+            "How to interpret abdominal ultrasound?",
+            "What imaging is best for joint problems?",
+            "How to identify kidney stones on CT?",
+            "What are the signs of appendicitis on imaging?"
+        ],
+        'lab': [
+            "How to interpret CBC results?",
+            "What do elevated liver enzymes mean?",
+            "How to read lipid panel results?",
+            "What are normal kidney function values?",
+            "How to interpret thyroid function tests?",
+            "What does high CRP indicate?",
+            "How to read blood glucose levels?",
+            "What are normal electrolyte ranges?",
+            "How to interpret cardiac enzyme results?",
+            "What does elevated troponin mean?"
+        ],
+        'general': [
+            "What are the symptoms of diabetes?",
+            "How can I lower my blood pressure?",
+            "What causes frequent headaches?",
+            "What should I do if I have a fever?",
+            "What are the side effects of paracetamol?",
+            "How do I know if I have COVID-19?",
+            "What is a normal heart rate?",
+            "How much sleep do adults need?",
+            "What are the signs of a heart attack?",
+            "How can I treat a cold at home?"
+        ]
+    }
+    return default_faqs.get(capability, default_faqs['general'])
+
+def generate_faqs_from_history(user_queries, capability):
+    """
+    Generate dynamic FAQs based on user query history using LLM
+    """
+    try:
+        # Create a summary of user queries
+        query_summary = "\n".join([f"- {query}" for query in user_queries[-20:]])  # Last 20 queries
+        
+        # Create prompt for FAQ generation
+        prompt = f"""Based on the following user query history for {capability} capability, generate 10 relevant and helpful FAQ questions that would be useful for similar future queries.
+
+User Query History:
+{query_summary}
+
+Capability: {capability}
+
+Generate 10 FAQ questions that:
+1. Are relevant to the types of questions users are asking
+2. Cover common patterns in the query history
+3. Are specific to {capability} medical domain
+4. Are phrased as natural questions
+5. Would help users get quick answers to common concerns
+
+Return only the questions, one per line, without numbering or additional text."""
+
+        response = openai.ChatCompletion.create(
+            model="gpt-4",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=200,
+            temperature=0.7
+        )
+        
+        # Parse the response and extract questions
+        faq_text = response.choices[0].message.content.strip()
+        faqs = [line.strip() for line in faq_text.split('\n') if line.strip()]
+        
+        # Clean up the FAQs (remove numbering, etc.)
+        cleaned_faqs = []
+        for faq in faqs:
+            # Remove common prefixes like "1.", "Q:", etc.
+            faq = faq.lstrip('0123456789.- ').lstrip('Q:').lstrip('q:').strip()
+            if faq and len(faq) > 10:  # Ensure it's a meaningful question
+                cleaned_faqs.append(faq)
+        
+        # Return top 10 FAQs
+        return cleaned_faqs[:10]
+        
+    except Exception as e:
+        logger.error(f"Error generating FAQs from history: {str(e)}")
+        # Return default FAQs as fallback
+        return get_default_faqs(capability)
 
 if __name__ == '__main__':
     print(f"API running at http://localhost:{os.getenv('PORT', '5000')}")

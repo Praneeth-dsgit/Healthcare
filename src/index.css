@@ -178,10 +178,123 @@ body {
   animation: professional-pulse 3s ease-in-out infinite;
 }
 
+/* Breathing Animation for Disclaimer Text */
+@keyframes breathing {
+  0%, 100% { 
+    opacity: 0.7;
+    transform: scale(1);
+  }
+  50% { 
+    opacity: 1;
+    transform: scale(1.02);
+  }
+}
+
+.animate-breathing {
+  animation: breathing 3s ease-in-out infinite;
+}
+
+/* Shining Effect Animation */
+@keyframes shine {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.shine-effect {
+  position: relative;
+  overflow: hidden;
+}
+
+.shine-effect::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.8),
+    transparent
+  );
+  transform: translateX(-100%);
+  animation: shine 2.5s ease-in-out infinite;
+  z-index: 1;
+}
+
+.shine-effect:hover::before {
+  animation-duration: 2s;
+}
+
+.shine-effect > * {
+  position: relative;
+  z-index: 2;
+}
+
+.shine-effect {
+  animation: pulse-border 2s ease-in-out infinite;
+}
+
+
+
 .hide-scrollbar::-webkit-scrollbar {
   display: none;
 }
 .hide-scrollbar {
   -ms-overflow-style: none;  /* IE and Edge */
   scrollbar-width: none;     /* Firefox */
+}
+
+/* Smooth streaming and container scaling */
+.chat-container {
+  scroll-behavior: smooth;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.message-container {
+  transition: all 0.2s ease-out;
+  will-change: transform, opacity;
+}
+
+.streaming-content {
+  transition: all 0.1s ease-out;
+  will-change: contents;
+}
+
+/* Optimize for smooth scrolling */
+.smooth-scroll {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Prevent layout shifts during streaming */
+.content-stable {
+  min-height: 1.2em;
+  line-height: 1.5;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+/* Ensure consistent message spacing */
+.message-spacing {
+  margin-bottom: 1rem;
+  transition: margin 0.2s ease-out;
+}
+
+/* Smooth container scaling */
+.container-scale {
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform;
+}
+
+/* Optimize animations for performance */
+.performance-optimized {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  perspective: 1000px;
 }

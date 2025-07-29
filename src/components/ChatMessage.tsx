@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import {UserCircle, FileText, Download, Copy, Stethoscope, Smile, Award, Brain, TestTube, Users } from 'lucide-react';
+import {UserCircle, FileText, Download, Copy, Stethoscope, Smile, Award, Brain, TestTube, Users, Pencil } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { Message } from '../types';
 import { formatTime } from '../utils/date';
@@ -89,7 +89,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewClick, onEd
   return (
     <div
       ref={messageRef}
-      className={`flex items-start space-x-3 ${isUser ? 'justify-end' : ''} mb-3`}
+      className={`flex items-start space-x-3 ${isUser ? 'justify-end' : ''} message-spacing message-container performance-optimized`}
       style={{ animation: 'fadeInUp 0.5s' }}
     >
       {!isUser && (
@@ -144,10 +144,10 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewClick, onEd
           )
         )}
         {isUser ? (
-          message.content ? <p className="whitespace-pre-wrap text-base leading-relaxed">{message.content}</p> : null
+          message.content ? <p className="whitespace-pre-wrap text-base leading-relaxed content-stable streaming-content">{message.content}</p> : null
         ) : (
           <>
-            <div className="prose prose-sm max-w-none">
+            <div className="prose prose-sm max-w-none streaming-content content-stable">
               <ReactMarkdown
                 components={{
                   a: ({node, ...props}) => <a {...props} className="text-blue-600 underline" target="_blank" rel="noopener noreferrer" />
@@ -191,11 +191,11 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewClick, onEd
         )}
         {isUser && onEdit && (
           <button
-            className="absolute top-2 right-2 p-1 rounded hover:bg-primary-200 text-xs text-primary-700"
+            className="absolute top-2 right-2 p-1 rounded hover:bg-blue-200 text-xs text-blue-700 bg-green-100 border border-blue-200"
             title="Edit message"
             onClick={() => onEdit(message.id)}
           >
-            Edit
+            <Pencil size={16} />
           </button>
         )}
       </div>
