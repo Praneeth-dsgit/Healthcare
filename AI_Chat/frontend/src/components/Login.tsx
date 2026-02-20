@@ -30,7 +30,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, onNavigateToSignup, redir
     setShowUserNotFoundDialog(false);
     
     try {
-      const res = await fetch('http://localhost:5000/api/login', {
+      const res = await fetch('http://192.168.5.111:5000/api/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
@@ -66,7 +66,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, onNavigateToSignup, redir
         roleService.getDefaultRoute().then((defaultRoute) => {
           // Check user role to determine if we should store patient_id
           // Only store patient_id if user is actually a patient
-          fetch('http://localhost:5000/api/user-role', {
+          fetch('http://192.168.5.111:5000/api/user-role', {
             method: 'GET',
             headers: {
               'Content-Type': 'application/json',
