@@ -1,20 +1,22 @@
 import React from 'react';
-import { Stethoscope } from 'lucide-react';
 
 const AuthHeader: React.FC = () => {
   return (
-    <header className="bg-white shadow-sm border-b border-gray-200 flex justify-center gap-3 p-4">
-      <div className="relative flex items-center justify-center">
-        <div className="w-11 h-11 bg-gradient-to-br from-blue-600 to-blue-800 rounded-xl flex items-center justify-center shadow-lg">
-          <Stethoscope className="h-6 w-6 text-white" />
+    <header className="app-topbar sticky top-0 z-40">
+      <div className="w-full px-4 sm:px-6 lg:px-8 py-4">
+        <div className="flex items-center">
+          <div className="flex items-center gap-3">
+            <div className="brand-mark flex h-10 w-10 items-center justify-center rounded-xl text-sm font-black text-white">
+              AH
+            </div>
+            <div>
+            <h1 className="brand-title text-xl font-extrabold">
+              Acufore Health
+            </h1>
+            <p className="text-xs font-semibold text-slate-500">Healthcare Management</p>
+            </div>
+          </div>
         </div>
-        <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white animate-pulse"></div>
-      </div>
-      <div>
-        <h1 className="text-xl font-bold text-blue-600">
-          Acufore Health
-        </h1>
-        <p className="text-xs text-gray-500">Healthcare Management</p>
       </div>
     </header>
   );

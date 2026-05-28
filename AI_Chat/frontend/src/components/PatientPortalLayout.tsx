@@ -205,34 +205,38 @@ const PatientPortalLayout: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50">
+    <div className="app-shell flex h-screen flex-col text-slate-900">
       {/* Top Header Bar */}
-      <div className="bg-white border-b border-gray-200 shadow-sm">
-        <div className="flex items-center">
-          <div className="px-4 sm:px-6 lg:px-8 py-4">
-              <h1 className="text-xl font-bold text-blue-600">Acufore Health</h1>
-              <p className="text-xs text-gray-500">Healthcare Management</p>
-          </div>
-          <div className="h-12 w-px bg-gray-300"></div>
-          <div className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-            <div className="flex items-center justify-between">
+      <div className="app-topbar z-30">
+        <div className="flex flex-col lg:flex-row lg:items-center">
+          <div className="flex items-center gap-3 px-4 py-4 sm:px-6 lg:px-8">
+              <div className="brand-mark flex h-10 w-10 items-center justify-center rounded-xl text-sm font-black text-white">AH</div>
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">{getWelcomeMessage()}</h1>
-                <p className="text-sm text-gray-600 mt-1">
-                  Patient ID: <span className="font-mono">{patientId || 'Loading...'}</span>
+              <h1 className="brand-title text-xl font-extrabold">Acufore Health</h1>
+              <p className="text-xs font-semibold text-slate-500">Healthcare Management</p>
+              </div>
+          </div>
+          <div className="hidden h-12 w-px bg-slate-200 lg:block"></div>
+          <div className="mx-auto flex-1 px-4 pb-4 sm:px-6 lg:px-8 lg:py-4">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <p className="text-xs font-bold uppercase tracking-wide text-teal-700">Patient Portal</p>
+                <h1 className="truncate text-xl font-extrabold text-slate-950 sm:text-2xl">{getWelcomeMessage()}</h1>
+                <p className="mt-1 text-sm text-slate-500">
+                  Patient ID: <span className="rounded-md bg-slate-100 px-2 py-0.5 font-mono text-xs font-semibold text-slate-700">{patientId || 'Loading...'}</span>
                 </p>
               </div>
               {/* Top Right: Notifications and Profile */}
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-3">
                 {/* Notification Bell Button */}
                 <button
                   onClick={() => navigate('/portal/notifications')}
-                  className="relative p-2 hover:bg-gray-100 rounded-lg transition-all duration-200"
+                  className="ghost-button relative flex h-11 w-11 items-center justify-center rounded-xl"
                   title={`${unreadCount > 0 ? `${unreadCount} unread notification${unreadCount > 1 ? 's' : ''}` : 'Notifications'}`}
                 >
-                  <Bell size={20} className="text-gray-700" />
+                  <Bell size={20} className="text-slate-700" />
                   {unreadCount > 0 && (
-                    <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
+                    <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs font-bold text-white ring-2 ring-white">
                       {unreadCount > 9 ? '9+' : unreadCount}
                     </span>
                   )}
@@ -242,25 +246,25 @@ const PatientPortalLayout: React.FC = () => {
                 <div className="relative" ref={profileMenuRef}>
                   <button
                     onClick={() => setShowProfileMenu(!showProfileMenu)}
-                    className="flex items-center space-x-3 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                    className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white/75 px-3 py-2 transition-colors hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
                   >
-                    <div className="flex items-center space-x-2">
-                      <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+                    <div className="flex items-center gap-2">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-blue-100 to-teal-100">
                         <User className="w-6 h-6 text-blue-600" />
                       </div>
                       {loadingPatient ? (
                         <div className="text-left hidden sm:block">
-                          <div className="h-4 w-24 bg-gray-200 rounded animate-pulse mb-1"></div>
-                          <div className="h-3 w-32 bg-gray-200 rounded animate-pulse"></div>
+                          <div className="skeleton-line mb-1 h-4 w-24 rounded"></div>
+                          <div className="skeleton-line h-3 w-32 rounded"></div>
                         </div>
                       ) : (
                         <div className="text-left hidden sm:block">
-                          <p className="text-sm font-medium text-gray-900">
+                          <p className="text-sm font-bold text-slate-900">
                             {patientFirstName && patientLastName
                               ? `${patientFirstName} ${patientLastName}`
                               : patientFirstName || 'Patient'}
                           </p>
-                          <p className="text-xs text-gray-500">
+                          <p className="text-xs text-slate-500">
                             {patientEmail || 'No email'}
                           </p>
             </div>
@@ -278,15 +282,15 @@ const PatientPortalLayout: React.FC = () => {
                         className="fixed inset-0 z-10"
                         onClick={() => setShowProfileMenu(false)}
                       />
-                      <div className="absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-20">
+                      <div className="premium-card absolute right-0 z-20 mt-2 w-52 overflow-hidden rounded-xl">
                         <div className="py-1">
-                          <div className="px-4 py-3 border-b border-gray-200 sm:hidden">
-                            <p className="text-sm font-medium text-gray-900">
+                          <div className="border-b border-slate-100 px-4 py-3 sm:hidden">
+                            <p className="text-sm font-bold text-slate-900">
                               {patientFirstName && patientLastName
                                 ? `${patientFirstName} ${patientLastName}`
                                 : patientFirstName || 'Patient'}
                             </p>
-                            <p className="text-xs text-gray-500 mt-1">
+                            <p className="mt-1 text-xs text-slate-500">
                               {patientEmail || 'No email'}
                             </p>
                           </div>
@@ -295,7 +299,7 @@ const PatientPortalLayout: React.FC = () => {
                               navigate('/portal/profile');
                               setShowProfileMenu(false);
                             }}
-                            className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                            className="flex w-full items-center px-4 py-2.5 text-sm text-slate-700 transition-colors hover:bg-blue-50"
                           >
                             <User className="w-4 h-4 mr-2" />
                             View Profile
@@ -305,7 +309,7 @@ const PatientPortalLayout: React.FC = () => {
                               handleLogout();
                               setShowProfileMenu(false);
                             }}
-                            className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                            className="flex w-full items-center px-4 py-2.5 text-sm text-slate-700 transition-colors hover:bg-red-50 hover:text-red-700"
           >
                             <LogOut className="w-4 h-4 mr-2" />
                             Logout
@@ -324,8 +328,8 @@ const PatientPortalLayout: React.FC = () => {
       {/* Main Content Area with Sidebar */}
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar */}
-        <div className={`${sidebarOpen ? 'w-60' : 'w-20'} bg-white border-r border-gray-200 shadow-lg transition-all duration-300 flex flex-col`}>
-        <nav className="flex-1 p-4 space-y-2">
+        <div className={`${sidebarOpen ? 'w-60' : 'w-20'} sidebar-surface hidden flex-col transition-all duration-300 md:flex`}>
+        <nav className="flex-1 space-y-1.5 p-3">
           {menuItems.map((item) => {
             const Icon = item.icon;
             const isActive =
@@ -340,10 +344,10 @@ const PatientPortalLayout: React.FC = () => {
               <button
                 key={item.path}
                 onClick={() => navigate(item.path)}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 relative ${
+                className={`sidebar-link relative flex w-full items-center gap-3 px-4 py-3 text-left text-sm font-bold ${
                   isActive 
-                    ? 'bg-blue-600 text-white shadow-md hover:shadow-lg' 
-                    : 'text-gray-700 hover:bg-gray-100 hover:shadow-md hover:translate-x-1'
+                    ? 'sidebar-link-active' 
+                    : ''
                 }`}
               >
                 <Icon size={20} />
@@ -355,9 +359,9 @@ const PatientPortalLayout: React.FC = () => {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         {/* Main Content Area */}
-        <div className="flex-1 overflow-auto relative">
+        <div className="relative flex-1 overflow-auto">
           {location.pathname === '/portal/dashboard' || location.pathname === '/portal' ? (
             <PatientDashboard />
           ) : location.pathname === '/portal/profile' ? (
@@ -398,9 +402,9 @@ const PatientPortalLayout: React.FC = () => {
           <img
             src={AiAssistantIcon}
             alt="AI Assistant"
-            className="w-20 h-20 hover:scale-110 transition-all duration-300 drop-shadow-lg hover:drop-shadow-2xl rounded-full border-2 border-blue-900 hover:border-blue-700"
+            className="h-16 w-16 rounded-full border-2 border-white drop-shadow-xl transition-all duration-200 hover:scale-105"
           />
-          <span className="mt-2 text-lg font-bold bg-clip-text text-blue-900 hover:text-blue-700 transition-colors duration-200">
+          <span className="mt-2 block text-sm font-extrabold text-slate-900 transition-colors duration-200 hover:text-blue-700">
             Assistant
           </span>
         </button>        
@@ -418,16 +422,16 @@ const PatientPortalLayout: React.FC = () => {
 
           {/* Chat Widget - always mounted but conditionally visible */}
           <div
-            className={`fixed bottom-0 right-0 rounded-lg shadow-2xl hover:shadow-3xl z-50 flex flex-col overflow-hidden transition-all duration-300
+            className={`fixed bottom-0 right-0 z-50 flex flex-col overflow-hidden rounded-t-2xl border border-slate-200 shadow-2xl transition-all duration-300
               ${!showChat ? 'hidden' : ''}
               ${isMinimized 
-                ? 'w-[300px] h-[56px] cursor-pointer bg-blue-100 border-2 border-blue-300' 
-                : 'w-[400px] h-[600px] bg-white'}
+                ? 'h-[56px] w-[300px] cursor-pointer bg-blue-50' 
+                : 'h-[600px] w-[400px] bg-white'}
             `}
             onClick={() => isMinimized && setIsMinimized(false)}
           >
             {/* Header */}
-            <div className={`flex items-center justify-between border-b border-gray-200 bg-blue-50 ${
+            <div className={`flex items-center justify-between border-b border-slate-200 bg-gradient-to-r from-blue-50 to-teal-50 ${
               isMinimized ? 'px-4 py-2' : 'p-4'
             }`}>
               <h2 className="text-sm font-semibold">
@@ -451,7 +455,7 @@ const PatientPortalLayout: React.FC = () => {
                     }
                   }}
                   title={isMinimized ? "Maximize" : "Minimize"}
-                  className="p-1 rounded-md text-gray-600 hover:text-white hover:bg-blue-400 hover:shadow-md hover:scale-110 transition-all duration-200"
+                  className="rounded-lg p-1 text-slate-600 transition-colors hover:bg-white hover:text-blue-700"
                 >
                   {isMinimized ? <Maximize2 size={18} /> : <Minus size={18} />}
                 </button>
@@ -463,7 +467,7 @@ const PatientPortalLayout: React.FC = () => {
                       setShowCloseConfirm(true);
                     }}
                     title="Close"
-                    className="p-1 rounded-md text-gray-600 hover:text-white hover:bg-red-400 hover:shadow-md hover:scale-110 transition-all duration-200"
+                    className="rounded-lg p-1 text-slate-600 transition-colors hover:bg-red-50 hover:text-red-700"
                   >
                     <X size={18} />
                   </button>
@@ -481,14 +485,14 @@ const PatientPortalLayout: React.FC = () => {
 
               {showCloseConfirm && (
                 <div className="absolute inset-0 bg-white bg-opacity-95 flex items-center justify-center z-50">
-                  <div className="bg-white rounded-lg shadow-xl hover:shadow-2xl p-6 border transition-all duration-200">
+                  <div className="premium-card p-6">
                     <p className="text-sm mb-4 text-center">
                       Closing will clear chat history. Continue?
                     </p>
                     <div className="flex gap-3 justify-center">
                       <button
                         onClick={() => setShowCloseConfirm(false)}
-                        className="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 hover:shadow-md hover:scale-105 transition-all duration-200"
+                        className="ghost-button px-4 py-2 text-sm font-semibold"
                       >
                         Cancel
                       </button>
@@ -498,7 +502,7 @@ const PatientPortalLayout: React.FC = () => {
                           setShowChat(false);
                           setShowCloseConfirm(false);
                         }}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 hover:shadow-md hover:scale-105 transition-all duration-200"
+                        className="healthcare-button px-4 py-2 text-sm"
                       >
                         Confirm
                       </button>
@@ -513,39 +517,39 @@ const PatientPortalLayout: React.FC = () => {
         {/* Notification Popup */}
         {showNotificationPopup && currentNotification && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg shadow-2xl max-w-md w-full p-6 animate-in fade-in slide-in-from-bottom-4">
+            <div className="premium-card w-full max-w-md p-6 animate-in fade-in slide-in-from-bottom-4">
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
                     <Bell className="w-5 h-5 text-blue-600" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-900">{currentNotification.title}</h3>
-                    <p className="text-xs text-gray-500">
+                    <h3 className="text-lg font-bold text-slate-900">{currentNotification.title}</h3>
+                    <p className="text-xs text-slate-500">
                       {new Date(currentNotification.created_at).toLocaleString()}
                     </p>
                   </div>
                 </div>
                 <button
                   onClick={handleNotificationClose}
-                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                  className="text-slate-400 transition-colors hover:text-slate-600"
                 >
                   <X size={20} />
                 </button>
               </div>
               
-              <p className="text-gray-700 mb-6">{currentNotification.message}</p>
+              <p className="mb-6 text-slate-700">{currentNotification.message}</p>
               
               <div className="flex gap-3">
                 <button
                   onClick={handleViewNotifications}
-                  className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                  className="healthcare-button flex-1 px-4 py-2 text-sm"
                 >
                   View Notifications
                 </button>
                 <button
                   onClick={handleNotificationClose}
-                  className="flex-1 px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors"
+                  className="ghost-button flex-1 px-4 py-2 text-sm font-semibold"
                 >
                   Dismiss
                 </button>

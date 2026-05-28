@@ -21,6 +21,7 @@ import { patientService, Patient, FamilyMember } from '../../services/patientSer
 import { appointmentService, Appointment } from '../../services/appointmentService';
 import { radiologyService, RadiologyBooking } from '../../services/radiologyService';
 import { doctorService, Specialty } from '../../services/doctorService';
+import { getAppointmentStatusColor, getAppointmentStatusContainer } from '../../utils/appointmentStatusColors';
 
 const PatientDashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -64,7 +65,7 @@ const PatientDashboard: React.FC = () => {
           .filter(apt => {
             // Only show appointments that are scheduled/confirmed AND in the future
             const appointmentDateTime = new Date(`${apt.appointment_date}T${apt.appointment_time}`);
-            return (apt.status === 'scheduled' || apt.status === 'confirmed') && appointmentDateTime > now;
+            return (apt.status === 'scheduled' || (apt.status as string) === 'confirmed') && appointmentDateTime > now;
           })
           .sort((a, b) => {
             const dateA = new Date(`${a.appointment_date}T${a.appointment_time}`);
@@ -134,8 +135,21 @@ const PatientDashboard: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div className="flex min-h-screen items-center justify-center p-6">
+        <div className="premium-card w-full max-w-md p-6">
+          <div className="mb-4 flex items-center gap-3">
+            <div className="healthcare-loading"></div>
+            <div>
+              <p className="font-bold text-slate-900">Loading your health dashboard</p>
+              <p className="text-sm text-slate-500">Preparing appointments, records, and care options.</p>
+            </div>
+          </div>
+          <div className="space-y-3">
+            <div className="skeleton-line h-3 rounded"></div>
+            <div className="skeleton-line h-3 w-4/5 rounded"></div>
+            <div className="skeleton-line h-3 w-2/3 rounded"></div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -143,19 +157,19 @@ const PatientDashboard: React.FC = () => {
   if (!patient) {
     return (
       <div className="p-6">
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-          <p className="text-yellow-800 font-semibold mb-2">Patient profile not found.</p>
-          <p className="text-yellow-700 text-sm mb-3">
+        <div className="premium-card border-amber-200 bg-amber-50 p-5">
+          <p className="mb-2 font-bold text-amber-900">Patient profile not found.</p>
+          <p className="mb-3 text-sm text-amber-800">
             Your patient ID may not be linked correctly. Please try:
           </p>
-          <ul className="text-yellow-700 text-sm list-disc list-inside mb-3 space-y-1">
+          <ul className="mb-3 list-inside list-disc space-y-1 text-sm text-amber-800">
             <li>Logout and login again</li>
             <li>Check browser console for errors</li>
             <li>Verify your patient_id in localStorage</li>
           </ul>
           <button
             onClick={() => window.location.reload()}
-            className="mt-2 bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-md text-sm"
+            className="mt-2 rounded-lg bg-amber-700 px-4 py-2 text-sm font-bold text-white hover:bg-amber-800"
           >
             Reload Page
           </button>
@@ -164,77 +178,136 @@ const PatientDashboard: React.FC = () => {
     );
   }
 
+  const patientName = [patient.first_name, patient.last_name].filter(Boolean).join(' ') || 'Patient';
+
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen p-4 sm:p-6 lg:p-8">
+      <div className="mx-auto max-w-7xl space-y-6">
+        <div className="premium-card overflow-hidden">
+          <div className="grid gap-6 p-6 lg:grid-cols-[1.2fr_0.8fr] lg:p-8">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wide text-teal-700">Care Overview</p>
+              <h1 className="mt-2 text-3xl font-extrabold text-slate-950">Hello, {patientName}</h1>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+                Your appointments, records, family care, and billing are organized here for quick access.
+              </p>
+              <div className="mt-5 flex flex-wrap gap-3">
+                <button
+                  onClick={() => navigate('/portal/appointments/book')}
+                  className="healthcare-button inline-flex items-center gap-2 px-4 py-2 text-sm"
+                >
+                  <Calendar className="h-4 w-4" />
+                  Book Appointment
+                </button>
+                <button
+                  onClick={() => navigate('/portal/records')}
+                  className="ghost-button inline-flex items-center gap-2 px-4 py-2 text-sm font-bold"
+                >
+                  <FileText className="h-4 w-4" />
+                  View Records
+                </button>
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="soft-panel p-4">
+                <p className="muted-label">Appointments</p>
+                <p className="mt-2 text-3xl font-extrabold text-blue-700">{upcomingAppointments.length}</p>
+                <p className="mt-1 text-xs text-slate-500">Upcoming</p>
+              </div>
+              <div className="soft-panel p-4">
+                <p className="muted-label">Scans</p>
+                <p className="mt-2 text-3xl font-extrabold text-violet-700">{upcomingRadiologyBookings.length}</p>
+                <p className="mt-1 text-xs text-slate-500">Scheduled</p>
+              </div>
+              <div className="soft-panel p-4">
+                <p className="muted-label">Family</p>
+                <p className="mt-2 text-3xl font-extrabold text-emerald-700">{familyMembers.length}</p>
+                <p className="mt-1 text-xs text-slate-500">Members</p>
+              </div>
+            </div>
+          </div>
+        </div>
         {/* Profile Completion Reminder */}
         {(!patient.first_name || !patient.last_name) && (
-          <div className="mb-6 bg-blue-50 border border-blue-200 rounded-md p-3">
-            <p className="text-blue-800 text-sm">
-              💡 Complete your profile to personalize your experience. 
-              <a href="/portal/profile" className="underline ml-1">Edit Profile</a>
+          <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
+            <p className="text-sm font-semibold text-blue-900">
+              Complete your profile to personalize your experience.
+              <a href="/portal/profile" className="ml-1 underline">Edit Profile</a>
             </p>
           </div>
         )}
 
         {/* Quick Actions - Horizontal */}
-        <div className="bg-white rounded-lg shadow-md hover:shadow-lg p-6 mb-6 transition-all duration-300">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Quick Actions</h2>
+        <div className="premium-card p-5 sm:p-6">
+          <div className="mb-4">
+            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Fast workflows</p>
+            <h2 className="section-heading mt-1">Quick Actions</h2>
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <button 
               onClick={() => navigate('/portal/appointments/book')}
-              className="text-left px-4 py-3 bg-blue-50 hover:bg-blue-100 rounded-lg transition-all duration-200 hover:shadow-md hover:scale-105 flex items-center"
+              className="action-tile flex items-center px-4 py-3 text-left"
             >
-              <Calendar className="h-5 w-5 mr-3 text-blue-600 flex-shrink-0" />
-              <span className="font-medium text-gray-900">Book Appointment</span>
+              <span className="mr-3 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-blue-100 text-blue-700">
+                <Calendar className="h-5 w-5" />
+              </span>
+              <span className="font-bold text-slate-900">Book Appointment</span>
             </button>
             <button 
               onClick={() => navigate('/portal/radiology/book')}
-              className="text-left px-4 py-3 bg-purple-50 hover:bg-purple-100 rounded-lg transition-all duration-200 hover:shadow-md hover:scale-105 flex items-center"
+              className="action-tile flex items-center px-4 py-3 text-left"
             >
-              <Scan className="h-5 w-5 mr-3 text-purple-600 flex-shrink-0" />
-              <span className="font-medium text-gray-900">Book Radiology</span>
+              <span className="mr-3 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-violet-100 text-violet-700">
+                <Scan className="h-5 w-5" />
+              </span>
+              <span className="font-bold text-slate-900">Book Radiology</span>
             </button>
             <button 
               onClick={() => navigate('/portal/records')}
-              className="text-left px-4 py-3 bg-green-50 hover:bg-green-100 rounded-lg transition-all duration-200 hover:shadow-md hover:scale-105 flex items-center"
+              className="action-tile flex items-center px-4 py-3 text-left"
             >
-              <FileText className="h-5 w-5 mr-3 text-green-600 flex-shrink-0" />
-              <span className="font-medium text-gray-900">Medical Records</span>
+              <span className="mr-3 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
+                <FileText className="h-5 w-5" />
+              </span>
+              <span className="font-bold text-slate-900">Medical Records</span>
             </button>
             <button 
               onClick={() => navigate('/portal/billing')}
-              className="text-left px-4 py-3 bg-orange-50 hover:bg-orange-100 rounded-lg transition-all duration-200 hover:shadow-md hover:scale-105 flex items-center"
+              className="action-tile flex items-center px-4 py-3 text-left"
             >
-              <CreditCard className="h-5 w-5 mr-3 text-orange-600 flex-shrink-0" />
-              <span className="font-medium text-gray-900">View Billing</span>
+              <span className="mr-3 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
+                <CreditCard className="h-5 w-5" />
+              </span>
+              <span className="font-bold text-slate-900">View Billing</span>
             </button>
           </div>
         </div>
 
         {/* Upcoming Appointments, Radiology Bookings, and Family Members */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           {/* Upcoming Appointments */}
-          <div className="bg-white rounded-lg shadow-md hover:shadow-lg p-6 flex flex-col h-[450px] transition-all duration-300">
+          <div className="premium-card premium-card-hover flex h-[450px] flex-col p-6">
             <div className="flex items-center justify-between mb-4 flex-shrink-0">
-              <h2 className="text-xl font-semibold text-gray-900 flex items-center">
+              <h2 className="section-heading flex items-center">
                 <Clock className="h-5 w-5 mr-2 text-blue-600" />
                 Appointments
               </h2>
               {upcomingAppointments.length > 0 && (
-                <span className="px-3 py-1.5 bg-blue-100 text-blue-800 rounded-lg text-sm font-semibold">
+                <span className="status-pill border-blue-200 bg-blue-50 text-blue-700">
                   {upcomingAppointments.length}
                 </span>
               )}
             </div>
             <div className="flex-1 flex flex-col min-h-0">
               {upcomingAppointments.length === 0 ? (
-                <div className="text-center py-8 text-gray-500 flex-1 flex flex-col items-center justify-center">
-                  <Calendar className="h-12 w-12 mx-auto mb-2 text-gray-400" />
-                  <p>No upcoming appointments</p>
+                <div className="flex flex-1 flex-col items-center justify-center py-8 text-center text-slate-500">
+                  <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50">
+                    <Calendar className="h-7 w-7 text-blue-500" />
+                  </div>
+                  <p className="font-semibold text-slate-700">No upcoming appointments</p>
                   <button 
                     onClick={() => navigate('/portal/appointments/book')}
-                    className="mt-4 text-blue-600 hover:text-blue-700 text-sm font-medium"
+                    className="mt-4 text-sm font-bold text-blue-600 hover:text-blue-700"
                   >
                     Book Appointment
                   </button>
@@ -257,20 +330,16 @@ const PatientDashboard: React.FC = () => {
                         : 'Doctor';
 
                       return (
-                        <div key={apt.appointment_id} className="border border-gray-200 rounded-lg p-3 hover:bg-gray-50 hover:shadow-md hover:scale-[1.02] transition-all duration-200 cursor-pointer">
+                        <div key={apt.appointment_id} className={`cursor-pointer rounded-xl border p-3 transition-all duration-200 hover:border-blue-200 hover:shadow-sm ${getAppointmentStatusContainer(apt.status)}`}>
                           <div className="flex items-center justify-between mb-2">
                             <div className="flex-1">
-                              <p className="font-medium text-gray-900">
+                              <p className="font-bold text-slate-900">
                                 {new Date(apt.appointment_date).toLocaleDateString()}
                               </p>
-                              <p className="text-sm text-gray-600">{apt.appointment_time}</p>
+                              <p className="text-sm text-slate-600">{apt.appointment_time}</p>
                             </div>
-                            <span className={`px-2 py-1 rounded text-xs font-medium ${
-                              apt.status === 'confirmed' ? 'bg-green-100 text-green-800' :
-                              apt.status === 'scheduled' ? 'bg-blue-100 text-blue-800' :
-                              'bg-gray-100 text-gray-800'
-                            }`}>
-                              {apt.status}
+                            <span className={`status-pill ${getAppointmentStatusColor(apt.status)}`}>
+                              {(apt.status as string) === 'confirmed' ? 'Scheduled' : apt.status}
                             </span>
                           </div>
                           <div className="mt-2 pt-2 border-t border-gray-100">
@@ -293,7 +362,7 @@ const PatientDashboard: React.FC = () => {
                   <div className="mt-auto pt-4 border-t border-gray-200 flex-shrink-0">
                     <button
                       onClick={() => navigate('/portal/appointments')}
-                      className="w-full text-center text-blue-600 hover:text-blue-700 hover:bg-blue-50 hover:shadow-md hover:scale-105 text-sm font-medium py-2 flex items-center justify-center rounded-lg transition-all duration-200"
+                      className="flex w-full items-center justify-center rounded-lg py-2 text-center text-sm font-bold text-blue-600 transition-colors hover:bg-blue-50 hover:text-blue-700"
                     >
                       View All {upcomingAppointments.length > 1 ? `${upcomingAppointments.length} Appointments` : 'Appointment'}
                       <ArrowRight className="inline h-4 w-4 ml-2" />
@@ -305,26 +374,28 @@ const PatientDashboard: React.FC = () => {
           </div>
 
           {/* Upcoming Radiology Bookings */}
-          <div className="bg-white rounded-lg shadow-md hover:shadow-lg p-6 flex flex-col transition-all duration-300" style={{ minHeight: '400px' }}>
+          <div className="premium-card premium-card-hover flex flex-col p-6" style={{ minHeight: '400px' }}>
             <div className="flex items-center justify-between mb-4 flex-shrink-0">
-              <h2 className="text-xl font-semibold text-gray-900 flex items-center">
+              <h2 className="section-heading flex items-center">
                 <Scan className="h-5 w-5 mr-2 text-purple-600" />
                 Radiology
               </h2>
               {upcomingRadiologyBookings.length > 0 && (
-                <span className="px-3 py-1.5 bg-purple-100 text-purple-800 rounded-lg text-sm font-semibold">
+                <span className="status-pill border-violet-200 bg-violet-50 text-violet-700">
                   {upcomingRadiologyBookings.length}
                 </span>
               )}
             </div>
             <div className="flex-1 flex flex-col min-h-0">
               {upcomingRadiologyBookings.length === 0 ? (
-                <div className="text-center py-8 text-gray-500 flex-1 flex flex-col items-center justify-center">
-                  <Scan className="h-12 w-12 mx-auto mb-2 text-gray-400" />
-                  <p>No upcoming scans</p>
+                <div className="flex flex-1 flex-col items-center justify-center py-8 text-center text-slate-500">
+                  <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-violet-50">
+                    <Scan className="h-7 w-7 text-violet-500" />
+                  </div>
+                  <p className="font-semibold text-slate-700">No upcoming scans</p>
                   <button 
                     onClick={() => navigate('/portal/radiology/book')}
-                    className="mt-4 text-purple-600 hover:text-purple-700 text-sm font-medium"
+                    className="mt-4 text-sm font-bold text-violet-600 hover:text-violet-700"
                   >
                     Book Scan
                   </button>
@@ -353,17 +424,17 @@ const PatientDashboard: React.FC = () => {
                         : 'Myself';
 
                       return (
-                        <div key={booking.booking_id} className="border border-gray-200 rounded-lg p-3 hover:bg-gray-50 hover:shadow-md hover:scale-[1.02] transition-all duration-200 cursor-pointer">
+                        <div key={booking.booking_id} className="cursor-pointer rounded-xl border border-slate-200 p-3 transition-all duration-200 hover:border-violet-200 hover:bg-violet-50/40 hover:shadow-sm">
                           <div className="flex items-center justify-between mb-2">
                             <div className="flex-1">
-                              <p className="font-medium text-gray-900">
+                              <p className="font-bold text-slate-900">
                                 {SCAN_TYPE_LABELS[booking.scan_type] || booking.scan_type}
                               </p>
-                              <p className="text-sm text-gray-600">
+                              <p className="text-sm text-slate-600">
                                 {new Date(booking.appointment_date).toLocaleDateString()} at {booking.appointment_time}
                               </p>
                             </div>
-                            <span className="px-2 py-1 rounded text-xs font-medium bg-purple-100 text-purple-800">
+                            <span className="status-pill border-violet-200 bg-violet-50 text-violet-700">
                               {booking.status}
                             </span>
                           </div>
@@ -389,7 +460,7 @@ const PatientDashboard: React.FC = () => {
                   <div className="mt-auto pt-4 border-t border-gray-200 flex-shrink-0">
                     <button
                       onClick={() => navigate('/portal/radiology')}
-                      className="w-full text-center text-purple-600 hover:text-purple-700 hover:bg-purple-50 hover:shadow-md hover:scale-105 text-sm font-medium py-2 flex items-center justify-center rounded-lg transition-all duration-200"
+                      className="flex w-full items-center justify-center rounded-lg py-2 text-center text-sm font-bold text-violet-600 transition-colors hover:bg-violet-50 hover:text-violet-700"
                     >
                       View All {upcomingRadiologyBookings.length > 1 ? `${upcomingRadiologyBookings.length} Bookings` : 'Booking'}
                       <ArrowRight className="inline h-4 w-4 ml-2" />
@@ -401,15 +472,15 @@ const PatientDashboard: React.FC = () => {
           </div>
 
           {/* Family Members */}
-          <div className="bg-white rounded-lg shadow-md hover:shadow-lg p-6 flex flex-col transition-all duration-300" style={{ minHeight: '400px' }}>
+          <div className="premium-card premium-card-hover flex flex-col p-6" style={{ minHeight: '400px' }}>
             <div className="flex items-center justify-between mb-4 flex-shrink-0">
-              <h2 className="text-xl font-semibold text-gray-900 flex items-center">
+              <h2 className="section-heading flex items-center">
                 <Users className="h-5 w-5 mr-2 text-green-600" />
                 Your Family
               </h2>
               <button 
                 onClick={handleAddFamilyMember}
-                className="text-green-600 hover:text-green-700 text-sm font-medium flex items-center"
+                className="flex items-center rounded-lg px-2 py-1 text-sm font-bold text-emerald-700 hover:bg-emerald-50"
               >
                 <Plus className="h-4 w-4 mr-1" />
                 Add
@@ -419,17 +490,19 @@ const PatientDashboard: React.FC = () => {
               {loadingFamilyMembers ? (
                 <div className="text-center py-8 flex-1 flex items-center justify-center">
                   <div>
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto"></div>
+                    <div className="healthcare-loading mx-auto"></div>
                     <p className="text-gray-500 mt-2">Loading...</p>
                   </div>
                 </div>
               ) : familyMembers.length === 0 ? (
-                <div className="text-center py-8 text-gray-500 flex-1 flex flex-col items-center justify-center">
-                  <Users className="h-12 w-12 mx-auto mb-2 text-gray-400" />
-                  <p>No family members added</p>
+                <div className="flex flex-1 flex-col items-center justify-center py-8 text-center text-slate-500">
+                  <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50">
+                    <Users className="h-7 w-7 text-emerald-500" />
+                  </div>
+                  <p className="font-semibold text-slate-700">No family members added</p>
                   <button 
                     onClick={handleAddFamilyMember}
-                    className="mt-4 text-green-600 hover:text-green-700 text-sm font-medium"
+                    className="mt-4 text-sm font-bold text-emerald-600 hover:text-emerald-700"
                   >
                     Add Family Member
                   </button>
@@ -440,19 +513,19 @@ const PatientDashboard: React.FC = () => {
                     {familyMembers.slice(0, 3).map((member) => (
                       <div 
                         key={member.family_member_id} 
-                        className="border border-gray-200 rounded-lg p-3 hover:bg-gray-50 hover:shadow-md hover:scale-[1.02] cursor-pointer transition-all duration-200"
+                        className="cursor-pointer rounded-xl border border-slate-200 p-3 transition-all duration-200 hover:border-emerald-200 hover:bg-emerald-50/40 hover:shadow-sm"
                         onClick={handleViewFamilyMembers}
                       >
                         <div className="flex items-center justify-between">
                           <div className="flex items-center">
-                            <div className="bg-green-100 rounded-full p-2 mr-3">
+                            <div className="mr-3 rounded-full bg-emerald-100 p-2">
                               <User className="h-5 w-5 text-green-600" />
                             </div>
                             <div>
-                              <p className="font-medium text-gray-900">
+                              <p className="font-bold text-slate-900">
                                 {member.first_name} {member.last_name}
                               </p>
-                              <p className="text-sm text-gray-600 capitalize">{member.relationship}</p>
+                              <p className="text-sm capitalize text-slate-600">{member.relationship}</p>
                             </div>
                           </div>
                           {member.date_of_birth && (
@@ -467,7 +540,7 @@ const PatientDashboard: React.FC = () => {
                   <div className="mt-auto pt-4 border-t border-gray-200 flex-shrink-0">
                     <button
                       onClick={handleViewFamilyMembers}
-                      className="w-full text-center text-green-600 hover:text-green-700 hover:bg-green-50 hover:shadow-md hover:scale-105 text-sm font-medium py-2 flex items-center justify-center rounded-lg transition-all duration-200"
+                      className="flex w-full items-center justify-center rounded-lg py-2 text-center text-sm font-bold text-emerald-600 transition-colors hover:bg-emerald-50 hover:text-emerald-700"
                     >
                       View All {familyMembers.length > 1 ? `${familyMembers.length} Family Members` : 'Family Member'}
                       <ArrowRight className="inline h-4 w-4 ml-2" />
@@ -480,13 +553,13 @@ const PatientDashboard: React.FC = () => {
         </div>
 
         {/* Specialty Icons */}
-        <div className="bg-white rounded-lg shadow-md hover:shadow-lg p-6 mb-6 transition-all duration-300">
+        <div className="premium-card p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold text-gray-900">Find Doctors by Specialty</h2>
+            <h2 className="section-heading">Find Doctors by Specialty</h2>
             {specialties.length > 8 && (
               <button
                 onClick={() => navigate('/portal/appointments/book')}
-                className="text-sm font-medium text-blue-600 hover:text-blue-700 hover:underline transition-all duration-200 flex items-center gap-1"
+                className="flex items-center gap-1 text-sm font-bold text-blue-600 transition-all duration-200 hover:text-blue-700 hover:underline"
                 title="View All Specialties"
               >
                 View All
@@ -529,7 +602,7 @@ const PatientDashboard: React.FC = () => {
                 <div key={specialty.specialty_id} className="flex flex-col items-center">
                   <button
                     onClick={() => navigate(`/portal/appointments/book`, { state: { specialtyId: specialty.specialty_id } })}
-                    className={`flex items-center justify-center w-20 h-20 rounded-full ${colors[colorIndex]} transition-all duration-200 hover:scale-110 hover:shadow-lg group`}
+                    className={`flex h-20 w-20 items-center justify-center rounded-2xl ${colors[colorIndex]} transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md group`}
                     title={specialty.name}
                   >
                     <IconComponent className="h-8 w-8" />
@@ -542,8 +615,8 @@ const PatientDashboard: React.FC = () => {
         </div>
 
         {/* Patient Info Summary */}
-        <div className="bg-white rounded-lg shadow-md hover:shadow-lg p-6 transition-all duration-300">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Profile Summary</h2>
+        <div className="premium-card p-6">
+          <h2 className="section-heading mb-4">Profile Summary</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
               <p className="text-sm text-gray-600">Date of Birth</p>

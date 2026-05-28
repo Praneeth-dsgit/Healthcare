@@ -2,7 +2,9 @@
  * Billing Service - API calls for billing and payments
  */
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL + '/api';
+import { getApiRoot } from '../utils/apiBase';
+
+const API_BASE = getApiRoot();
 
 export interface Billing {
   billing_id: number;

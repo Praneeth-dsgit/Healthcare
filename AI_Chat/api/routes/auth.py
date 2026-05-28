@@ -2,7 +2,7 @@
 Authentication Routes
 Handles user signup, login, OTP verification, and SMTP testing.
 """
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, g
 import jwt
 import logging
 import traceback
@@ -41,97 +41,63 @@ def signup():
             'is_verified': existing_user_result[1]
         }), 409
 
-    # Create user with auto-verification (no OTP required)
-    # Use raw SQL to insert user to avoid ORM mapper initialization issues
+    # User + patient in one DB transaction (commit only after both succeed).
+    # Previously: user was committed first; patient failure left orphan users and rollback() could not undo them.
     from werkzeug.security import generate_password_hash
+    from sqlalchemy import text
+    from utils.patient_id_generator import generate_patient_id
+
     password_hash = generate_password_hash(password)
-    
-    db.session.execute(
-        db.text("""
-            INSERT INTO users (email, password_hash, is_verified, otp, otp_expiry, created_at, updated_at)
-            VALUES (:email, :password_hash, :is_verified, :otp, :otp_expiry, NOW(), NOW())
-        """),
-        {
-            'email': email,
-            'password_hash': password_hash,
-            'is_verified': True,
-            'otp': None,
-            'otp_expiry': None
-        }
-    )
-    db.session.commit()
-    
-    # Get the newly created user ID
-    user_result = db.session.execute(
-        db.text("SELECT id FROM users WHERE email = :email"),
-        {"email": email}
-    ).fetchone()
-    user_id = user_result[0] if user_result else None
-        
-    logger.info(f"User {email} signed up and auto-verified")
-    
-    # Create patient record automatically with unique patient ID
-    # This is mandatory - signup should fail if patient creation fails
     patient_id = None
     try:
-        from utils.patient_id_generator import generate_patient_id
-        patient_id = generate_patient_id(prefix="PAT", format_type="short")
-        
-        # Ensure patient_id is unique (retry if collision, though UUID makes this extremely unlikely)
-        max_retries = 3
-        for attempt in range(max_retries):
-            try:
-                from sqlalchemy import text
-                db.session.execute(
-                    text("""
-                        INSERT INTO patients (patient_id, user_id, first_name, last_name, date_of_birth, gender, email, is_active)
-                        VALUES (:patient_id, :user_id, :first_name, :last_name, :date_of_birth, :gender, :email, :is_active)
-                    """),
-                    {
-                        'patient_id': patient_id,
-                        'user_id': user_id,
-                        'first_name': "",
-                        'last_name': "",
-                        'date_of_birth': datetime.now().date(),
-                        'gender': 'other',
-                        'email': email,
-                        'is_active': True
-                    }
-                )
-                db.session.commit()
-                logger.info(f"✅ Patient profile created for {email} with unique patient_id: {patient_id}")
-                break  # Success, exit retry loop
-            except Exception as insert_error:
-                error_str = str(insert_error).lower()
-                # If duplicate key error, generate new patient_id and retry
-                if 'duplicate' in error_str or '1062' in str(insert_error):
-                    logger.warning(f"Patient ID collision detected for {patient_id}, generating new ID...")
-                    if attempt < max_retries - 1:
-                        patient_id = generate_patient_id(prefix="PAT", format_type="short")
-                        continue
-                    else:
-                        raise Exception(f"Failed to generate unique patient_id after {max_retries} attempts")
-                else:
-                    # Other database errors - re-raise
-                    raise
+        db.session.execute(
+            db.text("""
+                INSERT INTO users (email, password_hash, is_verified, otp, otp_expiry, created_at, updated_at)
+                VALUES (:email, :password_hash, :is_verified, :otp, :otp_expiry, NOW(), NOW())
+            """),
+            {
+                'email': email,
+                'password_hash': password_hash,
+                'is_verified': True,
+                'otp': None,
+                'otp_expiry': None
+            }
+        )
+        db.session.flush()
+        user_id = db.session.execute(db.text("SELECT LAST_INSERT_ID()")).scalar()
+        if not user_id:
+            raise RuntimeError("Could not read new user id after insert")
+
+        # UUID avoids duplicate-key retries inside one transaction (InnoDB aborts txn on dup insert)
+        patient_id = generate_patient_id(prefix="PAT", format_type="uuid")
+
+        db.session.execute(
+            text("""
+                INSERT INTO patients (patient_id, user_id, first_name, last_name, date_of_birth, gender, email, is_active)
+                VALUES (:patient_id, :user_id, :first_name, :last_name, :date_of_birth, :gender, :email, :is_active)
+            """),
+            {
+                'patient_id': patient_id,
+                'user_id': user_id,
+                'first_name': 'New',
+                'last_name': 'Patient',
+                'date_of_birth': datetime.now().date(),
+                'gender': 'other',
+                'email': email,
+                'is_active': True
+            }
+        )
+        db.session.commit()
+        logger.info(f"✅ Signup complete for {email}, patient_id={patient_id}, user_id={user_id}")
     except Exception as e:
-        logger.error(f"❌ Critical error creating patient record during signup: {e}")
+        logger.error(f"❌ Signup failed for {email}: {e}")
         logger.error(traceback.format_exc())
-        # Rollback user creation since patient creation failed
         db.session.rollback()
         return jsonify({
-            'error': 'Failed to create patient profile. Please try again or contact support.',
+            'error': 'Failed to create account. Please try again or contact support.',
             'details': str(e)
         }), 500
-            
-    # Verify patient was created
-    if not patient_id:
-        logger.error("Patient ID was not generated during signup")
-        db.session.rollback()
-        return jsonify({
-            'error': 'Failed to generate patient ID. Please try again.'
-        }), 500
-    
+
     return jsonify({
         'message': 'Signup successful. Your patient profile has been created.',
         'patient_id': patient_id

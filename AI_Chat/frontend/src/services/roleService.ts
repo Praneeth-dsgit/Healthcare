@@ -3,7 +3,9 @@
  * Handles user role detection and capability access control
  */
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+import { getApiBaseUrl } from '../utils/apiBase';
+
+const API_BASE = getApiBaseUrl();
 
 export type UserRole = 'patient' | 'doctor' | 'radiology' | 'lab_technician' | 'non_medical_staff' | 'admin' | null;
 

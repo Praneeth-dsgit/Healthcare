@@ -2,7 +2,9 @@
  * Radiology Service - API calls for radiology booking
  */
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL + '/api';
+import { getApiRoot } from '../utils/apiBase';
+
+const API_BASE = getApiRoot();
 
 export interface RadiologyBooking {
   booking_id: number;

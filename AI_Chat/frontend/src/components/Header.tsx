@@ -1,10 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Activity, Trash2, User, LogIn, UserPlus, LogOut, ChevronDown, HelpCircle, PlusCircle, Stethoscope, Award, Brain, TestTube, Users, MessageSquare, FileText, Image as ImageIcon, BarChart3, LayoutDashboard, Calendar, Scan, CreditCard, FileText as FileTextIcon } from 'lucide-react';
+import { Activity, Trash2, User, LogIn, UserPlus, LogOut, ChevronDown, HelpCircle, PlusCircle, Award, Brain, TestTube, Users, MessageSquare, FileText, Image as ImageIcon, BarChart3, LayoutDashboard, Calendar, Scan, CreditCard, FileText as FileTextIcon } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import AboutModal from './AboutModal';
 import PrivacyModal from './PrivacyModal';
 import HelpModal from './HelpModal';
 import UsageStatisticsModal from './UsageStatisticsModal';
+import { doctorService } from '../services/doctorService';
 
 interface HeaderProps {
   sessions: any[];
@@ -22,6 +23,8 @@ interface HeaderProps {
     name: string;
     color: string;
     bgColor: string;
+    /** When set, title is shown in dashboard style (bold title + subtitle + left divider) like General Practitioner Dashboard */
+    subtitle?: string;
   };
   onNavigateToLogin?: () => void;
   onNavigateToSignup?: () => void;
@@ -29,6 +32,8 @@ interface HeaderProps {
   isAuthenticated?: boolean;
   onSelectPrompt?: (prompt: string) => void;
   selectedCapability?: string | null;
+  /** When true, hide Chats dropdown and + New Chat in header (e.g. when shown in a left sidebar) */
+  hideSessionControls?: boolean;
 }
 
 const Header: React.FC<HeaderProps> = ({
@@ -49,7 +54,8 @@ const Header: React.FC<HeaderProps> = ({
   onLogout,
   isAuthenticated,
   onSelectPrompt,
-  selectedCapability
+  selectedCapability,
+  hideSessionControls = false
 }) => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -62,9 +68,39 @@ const Header: React.FC<HeaderProps> = ({
   const [dynamicFaqs, setDynamicFaqs] = useState<string[]>([]);
   const [isLoadingFaqs, setIsLoadingFaqs] = useState(false);
   const [showUsageStats, setShowUsageStats] = useState(false);
+  const [userDisplayName, setUserDisplayName] = useState<string | null>(null);
+  const [userSubtitle, setUserSubtitle] = useState<string | null>(null);
+  const [loadingUser, setLoadingUser] = useState(false);
   const profileDropdownRef = useRef<HTMLDivElement>(null);
   const faqDropdownRef = useRef<HTMLDivElement>(null);
   const moreOptionsDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Load current doctor / user info when on radiology/lab (hideSessionControls) so we can show name + role like general page
+  useEffect(() => {
+    if (!hideSessionControls || !isAuthenticated) {
+      setUserDisplayName(null);
+      setUserSubtitle(null);
+      return;
+    }
+    setLoadingUser(true);
+    doctorService.getCurrentDoctor().then((result) => {
+      if (result.success && result.doctor) {
+        const name = `${result.doctor.first_name} ${result.doctor.last_name}`.trim() || 'User';
+        setUserDisplayName(name);
+        setUserSubtitle(result.doctor.specialty_name || 'Healthcare Professional');
+      } else {
+        const email = sessionStorage.getItem('userEmail') || '';
+        setUserDisplayName(email || 'Logged In');
+        setUserSubtitle('Healthcare Professional');
+      }
+    }).catch(() => {
+      const email = sessionStorage.getItem('userEmail') || '';
+      setUserDisplayName(email || 'Logged In');
+      setUserSubtitle('Healthcare Professional');
+    }).finally(() => {
+      setLoadingUser(false);
+    });
+  }, [hideSessionControls, isAuthenticated]);
 
   // Fetch dynamic FAQs when capability changes or FAQ dropdown is opened
   const fetchDynamicFaqs = async (capability: string, sessionId: string) => {
@@ -187,33 +223,40 @@ const Header: React.FC<HeaderProps> = ({
 
   return (
     <>
-      <header className="bg-blue-300 shadow-sm border-b border-gray-100">
-        <div className="container mx-auto px-6 py-4 max-w-7xl">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              <div className="flex items-center space-x-4 min-w-[200px]">
-                <div className="relative">
-                  <div className="w-11 h-11 bg-gradient-to-br from-blue-600 to-blue-800 rounded-xl flex items-center justify-center shadow-lg">
-                    <Stethoscope className="h-6 w-6 text-white" />
-                  </div>
-                  <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white animate-pulse"></div>
+      <header className="app-topbar sticky top-0 z-40">
+        <div className="w-full px-4 py-3 sm:px-6 lg:px-8">
+          <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+            <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-center">
+              <div className="flex min-w-[220px] items-center gap-3">
+                <div className="brand-mark flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl text-sm font-black text-white">
+                  AH
                 </div>
-                <div>
-                  <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent">
-                    MedChat Pro
+                <div className="min-w-0">
+                  <h1 className="brand-title truncate text-xl font-extrabold">
+                    Acufore Health
                   </h1>
-                  <p className="text-xs text-gray-500 font-medium">Healthcare AI Assistant</p>
+                  <p className="text-xs font-semibold text-slate-500">Healthcare Management</p>
                 </div>
                 {capabilityInfo && (
-                  <div className="flex items-center space-x-2">
-                    <div className={`px-2 py-1 rounded-full text-xs font-medium hover:bg-blue-100 transition-all duration-300 shine-effect relative overflow-hidden hover:shadow-lg hover:shadow-blue-500/50 ${capabilityInfo.bgColor} ${capabilityInfo.color}`}>
-                      {capabilityInfo.name}
-                    </div>
-                    {selectedCapability && selectedCapability !== 'engagement' && onSelectPrompt && (
+                  <div className="flex min-w-0 items-center gap-2">
+                    {capabilityInfo.subtitle ? (
+                      <div className="flex min-w-0 items-center gap-4">
+                        <div className="hidden h-11 w-px flex-shrink-0 bg-slate-200 lg:block" />
+                        <div className="min-w-0">
+                          <h1 className="truncate text-xl font-extrabold text-slate-950">{capabilityInfo.name}</h1>
+                          <p className="mt-0.5 truncate text-sm font-medium text-slate-500">{capabilityInfo.subtitle}</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className={`status-pill ${capabilityInfo.bgColor} ${capabilityInfo.color}`}>
+                        {capabilityInfo.name}
+                      </div>
+                    )}
+                    {!hideSessionControls && selectedCapability && selectedCapability !== 'engagement' && onSelectPrompt && (
                       <div className="relative" ref={faqDropdownRef}>
                         <button
                           onClick={handleFaqDropdownToggle}
-                          className="px-3 py-1 rounded text-sm font-medium border bg-gray-100 text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-500 flex items-center"
+                          className="ghost-button flex items-center px-3 py-2 text-sm font-semibold"
                           title={getCapabilityLabel(selectedCapability)}
                         >
                           {/*<HelpCircle size={14} className="mr-1" />*/}
@@ -222,16 +265,16 @@ const Header: React.FC<HeaderProps> = ({
                         </button>
                         
                         {showFaqDropdown && (
-                          <div className="absolute left-0 mt-1 w-80 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-96 overflow-y-auto">
-                            <div className="p-3 border-b border-gray-100 flex items-center justify-between">
+                          <div className="premium-card absolute left-0 z-50 mt-2 max-h-96 w-80 overflow-y-auto rounded-xl">
+                            <div className="flex items-center justify-between border-b border-slate-100 p-3">
                               <div>
-                                <h3 className="text-sm font-medium text-gray-800">{getCapabilityLabel(selectedCapability)}</h3>
-                                <p className="text-xs text-gray-500 mt-1">Click any question to add it to your chat</p>
+                                <h3 className="text-sm font-bold text-slate-900">{getCapabilityLabel(selectedCapability)}</h3>
+                                <p className="mt-1 text-xs text-slate-500">Click any question to add it to your chat</p>
                               </div>
                               <button
                                 onClick={() => selectedCapability && currentSessionId && fetchDynamicFaqs(selectedCapability, currentSessionId)}
                                 disabled={isLoadingFaqs}
-                                className="p-1 text-gray-400 hover:text-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                className="rounded-lg p-1 text-slate-400 transition-colors hover:bg-blue-50 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
                                 title="Refresh FAQs"
                               >
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -239,9 +282,9 @@ const Header: React.FC<HeaderProps> = ({
                                 </svg>
                               </button>
                             </div>
-                            <div className="p-2 space-y-1">
+                            <div className="space-y-1 p-2">
                               {isLoadingFaqs ? (
-                                <div className="text-center py-4 text-gray-500">Loading FAQs...</div>
+                                <div className="py-4 text-center text-slate-500">Loading FAQs...</div>
                               ) : (
                                 getCapabilityPrompts(selectedCapability).map((prompt, index) => (
                                   <button
@@ -250,9 +293,9 @@ const Header: React.FC<HeaderProps> = ({
                                       setShowFaqDropdown(false);
                                       onSelectPrompt(prompt);
                                     }}
-                                    className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded flex items-start transition-colors"
+                                    className="flex w-full items-start rounded-lg px-3 py-2 text-left text-sm text-slate-700 transition-colors hover:bg-blue-50"
                                   >
-                                    <PlusCircle size={14} className="mr-2 mt-0.5 flex-shrink-0 text-gray-400" />
+                                    <PlusCircle size={14} className="mr-2 mt-0.5 flex-shrink-0 text-blue-500" />
                                     <span>{prompt}</span>
                                   </button>
                                 ))
@@ -265,23 +308,26 @@ const Header: React.FC<HeaderProps> = ({
                   </div>
                 )}
               </div>
-              {/* Patient Portal Link */}
-              <div className="flex items-center gap-2 mx-4">
+              {/* Patient Portal Link (hidden on radiology/lab when session controls are in sidebar) */}
+              {!hideSessionControls && (
+              <div className="flex items-center gap-2 lg:mx-2">
                 <button
                   onClick={() => navigate('/portal/dashboard')}
-                  className="px-4 py-2 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 flex items-center gap-2 transition-colors"
+                  className="healthcare-button flex items-center gap-2 px-4 py-2 text-sm"
                   title="Go to Patient Portal"
                 >
                   <LayoutDashboard size={16} />
                   Patient Portal
                 </button>
               </div>
-              {/* Session Dropdown and New Session Button aligned with chat window */}
-              <div className="flex-grow flex items-center" style={{ marginLeft: '10px' }}>
+              )}
+              {/* Session Dropdown and New Session Button (hidden when session controls are in sidebar) */}
+              {!hideSessionControls && (
+              <div className="flex flex-grow items-center">
                 <div className="relative" ref={dropdownRef}>
                   <div className="inline-block relative">
                     <button
-                      className="px-3 py-1 rounded text-sm font-medium border bg-gray-100 text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-500 flex items-center"
+                      className="ghost-button flex items-center px-3 py-2 text-sm font-semibold"
                       type="button"
                       onClick={() => setShowDropdown(!showDropdown)}
                     >
@@ -289,20 +335,20 @@ const Header: React.FC<HeaderProps> = ({
                       <svg className="ml-2 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
                     </button>
                     {showDropdown && (
-                      <div className="absolute left-0 mt-1 w-64 bg-white border border-gray-200 rounded shadow-lg z-50 max-h-[20rem] overflow-y-auto">
+                      <div className="premium-card absolute left-0 z-50 mt-2 max-h-[20rem] w-72 overflow-y-auto rounded-xl">
                         {sessions.map((session) => (
-                          <div key={session.id} className={`flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-primary-50 ${currentSessionId === session.id ? 'bg-primary-100' : ''}`}
+                          <div key={session.id} className={`flex cursor-pointer items-center justify-between px-3 py-2.5 hover:bg-blue-50 ${currentSessionId === session.id ? 'bg-blue-50' : ''}`}
                             onClick={() => handleSessionSwitch(session.id)}
                           >
                             <div className="flex flex-col flex-1 min-w-0">
-                              <span className="truncate text-sm font-medium">{getSessionTopic(session)}</span>
+                              <span className="truncate text-sm font-semibold text-slate-800">{getSessionTopic(session)}</span>
                               {getSessionCapability && (
-                                <span className="text-xs text-gray-500">{getSessionCapability(session.id)}</span>
+                                <span className="text-xs text-slate-500">{getSessionCapability(session.id)}</span>
                               )}
                             </div>
                             {sessions.length > 1 && (
                               <button
-                                className="ml-2 p-1 text-gray-400 hover:text-red-600 flex-shrink-0"
+                                className="ml-2 flex-shrink-0 rounded-lg p-1 text-slate-400 hover:bg-red-50 hover:text-red-600"
                                 onClick={e => { e.stopPropagation(); handleDeleteSession(session.id); }}
                                 title="Delete session"
                               >
@@ -316,21 +362,22 @@ const Header: React.FC<HeaderProps> = ({
                   </div>
                 </div>
                 <button
-                  className="ml-3 px-3 py-1 rounded scale-105 text-sm font-medium bg-green-500 text-white hover:bg-green-600 hover:scale-105"
+                  className="ml-3 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-bold text-white shadow-sm transition-colors hover:bg-emerald-700"
                   onClick={handleNewSession}
                 >
                   + New Chat
                 </button>
                 {children}
               </div>
+              )}
             </div>
             <nav>
-              <ul className="flex space-x-2 items-center">
+              <ul className="flex items-center gap-2">
                 <li className="relative">
                   <div ref={moreOptionsDropdownRef}>
                     <button
                       onClick={() => setShowMoreOptionsDropdown(!showMoreOptionsDropdown)}
-                      className="flex items-center justify-center w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 transition-colors"
+                      className="ghost-button flex h-10 w-10 items-center justify-center rounded-xl"
                       title="More options"
                     >
                       <svg className="w-4 h-4 text-gray-600" fill="currentColor" viewBox="0 0 20 20">
@@ -339,13 +386,13 @@ const Header: React.FC<HeaderProps> = ({
                     </button>
                     
                     {showMoreOptionsDropdown && (
-                      <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
+                      <div className="premium-card absolute right-0 z-50 mt-2 w-48 overflow-hidden rounded-xl">
                         <button
                           onClick={() => {
                             setShowMoreOptionsDropdown(false);
                             setShowAboutModal(true);
                           }}
-                          className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                          className="flex w-full items-center px-4 py-2.5 text-sm text-slate-700 transition-colors hover:bg-blue-50"
                         >
                           <svg className="w-4 h-4 mr-2 text-gray-400" fill="none" stroke="blue" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -357,7 +404,7 @@ const Header: React.FC<HeaderProps> = ({
                             setShowMoreOptionsDropdown(false);
                             setShowPrivacyModal(true);
                           }}
-                          className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                          className="flex w-full items-center px-4 py-2.5 text-sm text-slate-700 transition-colors hover:bg-blue-50"
                         >
                           <svg className="w-4 h-4 mr-2 text-gray-400" fill="none" stroke="red" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
@@ -369,7 +416,7 @@ const Header: React.FC<HeaderProps> = ({
                             setShowMoreOptionsDropdown(false);
                             setShowHelpModal(true);
                           }}
-                          className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                          className="flex w-full items-center px-4 py-2.5 text-sm text-slate-700 transition-colors hover:bg-blue-50"
                         >
                           <svg className="w-4 h-4 mr-2 text-gray-400" fill="none" stroke="green" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -384,26 +431,47 @@ const Header: React.FC<HeaderProps> = ({
                   <div ref={profileDropdownRef}>
                     <button
                       onClick={() => setShowProfileDropdown(!showProfileDropdown)}
-                      className="flex items-center justify-center w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 transition-colors"
+                      className={`flex items-center gap-2 rounded-xl transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                        userDisplayName
+                          ? 'space-x-3 border border-slate-200 bg-white/70 px-3 py-2 hover:bg-blue-50'
+                          : 'ghost-button h-10 w-10 justify-center'
+                      }`}
                       title={isAuthenticated ? "Profile" : "Login / Sign Up"}
                     >
-                      <User size={18} className="text-gray-600" />
+                      <div className={`flex flex-shrink-0 items-center justify-center rounded-full ${userDisplayName ? 'h-10 w-10 bg-gradient-to-br from-blue-100 to-teal-100' : 'h-8 w-8 bg-slate-100'}`}>
+                        <User size={userDisplayName ? 24 : 18} className={userDisplayName ? 'text-blue-600' : 'text-gray-600'} />
+                      </div>
+                      {userDisplayName && (
+                        <div className="text-left hidden sm:block">
+                          <p className="text-sm font-bold text-slate-900">
+                            {loadingUser ? 'Loading...' : userDisplayName}
+                          </p>
+                          <p className="text-xs text-slate-500">
+                            {loadingUser ? '' : (userSubtitle || 'Healthcare Professional')}
+                          </p>
+                        </div>
+                      )}
+                      {userDisplayName && <ChevronDown className={`h-4 w-4 flex-shrink-0 text-slate-500 transition-transform ${showProfileDropdown ? 'rotate-180' : ''}`} />}
                     </button>
                     
                     {showProfileDropdown && (
-                      <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
+                      <div className="premium-card absolute right-0 z-50 mt-2 w-56 overflow-hidden rounded-xl">
                         {isAuthenticated ? (
                           <>
-                            <div className="px-4 py-2 border-b border-gray-100">
-                              <p className="text-sm font-medium text-gray-700">Logged In</p>
-                              <p className="text-xs text-gray-500">Healthcare Professional</p>
+                            <div className="border-b border-slate-100 px-4 py-3">
+                              <p className="text-sm font-bold text-slate-800">
+                                {userDisplayName || 'Logged In'}
+                              </p>
+                              <p className="text-xs text-slate-500">
+                                {userSubtitle || 'Healthcare Professional'}
+                              </p>
                             </div>
                             <button
                               onClick={() => {
                                 setShowProfileDropdown(false);
                                 setShowUsageStats(true);
                               }}
-                              className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                              className="flex w-full items-center px-4 py-2.5 text-sm text-slate-700 transition-colors hover:bg-blue-50"
                             >
                               <BarChart3 size={16} className="mr-2" />
                               Usage Statistics
@@ -413,7 +481,7 @@ const Header: React.FC<HeaderProps> = ({
                                 setShowProfileDropdown(false);
                                 onLogout && onLogout();
                               }}
-                              className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                              className="flex w-full items-center px-4 py-2.5 text-sm text-slate-700 transition-colors hover:bg-red-50 hover:text-red-700"
                             >
                               <LogOut size={16} className="mr-2" />
                               Logout
@@ -421,16 +489,16 @@ const Header: React.FC<HeaderProps> = ({
                           </>
                         ) : (
                           <>
-                            <div className="px-4 py-2 border-b border-gray-100">
-                              <p className="text-sm font-medium text-gray-700">Access Your Account</p>
-                              <p className="text-xs text-gray-500">Sign in or create an account</p>
+                            <div className="border-b border-slate-100 px-4 py-3">
+                              <p className="text-sm font-bold text-slate-800">Access Your Account</p>
+                              <p className="text-xs text-slate-500">Sign in or create an account</p>
                             </div>
                             <button
                               onClick={() => {
                                 setShowProfileDropdown(false);
                                 onNavigateToLogin && onNavigateToLogin();
                               }}
-                              className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                              className="flex w-full items-center px-4 py-2.5 text-sm text-slate-700 transition-colors hover:bg-blue-50"
                             >
                               <LogIn size={16} className="mr-2" />
                               Login
@@ -440,7 +508,7 @@ const Header: React.FC<HeaderProps> = ({
                                 setShowProfileDropdown(false);
                                 onNavigateToSignup && onNavigateToSignup();
                               }}
-                              className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                              className="flex w-full items-center px-4 py-2.5 text-sm text-slate-700 transition-colors hover:bg-blue-50"
                             >
                               <UserPlus size={16} className="mr-2" />
                               Sign Up

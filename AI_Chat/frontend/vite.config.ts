@@ -7,7 +7,15 @@ export default defineConfig({
     exclude: ['lucide-react'],
   },
   server: {
-    host: '0.0.0.0',   // 👈 allow network access
+    host: '0.0.0.0', // allow network access (LAN)
     port: 5173,
+    proxy: {
+      // Dev: browser calls same-origin /api/...; Vite forwards to Flask (avoids ERR_CONNECTION_REFUSED
+      // when the browser targets localhost:5000 while the API runs only on the dev machine, etc.)
+      '/api': {
+        target: 'http://127.0.0.1:5000',
+        changeOrigin: true,
+      },
+    },
   },
 });

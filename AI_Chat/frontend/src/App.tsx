@@ -1,5 +1,5 @@
 import { type FC, useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { ArrowUp, Bot, FileDown, UserCircle, Trash2, AlertCircle, Upload, FileText, Image as ImageIcon, Loader2, X, Settings, Heart, Activity, Square, Stethoscope} from 'lucide-react';
+import { ArrowUp, Bot, FileDown, UserCircle, Users, Trash2, AlertCircle, Upload, FileText, Image as ImageIcon, Loader2, X, Settings, Heart, Activity, Square, Stethoscope, PlusCircle, LayoutDashboard, Calendar, Scan } from 'lucide-react';
 import ChatMessage from './components/ChatMessage';
 import LoadingDots from './components/LoadingDots';
 import DisclaimerModal from './components/DisclaimerModal';
@@ -35,6 +35,7 @@ import PatientPortalLayout from './components/PatientPortalLayout';
 import GeneralPractitionerDashboard from './components/general/GeneralPractitionerDashboard';
 import FloatingChatBot from './components/general/FloatingChatBot';
 import AdminDashboard from './components/admin/AdminDashboard';
+import FaqDropdown from './components/FaqDropdown';
 import { roleService, type UserRole, type Capability as RoleCapability } from './services/roleService';
 
 function shouldResetContext(input: string): boolean {
@@ -48,7 +49,33 @@ function shouldResetContext(input: string): boolean {
   );
 }
 
-const AuthLayout: FC<{ children: React.ReactNode; navigate: any; capabilityName?: string }> = ({ children, navigate, capabilityName }) => {
+/** Normalize upload/radiology result: collapse excessive newlines and trim for consistent, compact display. */
+function normalizeInterpretationResult(text: string): string {
+  if (!text || typeof text !== 'string') return text;
+  return text
+    .replace(/\r\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')   // 3+ newlines -> max 2
+    .replace(/\n[ \t]+\n/g, '\n\n')  // blank lines that had only spaces/tabs -> single blank
+    .split('\n')
+    .map(line => line.trimEnd())
+    .filter((line, i, arr) => {
+      const prev = arr[i - 1];
+      return !(line === '' && prev === '');  // drop consecutive empty lines
+    })
+    .join('\n')
+    .trim();
+}
+
+const TOP_FEATURES = [
+  { icon: Bot, text: 'AI medical assistants for doctors in general, radiology & lab departments' },
+  { icon: UserCircle, text: 'Personalised AI assistants for users to chat, manage, and track health' },
+  { icon: Scan, text: 'User/Patient engagement with medical records, family members & notifications' },
+  { icon: Calendar, text: 'Appointment booking, Prescriptions, Medicine lookup, Reports & Analytics' },
+  { icon: Upload, text: 'Document & image upload with AI analysis and interpretation for diagnosis assistance' },
+  { icon: Users, text: 'Assistance to medical representatives to manage their tasks and interactions with doctors' }
+];
+
+const AuthLayout: FC<{ children: React.ReactNode; navigate: any; capabilityName?: string; showFeatures?: boolean }> = ({ children, navigate, capabilityName, showFeatures }) => {
   const getCapabilityInfo = (capability?: string) => {
     switch (capability) {
       case 'general':
@@ -74,7 +101,7 @@ const AuthLayout: FC<{ children: React.ReactNode; navigate: any; capabilityName?
         };
       case 'engagement':
         return {
-          title: 'Patient Engagement',
+          title: 'Frontdesk',
           subtitle: 'Sign in to manage patient communications',
           color: 'text-orange-600',
           bgColor: 'bg-orange-50'
@@ -86,10 +113,17 @@ const AuthLayout: FC<{ children: React.ReactNode; navigate: any; capabilityName?
           color: 'text-purple-600',
           bgColor: 'bg-purple-50'
         };
+      case 'signup':
+        return {
+          title: 'Create Account',
+          subtitle: 'Sign up for Acufore Health',
+          color: 'text-blue-600',
+          bgColor: 'bg-blue-50'
+        };
       default:
         return {
-          title: 'Welcome to Acufore Health',
-          subtitle: 'Healthcare Management',
+          title: 'Welcome',
+          subtitle: 'Sign in to your account',
           color: 'text-blue-600',
           bgColor: 'bg-blue-50'
         };
@@ -99,19 +133,139 @@ const AuthLayout: FC<{ children: React.ReactNode; navigate: any; capabilityName?
   const info = getCapabilityInfo(capabilityName);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 relative overflow-hidden">
+      {/* Full-screen background healthcare illustration */}
+      <div className="absolute inset-0 pointer-events-none z-0" aria-hidden>
+        <img
+          src="/healthcare-illustration.jpg"
+          alt=""
+          className="absolute inset-0 w-100% h-90% object-cover opacity-50"
+        />
+      </div>
       <AuthHeader />
-      <div className="flex items-center justify-center py-12 px-4">
-        <div className="w-full max-w-md p-8 bg-white rounded-xl shadow-lg border border-gray-100 animate-fade-in">
-          <div className="mb-6 text-center">
-            <h1 className={`text-2xl font-bold ${info.color}`}>{info.title}</h1>
-            <p className="text-gray-500 text-sm">{info.subtitle}</p>
+      <div className="relative z-10 flex items-center justify-center py-12 px-4">
+        {showFeatures ? (
+          <div className="w-full max-w-5xl flex flex-col md:flex-row bg-white/10 backdrop-blur-sm rounded-xl shadow-lg border border-white/20 animate-fade-in overflow-hidden min-h-[32rem]">
+            {/* Left: Branding + features - 60% width; different bg for login vs signup */}
+            <div className={`md:w-[60%] p-10 border-b md:border-b-0 md:border-r border-gray-100 min-h-[28rem] md:min-h-0 flex flex-col justify-center bg-gradient-to-br ${capabilityName === 'signup' ? 'from-indigo-200 to-red-300' : 'from-gray-200 to-indigo-300'}`}>
+              <div className="mb-6 text-center">
+                <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent">Acufore Health</h1>
+                <p className="text-gray-500 text-sm mt-1">Healthcare Management</p>
+              </div>
+              <ul className="space-y-4">
+                {TOP_FEATURES.map((item, i) => {
+                  const Icon = item.icon;
+                  return (
+                    <li key={i} className="flex items-start gap-3">
+                      <span className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
+                        <Icon className="w-4 h-4 text-blue-600" />
+                      </span>
+                      <span className="text-sm text-gray-700 pt-0.5">{item.text}</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+            {/* Right: Login form - 40% width */}
+            <div className="md:w-[40%] p-10 flex flex-col justify-center">
+              <div className={`mb-6 ${!capabilityName || capabilityName === 'signup' ? 'text-center' : ''}`}>
+                <h1 className={`font-bold ${info.color} ${!capabilityName || capabilityName === 'signup' ? 'text-4xl' : 'text-2xl'}`}>{info.title}</h1>
+                {info.subtitle ? <p className="text-gray-500 text-sm mt-1">{info.subtitle}</p> : null}
+              </div>
+              {children}
+            </div>
           </div>
-          {children}
-        </div>
+        ) : (
+          <div className="w-full max-w-md p-8 bg-white rounded-xl shadow-lg border border-gray-100 animate-fade-in">
+            <div className={`mb-6 text-center`}>
+              <h1 className={`font-bold ${info.color} ${!capabilityName || capabilityName === 'signup' ? 'text-4xl' : 'text-2xl'}`}>{info.title}</h1>
+              {info.subtitle ? <p className="text-gray-500 text-sm mt-1">{info.subtitle}</p> : null}
+            </div>
+            {children}
+          </div>
+        )}
       </div>
     </div>
   );
+};
+
+// Defined outside App so they keep stable identity across re-renders (prevents input focus loss on radiology/lab)
+const ProtectedRoute: FC<{ children: React.ReactNode }> = ({ children }) => {
+  const isAuthenticated = sessionStorage.getItem('isAuthenticated') === 'true' && !!sessionStorage.getItem('accessToken');
+  return isAuthenticated ? <>{children}</> : <Navigate to="/login" replace />;
+};
+
+const RoleBasedRoute: FC<{
+  children: React.ReactNode;
+  capability?: RoleCapability | 'admin';
+  fallbackPath?: string;
+  isAuthenticated: boolean;
+}> = ({ children, capability, fallbackPath = '/app', isAuthenticated }) => {
+  const navigate = useNavigate();
+  const [hasAccess, setHasAccess] = useState<boolean | null>(null);
+  const [checking, setChecking] = useState(true);
+
+  useEffect(() => {
+    const checkAccess = async () => {
+      setChecking(true);
+      try {
+        if (capability === 'admin') {
+          const isAdmin = await roleService.isAdmin();
+          setHasAccess(isAdmin);
+          if (!isAdmin) {
+            setTimeout(() => navigate('/login/admin'), 1000);
+          }
+        } else if (capability) {
+          const access = await roleService.hasAccess(capability);
+          setHasAccess(access);
+          if (!access) {
+            setTimeout(() => navigate(fallbackPath), 1000);
+          }
+        } else {
+          setHasAccess(true);
+        }
+      } catch (error) {
+        console.error('Error checking access:', error);
+        setHasAccess(false);
+      } finally {
+        setChecking(false);
+      }
+    };
+
+    if (isAuthenticated) {
+      checkAccess();
+    } else {
+      setHasAccess(false);
+      setChecking(false);
+    }
+  }, [capability, isAuthenticated, fallbackPath, navigate]);
+
+  if (checking) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin text-primary-500 mx-auto mb-4" />
+          <p className="text-gray-600">Checking access permissions...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!hasAccess) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center max-w-md p-8 bg-white rounded-lg shadow-lg">
+          <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">Access Denied</h2>
+          <p className="text-gray-600 mb-4">
+            You don't have permission to access this area. Redirecting...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return <>{children}</>;
 };
 
 const App: FC = () => {
@@ -180,90 +334,6 @@ const App: FC = () => {
     if (path.includes('/app/lab')) return 'lab';
     if (path.includes('/app/engagement')) return 'engagement';
     return null;
-  };
- 
-  // ProtectedRoute component
-  const ProtectedRoute: FC<{ children: React.ReactNode }> = ({ children }) => {
-    const isAuthenticated = sessionStorage.getItem('isAuthenticated') === 'true' && !!sessionStorage.getItem('accessToken');
-    return isAuthenticated ? <>{children}</> : <Navigate to="/login" replace />;
-  };
-
-  // RoleBasedRoute component - checks if user has access to a specific capability
-  const RoleBasedRoute: FC<{ 
-    children: React.ReactNode; 
-    capability?: RoleCapability | 'admin';
-    fallbackPath?: string;
-  }> = ({ children, capability, fallbackPath = '/app' }) => {
-    const [hasAccess, setHasAccess] = useState<boolean | null>(null);
-    const [checking, setChecking] = useState(true);
-
-    useEffect(() => {
-      const checkAccess = async () => {
-        setChecking(true);
-        try {
-          if (capability === 'admin') {
-            // Special check for admin
-            const isAdmin = await roleService.isAdmin();
-            setHasAccess(isAdmin);
-            if (!isAdmin) {
-              setTimeout(() => {
-                navigate('/login/admin');
-              }, 1000);
-            }
-          } else if (capability) {
-            const access = await roleService.hasAccess(capability);
-            setHasAccess(access);
-            if (!access) {
-              setTimeout(() => {
-                navigate(fallbackPath);
-              }, 1000);
-            }
-          } else {
-            // No capability specified, allow access
-            setHasAccess(true);
-          }
-        } catch (error) {
-          console.error('Error checking access:', error);
-          setHasAccess(false);
-        } finally {
-          setChecking(false);
-        }
-      };
-
-      if (isAuthenticated) {
-        checkAccess();
-      } else {
-        setHasAccess(false);
-        setChecking(false);
-      }
-    }, [capability, isAuthenticated, fallbackPath]);
-
-    if (checking) {
-      return (
-        <div className="min-h-screen flex items-center justify-center">
-          <div className="text-center">
-            <Loader2 className="w-8 h-8 animate-spin text-primary-500 mx-auto mb-4" />
-            <p className="text-gray-600">Checking access permissions...</p>
-          </div>
-        </div>
-      );
-    }
-
-    if (!hasAccess) {
-      return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-50">
-          <div className="text-center max-w-md p-8 bg-white rounded-lg shadow-lg">
-            <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
-            <h2 className="text-2xl font-bold text-gray-800 mb-2">Access Denied</h2>
-            <p className="text-gray-600 mb-4">
-              You don't have permission to access this area. Redirecting...
-            </p>
-          </div>
-        </div>
-      );
-    }
-
-    return <>{children}</>;
   };
 
   // Handle disclaimer close
@@ -340,13 +410,13 @@ const App: FC = () => {
   const getCapabilityInfo = (capability: Capability | null) => {
     switch (capability) {
       case 'general':
-        return { name: 'General Medical Assistant', color: 'text-blue-600', bgColor: 'bg-blue-50' };
+        return { name: 'General Medical Assistant', color: 'text-blue-600', bgColor: 'bg-blue-50', subtitle: 'Manage appointments, prescriptions, and patient care' };
       case 'radiology':
-        return { name: 'Radiology Assistant', color: 'text-purple-600', bgColor: 'bg-purple-50' };
+        return { name: 'Radiology Medical Assistant', color: 'text-purple-600', bgColor: 'bg-purple-50', subtitle: 'Interpret imaging and assist with radiology workflows' };
       case 'lab':
-        return { name: 'Lab Interpretation Assistant', color: 'text-green-600', bgColor: 'bg-green-50' };
+        return { name: 'Lab Medical Assistant', color: 'text-green-600', bgColor: 'bg-green-50', subtitle: 'Interpret lab results and assist with laboratory workflows' };
       case 'engagement':
-        return { name: 'Patient Engagement Dashboard', color: 'text-orange-600', bgColor: 'bg-orange-50' };
+        return { name: 'Frontdesk', color: 'text-orange-600', bgColor: 'bg-orange-50', subtitle: 'Query patient data, appointments, and hospital database' };
       default:
         return { name: 'AI Assistant', color: 'text-gray-600', bgColor: 'bg-gray-50' };
     }
@@ -397,61 +467,70 @@ const App: FC = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showDropdown]);
 
-  // Load sessions and current session on mount or when user changes
+  // Load sessions for current route capability (radiology/lab/general/engagement each have their own list).
+  // Only create a new session when none exist — do not append on every navigation or effect re-run.
   useEffect(() => {
-    // Only load sessions if user is authenticated
     if (!isAuthenticated) return;
-    
-    const loadedSessions = getSessions();
+    const routeCapability = getCapabilityFromPath();
+    if (!routeCapability) return;
+
+    const loadedSessions = getSessions(routeCapability);
     const userEmail = sessionStorage.getItem('userEmail') || 'anonymous';
     const storageKey = `${userEmail}_sessionCapabilities`;
     const sessionCapabilities = JSON.parse(localStorage.getItem(storageKey) || '{}');
-    
-    // Always create a new session on page refresh/reload
-    const newId = uuidv4();
-    const sessionNumber = loadedSessions.length + 1;
-    const newSession = { id: newId, name: `Session ${sessionNumber}`, messages: [] };
-    
-    // Add the new session to existing sessions
-    const updatedSessions = [...loadedSessions, newSession];
-    setSessions(updatedSessions);
-    saveSessions(updatedSessions);
-    setCurrentSessionId(newId);
-    setCurrentSessionIdState(newId);
-    setMessages([]);
-    
-    // Handle modal display logic
-    if (!loadedSessions.length) {
-      // For completely new users, show disclaimer first
-      setShowDisclaimer(true);
-    } else {
-      // For returning users, check if they have any saved capabilities
-      const hasAnyCapabilities = Object.keys(sessionCapabilities).length > 0;
-      if (hasAnyCapabilities) {
-        // Returning user with saved capabilities - skip disclaimer
-        setShowDisclaimer(false);
-      } else {
-        // Returning user but no capabilities saved - show disclaimer
-        setShowDisclaimer(true);
-      }
-    }
-  }, [isAuthenticated]); // Re-run when authentication status changes
 
-  // Save messages to the current session
+    if (loadedSessions.length === 0) {
+      const newId = uuidv4();
+      const newSession = { id: newId, name: 'Session 1', messages: [] };
+      const updatedSessions = [newSession];
+      setSessions(updatedSessions);
+      saveSessions(updatedSessions, routeCapability);
+      setCurrentSessionId(newId, routeCapability);
+      setCurrentSessionIdState(newId);
+      setMessages([]);
+      sessionCapabilities[newId] = routeCapability;
+      localStorage.setItem(storageKey, JSON.stringify(sessionCapabilities));
+      setShowDisclaimer(true);
+      return;
+    }
+
+    setSessions(loadedSessions);
+
+    const savedCurrentId = getCurrentSessionId(routeCapability);
+    const pickedId =
+      savedCurrentId && loadedSessions.some((s) => s.id === savedCurrentId)
+        ? savedCurrentId
+        : loadedSessions[0].id;
+
+    const found = loadedSessions.find((s) => s.id === pickedId);
+    setCurrentSessionId(pickedId, routeCapability);
+    setCurrentSessionIdState(pickedId);
+    setMessages(found?.messages || []);
+
+    if (!sessionCapabilities[pickedId]) {
+      sessionCapabilities[pickedId] = routeCapability;
+      localStorage.setItem(storageKey, JSON.stringify(sessionCapabilities));
+    }
+
+    const hasAnyCapabilities = Object.keys(sessionCapabilities).length > 0;
+    setShowDisclaimer(!hasAnyCapabilities);
+  }, [isAuthenticated, location.pathname]);
+
+  // Save messages to the current session (per-route capability so radiology/lab stay separate)
   useEffect(() => {
     if (!currentSessionId) return;
     const updatedSessions = sessions.map(s =>
       s.id === currentSessionId ? { ...s, messages } : s
     );
     setSessions(updatedSessions);
-    saveSessions(updatedSessions);
+    saveSessions(updatedSessions, getCapabilityFromPath());
     saveMessages(messages); // legacy, can be removed later
   }, [messages]);
 
   // Handle session switch
   const handleSessionSwitch = (sessionId: string) => {
     setCurrentSessionIdState(sessionId);
-    setCurrentSessionId(sessionId);
+    setCurrentSessionId(sessionId, getCapabilityFromPath());
     const found = sessions.find(s => s.id === sessionId);
     const sessionMessages = found ? found.messages : [];
     setMessages(sessionMessages);
@@ -489,13 +568,13 @@ const App: FC = () => {
     };
     const updatedSessions = [...sessions, newSession];
     setSessions(updatedSessions);
-    saveSessions(updatedSessions);
+    const routeCapability = getCapabilityFromPath();
+    saveSessions(updatedSessions, routeCapability);
     setCurrentSessionIdState(newId);
-    setCurrentSessionId(newId);
+    setCurrentSessionId(newId, routeCapability);
     setMessages([]);
     
     // Check if there's a capability in the current route
-    const routeCapability = getCapabilityFromPath();
     if (routeCapability) {
       // If on a capability route, use that capability
       setSelectedCapability(routeCapability);
@@ -517,10 +596,11 @@ const App: FC = () => {
   // Handle session delete
   const handleDeleteSession = (sessionId: string) => {
     if (sessions.length === 1) return; // Prevent deleting the last session
+    const routeCapability = getCapabilityFromPath();
     const updatedSessions = sessions.filter(s => s.id !== sessionId);
     setSessions(updatedSessions);
-    saveSessions(updatedSessions);
-    removeSession(sessionId);
+    saveSessions(updatedSessions, routeCapability);
+    removeSession(sessionId, routeCapability);
     
     // Clean up capability data for deleted session (user-specific)
     const userEmail = sessionStorage.getItem('userEmail') || 'anonymous';
@@ -533,7 +613,7 @@ const App: FC = () => {
     if (currentSessionId === sessionId) {
       const nextSession = updatedSessions[0];
       setCurrentSessionIdState(nextSession.id);
-      setCurrentSessionId(nextSession.id);
+      setCurrentSessionId(nextSession.id, routeCapability);
       setMessages(nextSession.messages);
       
       // Load capability for the next session
@@ -1039,14 +1119,29 @@ const App: FC = () => {
             setTimeout(() => setUploadProgress(0), 500);
             try {
               const data = JSON.parse(xhr.responseText);
+              const raw = data.result || 'No interpretation available.';
+              const fullText = normalizeInterpretationResult(raw);
+              const msgId = Date.now().toString() + '-ai';
               setMessages(prev => [...prev, {
-                id: Date.now().toString() + '-ai',
+                id: msgId,
                 role: 'assistant',
-                content: data.result || 'No interpretation available.',
+                content: '',
                 timestamp: new Date().toISOString(),
               }]);
-              setLastFileFindings(data.result || null); // <-- store findings
-              setLastAiMessage(data.result || null);
+              const chunkSize = 25;
+              const intervalMs = 20;
+              let index = 0;
+              const streamInterval = setInterval(() => {
+                index = Math.min(index + chunkSize, fullText.length);
+                setMessages(prev => prev.map(m => m.id === msgId ? { ...m, content: fullText.slice(0, index) } : m));
+                if (index >= fullText.length) {
+                  clearInterval(streamInterval);
+                  setLastFileFindings(fullText);
+                  setLastAiMessage(fullText);
+                  setAnalyzing(false);
+                  resolve();
+                }
+              }, intervalMs);
             } catch (err) {
               setMessages(prev => [...prev, {
                 id: Date.now().toString() + '-err',
@@ -1057,9 +1152,9 @@ const App: FC = () => {
               }]);
               setLastFileFindings(null);
               setLastAiMessage(null);
+              setAnalyzing(false);
+              resolve();
             }
-            setAnalyzing(false);
-            resolve();
           };
           xhr.onerror = () => {
             setUploading(false);
@@ -1193,28 +1288,44 @@ const App: FC = () => {
     return 'New Chat';
   }
 
-  // Get session capability
-  function getSessionCapability(sessionId: string): string {
+  // Get raw session capability for filtering (undefined if not set)
+  function getSessionCapabilityValue(sessionId: string): Capability | undefined {
     const userEmail = sessionStorage.getItem('userEmail') || 'anonymous';
     const storageKey = `${userEmail}_sessionCapabilities`;
     const sessionCapabilities = JSON.parse(localStorage.getItem(storageKey) || '{}');
-    const capability = sessionCapabilities[sessionId];
+    const cap = sessionCapabilities[sessionId];
+    return cap && ['general', 'radiology', 'lab', 'engagement'].includes(cap) ? cap as Capability : undefined;
+  }
+
+  // Get session capability label for display
+  function getSessionCapability(sessionId: string): string {
+    const capability = getSessionCapabilityValue(sessionId);
     switch (capability) {
-      case 'general': return '🩺 General';
-      case 'radiology': return '🧠 Radiology';
-      case 'lab': return '📊 Lab';
-      case 'engagement': return '👥 Patient Engagement';
-      default: return '👥 Patient Engagement';  
+      case 'general': return 'General';
+      case 'radiology': return 'Radiology';
+      case 'lab': return 'Lab';
+      case 'engagement': return 'Frontdesk';
+      default: return 'Chat';
     }
   }
+
+  // On capability-specific pages (radiology, lab, engagement), only show sessions for that capability
+  const sessionsForCurrentRoute = useMemo(() => {
+    const routeCap = getCapabilityFromPath();
+    if (!routeCap) return sessions;
+    return sessions.filter(s => {
+      const cap = getSessionCapabilityValue(s.id);
+      return cap === routeCap || cap === undefined;
+    });
+  }, [sessions, location.pathname]);
 
   return (
     <Routes>
       {/* Default route - always redirect to login page first */}
       <Route path="/" element={<Navigate to="/login" replace />} />
       <Route path="/signup" element={
-        <AuthLayout navigate={navigate}>
-          <Signup 
+        <AuthLayout navigate={navigate} capabilityName="signup" showFeatures>
+          <Signup
             onSignupSuccess={() => navigate('/login')}
             onNavigateToLogin={() => navigate('/login')}
           />
@@ -1236,7 +1347,7 @@ const App: FC = () => {
       } />
       {/* Default login route - redirects based on user role */}
       <Route path="/login" element={
-        <AuthLayout navigate={navigate}>
+        <AuthLayout navigate={navigate} showFeatures>
           <Login 
             onLoginSuccess={async () => {
               // Get default route based on role and navigate there
@@ -1249,7 +1360,7 @@ const App: FC = () => {
       } />
       {/* Capability-specific login routes */}
       <Route path="/login/general" element={
-        <AuthLayout navigate={navigate} capabilityName="general">
+        <AuthLayout navigate={navigate} capabilityName="general" showFeatures>
           <Login 
             onLoginSuccess={() => navigate('/app/general')}
             onNavigateToSignup={() => navigate('/signup')}
@@ -1259,7 +1370,7 @@ const App: FC = () => {
         </AuthLayout>
       } />
       <Route path="/login/radiology" element={
-        <AuthLayout navigate={navigate} capabilityName="radiology">
+        <AuthLayout navigate={navigate} capabilityName="radiology" showFeatures>
           <Login 
             onLoginSuccess={() => navigate('/app/radiology')}
             onNavigateToSignup={() => navigate('/signup')}
@@ -1269,7 +1380,7 @@ const App: FC = () => {
         </AuthLayout>
       } />
       <Route path="/login/lab" element={
-        <AuthLayout navigate={navigate} capabilityName="lab">
+        <AuthLayout navigate={navigate} capabilityName="lab" showFeatures>
           <Login 
             onLoginSuccess={() => navigate('/app/lab')}
             onNavigateToSignup={() => navigate('/signup')}
@@ -1279,18 +1390,18 @@ const App: FC = () => {
         </AuthLayout>
       } />
       <Route path="/login/engagement" element={
-        <AuthLayout navigate={navigate} capabilityName="engagement">
+        <AuthLayout navigate={navigate} capabilityName="engagement" showFeatures>
           <Login 
             onLoginSuccess={() => navigate('/app/engagement')}
             onNavigateToSignup={() => navigate('/signup')}
             redirectPath="/app/engagement"
-            capabilityName="Patient Engagement"
+            capabilityName="Frontdesk"
           />
         </AuthLayout>
       } />
       {/* Admin Login */}
       <Route path="/login/admin" element={
-        <AuthLayout navigate={navigate} capabilityName="admin">
+        <AuthLayout navigate={navigate} capabilityName="admin" showFeatures>
           <Login 
             onLoginSuccess={() => navigate('/admin/dashboard')}
             onNavigateToSignup={() => navigate('/signup')}
@@ -1302,7 +1413,7 @@ const App: FC = () => {
       {/* Admin Dashboard */}
       <Route path="/admin/dashboard" element={
         <ProtectedRoute>
-          <RoleBasedRoute capability={'admin' as any} fallbackPath="/login/admin">
+          <RoleBasedRoute capability={'admin' as any} fallbackPath="/login/admin" isAuthenticated={isAuthenticated}>
             <AdminDashboard />
           </RoleBasedRoute>
         </ProtectedRoute>
@@ -1319,7 +1430,7 @@ const App: FC = () => {
       {/* General Practitioner Dashboard - New route for /app/general */}
       <Route path="/app/general" element={
         <ProtectedRoute>
-          <RoleBasedRoute capability="general" fallbackPath="/app/engagement">
+          <RoleBasedRoute capability="general" fallbackPath="/app/engagement" isAuthenticated={isAuthenticated}>
             <>
               <GeneralPractitionerDashboard />
               <FloatingChatBot />
@@ -1330,7 +1441,7 @@ const App: FC = () => {
       {/* Radiology route */}
       <Route path="/app/radiology" element={
         <ProtectedRoute>
-          <RoleBasedRoute capability="radiology" fallbackPath="/app/engagement">
+          <RoleBasedRoute capability="radiology" fallbackPath="/app/engagement" isAuthenticated={isAuthenticated}>
             <div className="flex flex-col h-screen overflow-hidden bg-gray-50">
           <Header
             sessions={sessions}
@@ -1365,35 +1476,59 @@ const App: FC = () => {
             }}
             selectedCapability={selectedCapability}
             onSelectPrompt={handleQuickPrompt}
+            hideSessionControls={true}
           />
           {showDisclaimer && (
             <DisclaimerModal onClose={handleDisclaimerClose} />
           )}
-          <main className="flex-1 flex px-3 py-3 overflow-hidden max-w-7xl w-full mx-auto">
-            <div className="flex gap-2 flex-1 min-h-0">
-              {/* Left Column - Patient Info (Only for non-engagement capabilities) */}
-              {selectedCapability !== 'engagement' && (
-                <div className="w-65 flex-shrink-0 overflow-y-auto hide-scrollbar">
-                  <div className="flex flex-col bg-white rounded-lg shadow-md p-4">
-                    <h2 className="text-lg font-medium text-blue-900 mb-2">Patient Information</h2>
-                    <div className="flex-1">
-                      <PatientInfoForm
-                        patientInfo={patientInfo}
-                        onPatientInfoChange={setPatientInfo}
-                        onSubmitPatientInfo={handlePatientSubmit}
-                        isLoading={isLoading}
-                      />
-                    </div>
+          <main className="flex-1 flex px-0 py-3 overflow-hidden w-full">
+            <div className="flex gap-2 flex-1 min-h-0 min-w-0 w-full">
+              {/* Left Sidebar - New Chat + Chat History (radiology: no Patient Info) */}
+              <div className="w-64 flex-shrink-0 flex flex-col bg-white rounded-lg shadow-md overflow-hidden">
+                <div className="p-3 border-b border-gray-200">
+                  <button
+                    type="button"
+                    onClick={handleNewSession}
+                    className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-green-500 text-white hover:bg-green-600 transition-colors"
+                  >
+                    <PlusCircle size={18} />
+                    New Chat
+                  </button>
+                </div>
+                <div className="flex-1 overflow-y-auto hide-scrollbar flex flex-col min-h-0">
+                  <h2 className="text-sm font-medium text-gray-700 px-3 py-2 border-b border-gray-100">Chat History</h2>
+                  <div className="flex-1 p-2">
+                    {sessionsForCurrentRoute.map((session) => (
+                      <div
+                        key={session.id}
+                        className={`flex items-center justify-between gap-2 px-3 py-2 rounded-lg cursor-pointer hover:bg-blue-50 ${currentSessionId === session.id ? 'bg-blue-100' : ''}`}
+                        onClick={() => handleSessionSwitch(session.id)}
+                      >
+                        <div className="flex flex-col flex-1 min-w-0">
+                          <span className="truncate text-sm font-medium text-gray-900">{getSessionTopic(session)}</span>
+                          {getSessionCapability && (
+                            <span className="text-xs text-gray-500 truncate">{getSessionCapability(session.id)}</span>
+                          )}
+                        </div>
+                        {sessionsForCurrentRoute.length > 1 && (
+                          <button
+                            type="button"
+                            className="p-1 text-gray-400 hover:text-red-600 flex-shrink-0"
+                            onClick={(e) => { e.stopPropagation(); handleDeleteSession(session.id); }}
+                            title="Delete session"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 </div>
-              )}
+              </div>
 
-              {/* Right Column - Chat or Patient Engagement */}
-              <div className={`flex flex-col overflow-hidden ${selectedCapability === 'engagement' ? 'flex-1' : 'flex-1'}`}>
-                {selectedCapability === 'engagement' ? (
-                  <PatientEngagement sessionId={currentSessionId} />
-                ) : (
-                  <div className="bg-white rounded-lg shadow-md flex flex-col h-full relative performance-optimized">
+              {/* Right Column - Chat */}
+              <div className="flex flex-col overflow-hidden flex-1">
+                <div className="bg-white rounded-lg shadow-md flex flex-col h-full relative performance-optimized">
                     <div className="flex-1 overflow-y-auto p-4 space-y-4 hide-scrollbar chat-container smooth-scroll">
                       {messages.length === 0 && !showFileTypeModal ? (
                         <div className="flex flex-col items-center justify-center h-full text-center text-gray-500 space-y-4">
@@ -1421,12 +1556,20 @@ const App: FC = () => {
                         </div>
                       ) : (
                         messages.map((message) => (
-                          <ChatMessage key={message.id} message={message} onPreviewClick={handlePreviewClick} onEdit={id => {
-                            setEditingMessageId(id);
-                            const msg = messages.find(m => m.id === id);
-                            if (msg) setInput(msg.content);
-                            if (inputRef.current) inputRef.current.focus();
-                          }} />
+                          <ChatMessage
+                            key={message.id}
+                            message={message}
+                            onPreviewClick={handlePreviewClick}
+                            onEdit={id => {
+                              setEditingMessageId(id);
+                              const msg = messages.find(m => m.id === id);
+                              if (msg) setInput(msg.content);
+                              if (inputRef.current) inputRef.current.focus();
+                            }}
+                            showUploadProgress={uploading && messages.length > 0 && messages[messages.length - 1].id === message.id && message.role === 'user' && !!(message as any).fileUrl}
+                            uploadProgress={uploadProgress}
+                            analyzing={analyzing && messages.length > 0 && messages[messages.length - 1].id === message.id && message.role === 'user'}
+                          />
                         ))
                       )}
                       {(isLoading || analyzing) && (
@@ -1566,21 +1709,13 @@ const App: FC = () => {
                             disabled={uploading || analyzing || !selectedCapability || isVoiceRecording}
                           />
                         </div>
-                        
-
-                        {/* Upload Progress Bar */}
-                        {uploading && (
-                          <div className="w-32 h-2 bg-gray-200 rounded-full overflow-hidden mr-2">
-                            <div className="h-full bg-primary-500 transition-all" style={{ width: `${uploadProgress}%` }} />
-                          </div>
-                        )}
 
                         <textarea
                           ref={inputRef}
                           value={input}
                           onChange={(e) => setInput(e.target.value)}
                           placeholder={placeholderText}
-                          className="w-full p-3 pr-12 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none hide-scrollbar"
+                          className={`w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none hide-scrollbar ${selectedCapability === 'radiology' || selectedCapability === 'lab' ? 'pr-24' : 'pr-12'}`}
                           rows={1}
                           disabled={uploading || analyzing || !selectedCapability}
                           onKeyDown={(e) => {
@@ -1590,6 +1725,16 @@ const App: FC = () => {
                             }
                           }}
                         />
+                        {(selectedCapability === 'radiology' || selectedCapability === 'lab') && (
+                          <div className="absolute right-12 top-1/2 transform -translate-y-1/2">
+                            <FaqDropdown
+                              capability={selectedCapability}
+                              sessionId={currentSessionId}
+                              onSelectPrompt={handleQuickPrompt}
+                              disabled={uploading || analyzing || !selectedCapability}
+                            />
+                          </div>
+                        )}
                         {(isLoading || analyzing) ? (
                           <button
                             type="button"
@@ -1612,7 +1757,6 @@ const App: FC = () => {
                     </div>
                   )}
                 </div>
-              )}
             </div>
             </div>
           </main>
@@ -1672,7 +1816,7 @@ const App: FC = () => {
           )}
 
           <footer className="py-1 px-4 text-center text-sm text-amber-600 border-t border-gray-200">
-            <p>© 2025 Healthcare Chatbot. {selectedCapability === 'engagement' ? 'Patient Engagement' : 'Assistance For Professional Medical Advice.'}</p>
+            <p>© 2025 Healthcare Chatbot. {selectedCapability === 'engagement' ? 'Frontdesk' : 'Assistance For Professional Medical Advice.'}</p>
           </footer>
         </div>
           </RoleBasedRoute>
@@ -1681,7 +1825,7 @@ const App: FC = () => {
       {/* Lab route */}
       <Route path="/app/lab" element={
         <ProtectedRoute>
-          <RoleBasedRoute capability="lab" fallbackPath="/app/engagement">
+          <RoleBasedRoute capability="lab" fallbackPath="/app/engagement" isAuthenticated={isAuthenticated}>
             <div className="flex flex-col h-screen overflow-hidden bg-gray-50">
           <Header
             sessions={sessions}
@@ -1707,37 +1851,64 @@ const App: FC = () => {
               setCurrentSessionIdState(null);
               setSelectedCapability(null);
               setShowDisclaimer(true);
+              setUserRole(null);
               navigate('/login');
             }}
             selectedCapability={selectedCapability}
             onSelectPrompt={handleQuickPrompt}
+            hideSessionControls={true}
           />
           {showDisclaimer && (
             <DisclaimerModal onClose={handleDisclaimerClose} />
           )}
-          <main className="flex-1 flex px-3 py-3 overflow-hidden max-w-7xl w-full mx-auto">
-            <div className="flex gap-2 flex-1 min-h-0">
-              {selectedCapability !== 'engagement' && (
-                <div className="w-65 flex-shrink-0 overflow-y-auto hide-scrollbar">
-                  <div className="flex flex-col bg-white rounded-lg shadow-md p-4">
-                    <h2 className="text-lg font-medium text-blue-900 mb-2">Patient Information</h2>
-                    <div className="flex-1">
-                      <PatientInfoForm
-                        patientInfo={patientInfo}
-                        onPatientInfoChange={setPatientInfo}
-                        onSubmitPatientInfo={handlePatientSubmit}
-                        isLoading={isLoading}
-                      />
-                    </div>
+          <main className="flex-1 flex px-0 py-3 overflow-hidden w-full">
+            <div className="flex gap-2 flex-1 min-h-0 min-w-0 w-full">
+              {/* Left Sidebar - New Chat + Chat History (lab: no Patient Info) */}
+              <div className="w-64 flex-shrink-0 flex flex-col bg-white rounded-lg shadow-md overflow-hidden">
+                <div className="p-3 border-b border-gray-200">
+                  <button
+                    type="button"
+                    onClick={handleNewSession}
+                    className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-green-500 text-white hover:bg-green-600 transition-colors"
+                  >
+                    <PlusCircle size={18} />
+                    New Chat
+                  </button>
+                </div>
+                <div className="flex-1 overflow-y-auto hide-scrollbar flex flex-col min-h-0">
+                  <h2 className="text-sm font-medium text-gray-700 px-3 py-2 border-b border-gray-100">Chat History</h2>
+                  <div className="flex-1 p-2">
+                    {sessionsForCurrentRoute.map((session) => (
+                      <div
+                        key={session.id}
+                        className={`flex items-center justify-between gap-2 px-3 py-2 rounded-lg cursor-pointer hover:bg-blue-50 ${currentSessionId === session.id ? 'bg-blue-100' : ''}`}
+                        onClick={() => handleSessionSwitch(session.id)}
+                      >
+                        <div className="flex flex-col flex-1 min-w-0">
+                          <span className="truncate text-sm font-medium text-gray-900">{getSessionTopic(session)}</span>
+                          {getSessionCapability && (
+                            <span className="text-xs text-gray-500 truncate">{getSessionCapability(session.id)}</span>
+                          )}
+                        </div>
+                        {sessionsForCurrentRoute.length > 1 && (
+                          <button
+                            type="button"
+                            className="p-1 text-gray-400 hover:text-red-600 flex-shrink-0"
+                            onClick={(e) => { e.stopPropagation(); handleDeleteSession(session.id); }}
+                            title="Delete session"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 </div>
-              )}
+              </div>
 
-              <div className={`flex flex-col overflow-hidden ${selectedCapability === 'engagement' ? 'flex-1' : 'flex-1'}`}>
-                {selectedCapability === 'engagement' ? (
-                  <PatientEngagement sessionId={currentSessionId} />
-                ) : (
-                  <div className="bg-white rounded-lg shadow-md flex flex-col h-full relative performance-optimized">
+              {/* Right Column - Chat */}
+              <div className="flex flex-col overflow-hidden flex-1">
+                <div className="bg-white rounded-lg shadow-md flex flex-col h-full relative performance-optimized">
                     <div className="flex-1 overflow-y-auto p-4 space-y-4 hide-scrollbar chat-container smooth-scroll">
                       {messages.length === 0 && !showFileTypeModal ? (
                         <div className="flex flex-col items-center justify-center h-full text-center text-gray-500 space-y-4">
@@ -1765,12 +1936,20 @@ const App: FC = () => {
                         </div>
                       ) : (
                         messages.map((message) => (
-                          <ChatMessage key={message.id} message={message} onPreviewClick={handlePreviewClick} onEdit={id => {
-                            setEditingMessageId(id);
-                            const msg = messages.find(m => m.id === id);
-                            if (msg) setInput(msg.content);
-                            if (inputRef.current) inputRef.current.focus();
-                          }} />
+                          <ChatMessage
+                            key={message.id}
+                            message={message}
+                            onPreviewClick={handlePreviewClick}
+                            onEdit={id => {
+                              setEditingMessageId(id);
+                              const msg = messages.find(m => m.id === id);
+                              if (msg) setInput(msg.content);
+                              if (inputRef.current) inputRef.current.focus();
+                            }}
+                            showUploadProgress={uploading && messages.length > 0 && messages[messages.length - 1].id === message.id && message.role === 'user' && !!(message as any).fileUrl}
+                            uploadProgress={uploadProgress}
+                            analyzing={analyzing && messages.length > 0 && messages[messages.length - 1].id === message.id && message.role === 'user'}
+                          />
                         ))
                       )}
                       {(isLoading || analyzing) && (
@@ -1897,20 +2076,13 @@ const App: FC = () => {
                             disabled={uploading || analyzing || !selectedCapability || isVoiceRecording}
                           />
                         </div>
-                        
-
-                        {uploading && (
-                          <div className="w-32 h-2 bg-gray-200 rounded-full overflow-hidden mr-2">
-                            <div className="h-full bg-primary-500 transition-all" style={{ width: `${uploadProgress}%` }} />
-                          </div>
-                        )}
 
                         <textarea
                           ref={inputRef}
                           value={input}
                           onChange={(e) => setInput(e.target.value)}
                           placeholder={placeholderText}
-                          className="w-full p-3 pr-12 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none hide-scrollbar"
+                          className={`w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none hide-scrollbar ${selectedCapability === 'radiology' || selectedCapability === 'lab' ? 'pr-24' : 'pr-12'}`}
                           rows={1}
                           disabled={uploading || analyzing || !selectedCapability}
                           onKeyDown={(e) => {
@@ -1920,6 +2092,16 @@ const App: FC = () => {
                             }
                           }}
                         />
+                        {(selectedCapability === 'radiology' || selectedCapability === 'lab') && (
+                          <div className="absolute right-12 top-1/2 transform -translate-y-1/2">
+                            <FaqDropdown
+                              capability={selectedCapability}
+                              sessionId={currentSessionId}
+                              onSelectPrompt={handleQuickPrompt}
+                              disabled={uploading || analyzing || !selectedCapability}
+                            />
+                          </div>
+                        )}
                         {(isLoading || analyzing) ? (
                           <button
                             type="button"
@@ -1942,7 +2124,6 @@ const App: FC = () => {
                     </div>
                   )}
                   </div>
-                )}
               </div>
             </div>
           </main>
@@ -2001,7 +2182,7 @@ const App: FC = () => {
           )}
 
           <footer className="py-1 px-4 text-center text-sm text-amber-600 border-t border-gray-200">
-            <p>© 2025 Healthcare Chatbot. {selectedCapability === 'engagement' ? 'Patient Engagement' : 'Assistance For Professional Medical Advice.'}</p>
+            <p>© 2025 Healthcare Chatbot. {selectedCapability === 'engagement' ? 'Frontdesk' : 'Assistance For Professional Medical Advice.'}</p>
           </footer>
         </div>
           </RoleBasedRoute>
@@ -2010,7 +2191,7 @@ const App: FC = () => {
       {/* Patient Engagement route */}
       <Route path="/app/engagement" element={
         <ProtectedRoute>
-          <RoleBasedRoute capability="engagement" fallbackPath="/app/radiology">
+          <RoleBasedRoute capability="engagement" fallbackPath="/app/radiology" isAuthenticated={isAuthenticated}>
             <div className="flex flex-col h-screen overflow-hidden bg-gray-50">
           <Header
             sessions={sessions}
@@ -2036,67 +2217,67 @@ const App: FC = () => {
               setCurrentSessionIdState(null);
               setSelectedCapability(null);
               setShowDisclaimer(true);
+              setUserRole(null);
               navigate('/login');
             }}
             selectedCapability={selectedCapability}
             onSelectPrompt={handleQuickPrompt}
+            hideSessionControls={true}
           />
           {showDisclaimer && (
             <DisclaimerModal onClose={handleDisclaimerClose} />
           )}
-          <main className="flex-1 flex px-3 py-3 overflow-hidden max-w-7xl w-full mx-auto">
-            <div className="flex gap-2 flex-1 min-h-0">
-              <div className={`flex flex-col overflow-hidden flex-1`}>
-                {selectedCapability === 'engagement' ? (
-                  <PatientEngagement sessionId={currentSessionId} />
-                ) : (
-                  <div className="bg-white rounded-lg shadow-md flex flex-col h-full relative performance-optimized">
-                    <div className="flex-1 overflow-y-auto p-4 space-y-4 hide-scrollbar chat-container smooth-scroll">
-                      {messages.length === 0 && !showFileTypeModal ? (
-                        <div className="flex flex-col items-center justify-center h-full text-center text-gray-500 space-y-4">
-                          <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-700 rounded-full flex items-center justify-center shadow-lg animate-professional-pulse">
-                            <Heart size={30} className="text-white animate-heartbeat" />
-                          </div>
-                          <div>
-                            <div className={`inline-block px-3 py-1 rounded-full text-sm font-medium mb-3 ${getCapabilityInfo(selectedCapability).bgColor} ${getCapabilityInfo(selectedCapability).color}`}>
-                              {getCapabilityInfo(selectedCapability).name}
-                            </div>
-                            <p className="text-lg font-medium">Welcome to Your AI Medical Assistant</p>
-                            <p className="max-w-md mx-auto mt-2">
-                              Ask me questions about health conditions, symptoms, treatments, or general health advice.
-                            </p>
-                          </div>
+          <main className="flex-1 flex px-0 py-3 overflow-hidden w-full">
+            <div className="flex flex-col overflow-hidden flex-1 min-w-0 w-full">
+              {selectedCapability === 'engagement' ? (
+                <PatientEngagement sessionId={currentSessionId} />
+              ) : (
+                <div className="bg-white rounded-lg shadow-md flex flex-col h-full relative performance-optimized">
+                  <div className="flex-1 overflow-y-auto p-4 space-y-4 hide-scrollbar chat-container smooth-scroll">
+                    {messages.length === 0 && !showFileTypeModal ? (
+                      <div className="flex flex-col items-center justify-center h-full text-center text-gray-500 space-y-4">
+                        <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-700 rounded-full flex items-center justify-center shadow-lg animate-professional-pulse">
+                          <Heart size={30} className="text-white animate-heartbeat" />
                         </div>
-                      ) : (
-                        messages.map((message) => (
-                          <ChatMessage key={message.id} message={message} onPreviewClick={handlePreviewClick} onEdit={id => {
-                            setEditingMessageId(id);
-                            const msg = messages.find(m => m.id === id);
-                            if (msg) setInput(msg.content);
-                            if (inputRef.current) inputRef.current.focus();
-                          }} />
-                        ))
-                      )}
-                      {(isLoading || analyzing) && (
-                        <div className="flex items-start space-x-3">
-                          <div className="flex-shrink-0 bg-gradient-to-br from-blue-500 to-blue-700 rounded-full p-3 shadow-lg">
-                            <Stethoscope size={24} className="text-white" />
+                        <div>
+                          <div className={`inline-block px-3 py-1 rounded-full text-sm font-medium mb-3 ${getCapabilityInfo(selectedCapability).bgColor} ${getCapabilityInfo(selectedCapability).color}`}>
+                            {getCapabilityInfo(selectedCapability).name}
                           </div>
-                          <div className="p-4 bg-white rounded-lg rounded-tl-none max-w-[85%] border border-gray-100 shadow-md">
-                            <LoadingDots />
-                          </div>
+                          <p className="text-lg font-medium">Welcome to Your AI Medical Assistant</p>
+                          <p className="max-w-md mx-auto mt-2">
+                            Ask me questions about health conditions, symptoms, treatments, or general health advice.
+                          </p>
                         </div>
-                      )}
-                      <div ref={messagesEndRef} />
-                    </div>
+                      </div>
+                    ) : (
+                      messages.map((message) => (
+                        <ChatMessage key={message.id} message={message} onPreviewClick={handlePreviewClick} onEdit={id => {
+                          setEditingMessageId(id);
+                          const msg = messages.find(m => m.id === id);
+                          if (msg) setInput(msg.content);
+                          if (inputRef.current) inputRef.current.focus();
+                        }} />
+                      ))
+                    )}
+                    {(isLoading || analyzing) && (
+                      <div className="flex items-start space-x-3">
+                        <div className="flex-shrink-0 bg-gradient-to-br from-blue-500 to-blue-700 rounded-full p-3 shadow-lg">
+                          <Stethoscope size={24} className="text-white" />
+                        </div>
+                        <div className="p-4 bg-white rounded-lg rounded-tl-none max-w-[85%] border border-gray-100 shadow-md">
+                          <LoadingDots />
+                        </div>
+                      </div>
+                    )}
+                    <div ref={messagesEndRef} />
                   </div>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           </main>
 
           <footer className="py-1 px-4 text-center text-sm text-amber-600 border-t border-gray-200">
-            <p>© 2025 Healthcare Chatbot. Patient Engagement</p>
+            <p>© 2025 Healthcare Chatbot. {selectedCapability === 'engagement' ? 'Frontdesk' : 'Assistance For Professional Medical Advice.'}</p>
           </footer>
         </div>
           </RoleBasedRoute>

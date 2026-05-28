@@ -8,6 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import { Calendar, Clock, User, MapPin, Plus, X, Edit2, Filter, ChevronLeft, ChevronRight, Check } from 'lucide-react';
 import { appointmentService, Appointment } from '../../services/appointmentService';
 import { patientService, FamilyMember } from '../../services/patientService';
+import { getAppointmentStatusColor, getAppointmentStatusContainer } from '../../utils/appointmentStatusColors';
 
 const AppointmentList: React.FC = () => {
   const navigate = useNavigate();
@@ -212,7 +213,7 @@ const AppointmentList: React.FC = () => {
         
         let matchesFilter = false;
         if (filter === 'upcoming') {
-          matchesFilter = appointmentDate >= today && (apt.status === 'scheduled' || apt.status === 'confirmed');
+          matchesFilter = appointmentDate >= today && apt.status !== 'completed' && apt.status !== 'cancelled';
         } else if (filter === 'past') {
           matchesFilter = appointmentDate < today || apt.status === 'completed' || apt.status === 'cancelled';
         }
@@ -268,7 +269,7 @@ const AppointmentList: React.FC = () => {
     // Filter by upcoming/past
     let matchesTimeFilter = false;
     if (filter === 'upcoming') {
-      matchesTimeFilter = appointmentDate >= today && (apt.status === 'scheduled' || apt.status === 'confirmed');
+      matchesTimeFilter = appointmentDate >= today && apt.status !== 'completed' && apt.status !== 'cancelled';
     } else if (filter === 'past') {
       matchesTimeFilter = appointmentDate < today || apt.status === 'completed' || apt.status === 'cancelled';
     }
@@ -331,7 +332,7 @@ const AppointmentList: React.FC = () => {
                 const today = new Date();
                 today.setHours(0, 0, 0, 0);
                 date.setHours(0, 0, 0, 0);
-                return date >= today && (a.status === 'scheduled' || a.status === 'confirmed');
+                return date >= today && a.status !== 'completed' && a.status !== 'cancelled';
               }).length})
               </span>
               {filter === 'upcoming' && (
@@ -471,10 +472,10 @@ const AppointmentList: React.FC = () => {
               const bookedFor = getBookedFor(apt);
               const doctorName = getDoctorName(apt);
               const appointmentDateTime = new Date(`${apt.appointment_date}T${apt.appointment_time}`);
-              const isUpcoming = filter === 'upcoming' && (apt.status === 'scheduled' || apt.status === 'confirmed');
+              const isUpcoming = filter === 'upcoming' && apt.status !== 'completed' && apt.status !== 'cancelled';
 
               return (
-                <div key={apt.appointment_id} className="bg-white rounded-lg shadow-md hover:shadow-lg p-6 transition-all duration-300 hover:scale-[1.01]">
+                <div key={apt.appointment_id} className={`rounded-lg shadow-md hover:shadow-lg p-6 border transition-all duration-300 hover:scale-[1.01] ${getAppointmentStatusContainer(apt.status)}`}>
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-4 mb-3">
@@ -493,14 +494,8 @@ const AppointmentList: React.FC = () => {
                           <Clock className="h-5 w-5 mr-2" />
                           <span>{appointmentDateTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span>
                         </div>
-                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                          apt.status === 'confirmed' ? 'bg-green-100 text-green-800' :
-                          apt.status === 'scheduled' ? 'bg-blue-100 text-blue-800' :
-                          apt.status === 'completed' ? 'bg-gray-100 text-gray-800' :
-                          apt.status === 'cancelled' ? 'bg-red-100 text-red-800' :
-                          'bg-yellow-100 text-yellow-800'
-                        }`}>
-                          {apt.status}
+                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${getAppointmentStatusColor(apt.status)}`}>
+                          {(apt.status as string) === 'confirmed' ? 'Scheduled' : apt.status}
                         </span>
                       </div>
 

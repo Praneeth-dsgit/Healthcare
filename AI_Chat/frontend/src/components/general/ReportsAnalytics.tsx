@@ -22,6 +22,7 @@ import {
   Pie,
   Cell,
 } from 'recharts';
+import { getApiBaseUrl } from '../../utils/apiBase';
 
 const ReportsAnalytics: React.FC = () => {
   const [stats, setStats] = useState({
@@ -187,7 +188,7 @@ const ReportsAnalytics: React.FC = () => {
 
       // Call backend API to generate AI report
       const { authenticatedFetch, getAuthHeaders } = await import('../../services/authService');
-      const response = await authenticatedFetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'}/api/doctors/generate-report`, {
+      const response = await authenticatedFetch(`${getApiBaseUrl()}/api/doctors/generate-report`, {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify({ analyticsData })

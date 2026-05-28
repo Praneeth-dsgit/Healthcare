@@ -8,6 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import { Bell, Check, CheckCheck, Calendar, Clock, ExternalLink, Trash2, X, User, MapPin } from 'lucide-react';
 import { notificationService, Notification } from '../../services/notificationService';
 import { appointmentService, Appointment } from '../../services/appointmentService';
+import { getAppointmentStatusColor, getAppointmentStatusContainer } from '../../utils/appointmentStatusColors';
 
 const Notifications: React.FC = () => {
   const navigate = useNavigate();
@@ -313,9 +314,9 @@ const Notifications: React.FC = () => {
       {/* Appointment Details Modal */}
       {selectedAppointment && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+          <div className={`rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border-2 ${getAppointmentStatusContainer(selectedAppointment.status)}`}>
             {/* Modal Header */}
-            <div className="flex items-center justify-between p-6 border-b border-gray-200 sticky top-0 bg-white">
+            <div className={`flex items-center justify-between p-6 border-b sticky top-0 ${getAppointmentStatusContainer(selectedAppointment.status)}`}>
               <h2 className="text-xl font-semibold text-gray-900 flex items-center">
                 <Calendar className="h-5 w-5 mr-2 text-blue-600" />
                 Appointment Details
@@ -338,14 +339,8 @@ const Notifications: React.FC = () => {
                 <>
                   {/* Status Badge */}
                   <div className="flex items-center justify-between">
-                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                      selectedAppointment.status === 'confirmed' ? 'bg-green-100 text-green-800' :
-                      selectedAppointment.status === 'scheduled' ? 'bg-blue-100 text-blue-800' :
-                      selectedAppointment.status === 'completed' ? 'bg-gray-100 text-gray-800' :
-                      selectedAppointment.status === 'cancelled' ? 'bg-red-100 text-red-800' :
-                      'bg-yellow-100 text-yellow-800'
-                    }`}>
-                      {selectedAppointment.status}
+                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${getAppointmentStatusColor(selectedAppointment.status)}`}>
+                      {(selectedAppointment.status as string) === 'confirmed' ? 'Scheduled' : selectedAppointment.status}
                     </span>
                   </div>
 

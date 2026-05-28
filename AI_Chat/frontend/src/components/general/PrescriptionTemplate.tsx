@@ -8,6 +8,8 @@ import { Plus, X, Save, Printer, Download, Search, Calendar, ChevronDown } from 
 import jsPDF from 'jspdf';
 import { patientService } from '../../services/patientService';
 import { doctorService } from '../../services/doctorService';
+import { getAuthHeaders, authenticatedFetch } from '../../services/authService';
+import { getApiRoot } from '../../utils/apiBase';
 
 interface Medication {
   id: string;
@@ -398,7 +400,8 @@ const PrescriptionTemplate: React.FC<PrescriptionTemplateProps> = ({ onPrescript
       // Create FormData
       const formData = new FormData();
       formData.append('file', pdfFile);
-      formData.append('patient_id', patientId.trim());
+      const pid = patientId.trim();
+      formData.append('patient_id', pid);
       formData.append('record_type', 'prescription');
       formData.append('title', `Prescription - ${prescriptionDate}`);
       
@@ -425,10 +428,14 @@ Prescribed by: Dr. ${doctorName || 'N/A'}
       formData.append('description', description);
       formData.append('visit_date', prescriptionDate);
 
-      // Upload to API
-      const API_BASE = import.meta.env.VITE_API_BASE_URL + '/api';
-      const response = await fetch(`${API_BASE}/patient/medical-records`, {
+      // Upload to API (FormData: omit Content-Type so browser sets multipart boundary)
+      const API_BASE = getApiRoot();
+      const headers = getAuthHeaders() as Record<string, string>;
+      delete headers['Content-Type'];
+      if (pid) headers['X-Patient-ID'] = pid;
+      const response = await authenticatedFetch(`${API_BASE}/patient/medical-records`, {
         method: 'POST',
+        headers,
         body: formData,
       });
 

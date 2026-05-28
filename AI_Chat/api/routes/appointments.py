@@ -525,8 +525,8 @@ def update_appointment_status(appointment_id):
                 'error': 'status is required'
             }), 400
         
-        # Validate status
-        valid_statuses = ['scheduled', 'confirmed', 'completed', 'cancelled', 'no_show', 'pending']
+        # Validate status (scheduled, pending, completed, cancelled only)
+        valid_statuses = ['scheduled', 'pending', 'completed', 'cancelled']
         if new_status not in valid_statuses:
             return jsonify({
                 'success': False,
@@ -579,7 +579,7 @@ def update_appointment_status(appointment_id):
                     'completed': 'Your appointment has been marked as completed.',
                     'cancelled': 'Your appointment has been cancelled.',
                     'pending': 'Your appointment status has been updated to pending.',
-                    'confirmed': 'Your appointment has been confirmed.'
+                    'scheduled': 'Your appointment has been scheduled.'
                 }
                 notification_message = status_messages.get(new_status, 'Your appointment status has been updated.')
                 

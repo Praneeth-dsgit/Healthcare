@@ -271,6 +271,18 @@ def get_family_members():
     """Get family members for a patient"""
     try:
         patient_id = g.patient_id
+        # Fallback: resolve patient_id from user_email (same as profile endpoint)
+        if not patient_id and g.user_email:
+            result = db.session.execute(
+                db.text("""
+                    SELECT p.patient_id FROM patients p
+                    JOIN users u ON p.user_id = u.id
+                    WHERE u.email = :email AND p.is_active = TRUE
+                """),
+                {"email": g.user_email}
+            ).fetchone()
+            if result:
+                patient_id = result[0]
         if not patient_id:
             return jsonify({
                 'success': False,
@@ -309,20 +321,21 @@ def get_family_members():
         }), 500
 
 @patients_bp.route('/family-members', methods=['POST'])
+@require_jwt
 def add_family_member():
     """Add a family member for a patient"""
     try:
-        patient_id = request.headers.get('X-Patient-ID')
-        user_email = request.headers.get('X-User-Email')
-        data = request.get_json()
+        patient_id = request.headers.get('X-Patient-ID') or g.patient_id
+        user_email = request.headers.get('X-User-Email') or g.user_email
+        data = request.get_json() or {}
         
-        # Get patient_id if only user_email provided
+        # Resolve patient_id from JWT (g.patient_id) or user_email when headers not provided
         if not patient_id and user_email:
             result = db.session.execute(
                 db.text("""
                     SELECT p.patient_id FROM patients p
                     JOIN users u ON p.user_id = u.id
-                    WHERE u.email = :email
+                    WHERE u.email = :email AND p.is_active = TRUE
                 """),
                 {"email": user_email}
             ).fetchone()
@@ -337,7 +350,7 @@ def add_family_member():
         if not patient_id:
             return jsonify({
                 'success': False,
-                'error': 'X-Patient-ID header or user_email parameter required'
+                'error': 'No patient record for this user'
             }), 400
         
         # Validate required fields
@@ -476,6 +489,17 @@ def get_medical_records():
     """Get medical records for a patient, optionally filtered by family member"""
     try:
         patient_id = g.patient_id
+        if not patient_id and g.user_email:
+            result = db.session.execute(
+                db.text("""
+                    SELECT p.patient_id FROM patients p
+                    JOIN users u ON p.user_id = u.id
+                    WHERE u.email = :email AND p.is_active = TRUE
+                """),
+                {"email": g.user_email}
+            ).fetchone()
+            if result:
+                patient_id = result[0]
         if not patient_id:
             return jsonify({
                 'success': False,
@@ -562,7 +586,7 @@ def upload_medical_record():
         import os
         from werkzeug.utils import secure_filename
         
-        patient_id = request.form.get('patient_id') or g.patient_id
+        patient_id = request.form.get('patient_id') or request.headers.get('X-Patient-ID') or g.patient_id
         user_email = g.user_email
         
         if not patient_id:

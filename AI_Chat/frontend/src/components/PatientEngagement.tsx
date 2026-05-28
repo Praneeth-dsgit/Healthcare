@@ -1,5 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Calendar, FileText, Clock, ArrowUp, Bot, UserCircle, BrainCircuit, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { Calendar, FileText, Clock, ArrowUp, Bot, UserCircle, BrainCircuit, ChevronLeft, ChevronRight, X, Edit } from 'lucide-react';
+import EditAppointmentModal from './general/EditAppointmentModal';
+import { appointmentService, Appointment } from '../services/appointmentService';
+import { getAppointmentStatusColor, getAppointmentStatusContainer } from '../utils/appointmentStatusColors';
+import { getApiBaseUrl } from '../utils/apiBase';
+
+/** Patient-engagement API base (uses Vite proxy on LAN when getApiBaseUrl() is empty). */
+const PE_API = `${getApiBaseUrl()}/api/patient-engagement`;
 
 interface DatabaseResult {
   [key: string]: any;
@@ -16,11 +23,29 @@ interface QueryResult {
 
 interface DailyAppointment {
   id: string;
-  appointmentDate: string;
+  appointmentId: number;
+  patientId: string;
   patientName: string;
   patientPhone: string;
+  familyMemberId?: number | null;
+  familyMemberFirstName?: string;
+  familyMemberLastName?: string;
+  familyMemberRelationship?: string;
+  familyMemberPhone?: string;
+  patientFirstName?: string;
+  patientLastName?: string;
+  patientEmail?: string;
+  appointmentDate: string;
+  appointmentDateRaw?: string;
   appointmentTime: string;
+  appointmentTimeRaw?: string;
+  doctorId?: number;
   doctorName: string;
+  facilityId?: number;
+  facilityName?: string;
+  appointmentType?: string;
+  reason?: string;
+  notes?: string;
   department: string;
   status: string;
 }
@@ -96,6 +121,10 @@ const PatientEngagement: React.FC<PatientEngagementProps> = ({ sessionId }) => {
   const [selectedDate, setSelectedDate] = useState<string>('');
   const [dateRangeOffset, setDateRangeOffset] = useState<number>(0);
   const [bookingSuccess, setBookingSuccess] = useState(false);
+  const [activeTab, setActiveTab] = useState<'appointments' | 'book' | 'query'>('appointments');
+  const [appointmentsSortBy, setAppointmentsSortBy] = useState<'alphabetical' | 'time'>('time');
+  const [editingAppointment, setEditingAppointment] = useState<DailyAppointment | null>(null);
+  const [updatingStatus, setUpdatingStatus] = useState<number | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -167,26 +196,37 @@ const PatientEngagement: React.FC<PatientEngagementProps> = ({ sessionId }) => {
     fetchDailyAppointments();
   }, []);
 
-  // Fetch doctors and departments when form is shown
+  // Fetch doctors and departments on mount so dropdowns work in left sidebar and in chat forms
+  useEffect(() => {
+    fetchDoctorsAndDepartments();
+  }, []);
+
+  // Fetch doctors and departments (used on mount and when booking form is shown in chat)
   const fetchDoctorsAndDepartments = async () => {
     try {
       setLoadingDoctors(true);
       setLoadingDepartments(true);
-      
-      // Fetch doctors
-      const doctorsResponse = await fetch('http://localhost:5000/api/patient-engagement/doctors');
+
+      const doctorsResponse = await fetch(`${PE_API}/doctors`);
       const doctorsData = await doctorsResponse.json();
-      
-      if (doctorsData.success) {
-        setDoctors(doctorsData.doctors || []);
+
+      if (doctorsData.success && Array.isArray(doctorsData.doctors)) {
+        setDoctors(doctorsData.doctors.map((d: any) => ({
+          id: Number(d.id ?? d.doctor_id),
+          name: String(d.name ?? d.first_name ?? ''),
+          department_id: Number(d.department_id ?? d.departmentId ?? 0),
+          department_name: String(d.department_name ?? '')
+        })));
       }
-      
-      // Fetch departments
-      const deptResponse = await fetch('http://localhost:5000/api/patient-engagement/departments');
+
+      const deptResponse = await fetch(`${PE_API}/departments`);
       const deptData = await deptResponse.json();
-      
-      if (deptData.success) {
-        setDepartments(deptData.departments || []);
+
+      if (deptData.success && Array.isArray(deptData.departments)) {
+        setDepartments(deptData.departments.map((d: any) => ({
+          id: Number(d.id ?? d.department_id),
+          name: String(d.name ?? '')
+        })));
       }
     } catch (err) {
       console.error('Error fetching doctors/departments:', err);
@@ -204,7 +244,7 @@ const PatientEngagement: React.FC<PatientEngagementProps> = ({ sessionId }) => {
 
     try {
       setLoadingSlots(true);
-      const response = await fetch('http://localhost:5000/api/patient-engagement/available-slots', {
+      const response = await fetch(`${PE_API}/available-slots`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -252,8 +292,35 @@ const PatientEngagement: React.FC<PatientEngagementProps> = ({ sessionId }) => {
     await fetchAvailableSlotsForDoctor(appointmentFormData.doctorId);
   };
 
+  // Check if a time slot should be disabled (past or current/next slot) - same logic as patient portal
+  const isSlotDisabled = (slotTime: string, selectedDate: string): boolean => {
+    if (!slotTime || !selectedDate) return false;
+    try {
+      const now = new Date();
+      const currentTime = now.getTime();
+      const todayStr = now.toISOString().split('T')[0];
+      if (selectedDate !== todayStr) return false; // Not today, all slots available
+      const timeParts = slotTime.split(':');
+      const slotHours = parseInt(timeParts[0], 10);
+      const slotMinutes = parseInt(timeParts[1] || '0', 10);
+      const slotDateTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), slotHours, slotMinutes, 0, 0);
+      const slotTimeMs = slotDateTime.getTime();
+      const slotEndTime = new Date(slotDateTime);
+      slotEndTime.setMinutes(slotEndTime.getMinutes() + 30);
+      const slotEndTimeMs = slotEndTime.getTime();
+      if (slotEndTimeMs <= currentTime) return true; // Past slot
+      if (currentTime >= slotTimeMs && currentTime < slotEndTimeMs) return true; // Current slot
+      const oneHourFromNow = currentTime + (60 * 60 * 1000);
+      if (slotTimeMs <= oneHourFromNow) return true; // Too soon (1 hour buffer)
+      return false;
+    } catch (error) {
+      return false;
+    }
+  };
+
   // Handle slot selection
   const handleSlotSelect = (date: string, time: string) => {
+    if (isSlotDisabled(time, date)) return;
     setAppointmentFormData(prev => ({
       ...prev,
       appointmentDate: date,
@@ -271,31 +338,125 @@ const PatientEngagement: React.FC<PatientEngagementProps> = ({ sessionId }) => {
   const fetchDailyAppointments = async () => {
     try {
       setLoadingAppointments(true);
-      const response = await fetch('http://localhost:5000/api/patient-engagement/daily-appointments');
+      const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+      const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0];
+      const response = await fetch(`${PE_API}/appointments-by-date?start_date=${weekAgo}&end_date=${tomorrow}`);
       const data = await response.json();
       
       if (data.success) {
-        // Transform backend data to match frontend interface
-        const transformedAppointments = (data.appointments || []).map((appointment: any) => ({
-          id: appointment.appointment_id?.toString() || '',
-          appointmentDate: appointment.appointment_date ? new Date(appointment.appointment_date).toLocaleDateString() : '',
-          patientName: appointment.patient_name || '',
-          patientPhone: appointment.patient_phone || '',
-          appointmentTime: appointment.appointment_date ? new Date(appointment.appointment_date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
-          doctorName: appointment.doctor_name || '',
-          department: appointment.department_name || '',
-          status: appointment.status || ''
-        }));
-        
+        const transformedAppointments = (data.appointments || []).map((appointment: any) => {
+          const dateStr = appointment.appointment_date ? new Date(appointment.appointment_date).toISOString().split('T')[0] : '';
+          let timeStr = appointment.appointment_time ?? '';
+          if (typeof timeStr === 'string' && timeStr.includes(':')) {
+            const match = timeStr.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+            if (match) timeStr = `${match[1].padStart(2, '0')}:${match[2]}:${(match[3] || '00')}`;
+          } else {
+            timeStr = appointment.appointment_date ? new Date(appointment.appointment_date).toTimeString().slice(0, 8) : '00:00:00';
+          }
+          const timeDisplay = timeStr ? (() => {
+            const parts = timeStr.split(':').map(Number);
+            const h = parts[0] ?? 0, m = parts[1] ?? 0;
+            const period = h >= 12 ? 'PM' : 'AM';
+            const hour = h % 12 || 12;
+            return `${hour}:${String(m).padStart(2, '0')} ${period}`;
+          })() : '';
+          return {
+            id: appointment.appointment_id?.toString() || '',
+            appointmentId: appointment.appointment_id ?? 0,
+            patientId: appointment.patient_id || '',
+            patientName: appointment.patient_name || '',
+            patientPhone: appointment.patient_phone || '',
+            familyMemberId: appointment.family_member_id,
+            familyMemberFirstName: appointment.family_member_first_name,
+            familyMemberLastName: appointment.family_member_last_name,
+            familyMemberRelationship: appointment.family_member_relationship,
+            familyMemberPhone: appointment.family_member_phone,
+            patientFirstName: appointment.patient_first_name,
+            patientLastName: appointment.patient_last_name,
+            patientEmail: appointment.patient_email,
+            appointmentDate: appointment.appointment_date ? new Date(appointment.appointment_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '',
+            appointmentDateRaw: dateStr,
+            appointmentTime: timeDisplay,
+            appointmentTimeRaw: timeStr,
+            doctorId: appointment.doctor_id,
+            doctorName: appointment.doctor_name || '',
+            facilityId: appointment.facility_id,
+            facilityName: appointment.facility_name,
+            appointmentType: appointment.appointment_type || 'consultation',
+            reason: appointment.reason,
+            notes: appointment.notes,
+            department: appointment.specialty_name || appointment.department_name || '',
+            status: appointment.status || ''
+          };
+        });
         setDailyAppointments(transformedAppointments);
-        console.log('Transformed appointments:', transformedAppointments);
       } else {
-        console.error('Failed to fetch daily appointments:', data.error);
+        console.error('Failed to fetch appointments:', data.error);
       }
     } catch (err) {
-      console.error('Error fetching daily appointments:', err);
+      console.error('Error fetching appointments:', err);
     } finally {
       setLoadingAppointments(false);
+    }
+  };
+
+  const dailyToAppointment = (apt: DailyAppointment): Appointment => ({
+    appointment_id: apt.appointmentId,
+    patient_id: apt.patientId,
+    family_member_id: apt.familyMemberId ?? undefined,
+    doctor_id: apt.doctorId ?? 0,
+    facility_id: apt.facilityId ?? 0,
+    appointment_date: apt.appointmentDateRaw ? `${apt.appointmentDateRaw}T00:00:00` : '',
+    appointment_time: apt.appointmentTimeRaw || '00:00:00',
+    appointment_type: (apt.appointmentType as any) || 'consultation',
+    reason: apt.reason,
+    notes: apt.notes,
+    status: (apt.status as any) || 'scheduled',
+    created_at: '',
+    doctor_first_name: apt.doctorName?.split(' ')[0],
+    doctor_last_name: apt.doctorName?.split(' ').slice(1).join(' '),
+    facility_name: apt.facilityName,
+    family_member_first_name: apt.familyMemberFirstName,
+    family_member_last_name: apt.familyMemberLastName,
+    patient_first_name: apt.patientFirstName,
+    patient_last_name: apt.patientLastName,
+    patient_email: apt.patientEmail,
+  });
+
+  const handleEditAppointment = (apt: DailyAppointment) => {
+    setEditingAppointment(apt);
+  };
+
+  const handleSaveAppointment = async (updatedData: Partial<Appointment>) => {
+    if (!editingAppointment) return;
+    try {
+      const result = await appointmentService.updateAppointment(editingAppointment.appointmentId, updatedData);
+      if (result.success) {
+        await fetchDailyAppointments();
+        setEditingAppointment(null);
+      } else {
+        alert(result.error || 'Failed to update appointment');
+      }
+    } catch (error) {
+      console.error('Error updating appointment:', error);
+      alert('Failed to update appointment');
+    }
+  };
+
+  const handleStatusChange = async (appointmentId: number, newStatus: string) => {
+    setUpdatingStatus(appointmentId);
+    try {
+      const result = await appointmentService.updateAppointmentStatus(appointmentId, newStatus);
+      if (result.success) {
+        await fetchDailyAppointments();
+      } else {
+        alert(result.error || 'Failed to update appointment status');
+      }
+    } catch (error) {
+      console.error('Error updating appointment status:', error);
+      alert('Failed to update appointment status');
+    } finally {
+      setUpdatingStatus(null);
     }
   };
 
@@ -343,7 +504,7 @@ const PatientEngagement: React.FC<PatientEngagementProps> = ({ sessionId }) => {
         setQuery('');
         
         try {
-          const response = await fetch('http://localhost:5000/api/patient-engagement/extract-and-book', {
+          const response = await fetch(`${PE_API}/extract-and-book`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -427,7 +588,7 @@ const PatientEngagement: React.FC<PatientEngagementProps> = ({ sessionId }) => {
         .map(msg => `${msg.query}: ${msg.natural_results?.join(' ') || ''}`)
         .join('\n');
 
-      const response = await fetch('http://localhost:5000/api/patient-engagement/query', {
+      const response = await fetch(`${PE_API}/query`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -532,7 +693,7 @@ const PatientEngagement: React.FC<PatientEngagementProps> = ({ sessionId }) => {
     }
 
     try {
-      const response = await fetch('http://localhost:5000/api/patient-engagement/check-appointment-conflict', {
+      const response = await fetch(`${PE_API}/check-appointment-conflict`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -577,7 +738,7 @@ const PatientEngagement: React.FC<PatientEngagementProps> = ({ sessionId }) => {
     setIsSubmittingAppointment(true);
 
     try {
-      const response = await fetch('http://localhost:5000/api/patient-engagement/book-appointment', {
+      const response = await fetch(`${PE_API}/book-appointment`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -635,44 +796,90 @@ const PatientEngagement: React.FC<PatientEngagementProps> = ({ sessionId }) => {
     }
   };
 
-  return (
-    <div className="flex flex-col h-full bg-gray-50 overflow-hidden">
-      
-      <div className="flex-1 flex gap-6 p-0 min-h-0 overflow-hidden">
-        {/* Left Panel - Daily Appointments */}
-        <div className="w-64 flex-shrink-0 flex flex-col gap-2 max-h-full">
-          {/* Top Container - Appointment Carousel */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 h=36 p-3 flex-shrink-0">
-            <h2 className="text-sm font-semibold text-gray-900 mb-2 flex items-center">
-              <Clock className="h-3 w-3 mr-1.5 text-blue-600" />
-              Today's Appointments
-            </h2>
-            
-            {loadingAppointments ? (
-              <div className="flex items-center justify-center h-20">
-                <div className="text-center">
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mx-auto mb-1"></div>
-                  <p className="text-gray-600 text-xs">Loading appointments...</p>
-                </div>
-              </div>
-            ) : (
-              <div className="h-36">
-                <AppointmentCarousel appointments={dailyAppointments} />
-              </div>
-            )}
-          </div>
+  const tabs = [
+    { id: 'appointments' as const, label: 'Appointments', icon: Clock },
+    { id: 'book' as const, label: 'Book Appointment', icon: Calendar },
+    { id: 'query' as const, label: 'Query Results', icon: FileText },
+  ];
 
-          {/* Bottom Container - Appointment Booking Form */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col flex-1 min-h-0">
-            {/* Sticky Header */}
-            <div className="sticky top-0 bg-white z-10 border-b border-gray-200 px-3 pt-3 pb-2 flex-shrink-0">
-              <h2 className="text-sm font-semibold text-gray-900 flex items-center">
-                <Calendar className="h-3 w-3 mr-1.5 text-blue-600" />
-                Book Appointment
-              </h2>
+  return (
+    <div className="flex flex-col h-full w-full min-w-0 bg-gray-50 overflow-hidden">
+      {/* Tab Bar - below header */}
+      <div className="flex-shrink-0 border-b border-gray-200 bg-white px-4">
+        <nav className="flex gap-1" aria-label="Tabs">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`
+                flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors
+                ${activeTab === tab.id
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }
+              `}
+            >
+              <tab.icon className="h-4 w-4" />
+              {tab.label}
+            </button>
+          ))}
+        </nav>
+      </div>
+
+      <div className="flex-1 flex gap-6 p-4 min-h-0 min-w-0 overflow-hidden w-full">
+        {/* Tab Content */}
+        {activeTab === 'appointments' && (
+          <div className="flex-1 min-w-0 flex flex-col">
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 flex-1 overflow-y-auto">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-sm font-semibold text-gray-900 flex items-center">
+                  <Clock className="h-4 w-4 mr-2 text-blue-600" />
+                  Appointments
+                </h2>
+                {!loadingAppointments && dailyAppointments.length > 0 && (
+                  <label className="flex items-center gap-2 text-xs font-medium text-gray-600">
+                    Sort by
+                    <select
+                      value={appointmentsSortBy}
+                      onChange={(e) => setAppointmentsSortBy(e.target.value as 'alphabetical' | 'time')}
+                      className="border border-gray-300 rounded-md px-2 py-1.5 focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      <option value="time">Time</option>
+                      <option value="alphabetical">Department</option>
+                    </select>
+                  </label>
+                )}
+              </div>
+              {loadingAppointments ? (
+                <div className="flex items-center justify-center h-40">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                    <p className="text-gray-600 text-sm">Loading appointments...</p>
+                  </div>
+                </div>
+              ) : (
+                <AppointmentsByDayColumns
+                  appointments={dailyAppointments}
+                  sortBy={appointmentsSortBy}
+                  onEdit={handleEditAppointment}
+                  onStatusChange={handleStatusChange}
+                  updatingStatus={updatingStatus}
+                />
+              )}
             </div>
-            
-            {/* Scrollable Form Content */}
+          </div>
+        )}
+
+        {activeTab === 'book' && (
+          <div className="flex-1 min-w-0 grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Column 1: Book Appointment Form */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col min-h-0 overflow-hidden">
+              <div className="px-4 pt-4 pb-2 flex-shrink-0">
+                <h2 className="text-sm font-semibold text-gray-900 flex items-center">
+                  <Calendar className="h-4 w-4 mr-2 text-blue-600" />
+                  Book Appointment
+                </h2>
+              </div>
             <div className="flex-1 overflow-y-auto hide-scrollbar px-3 pb-3 pt-2">
             <div className="space-y-2">
               <div>
@@ -742,111 +949,105 @@ const PatientEngagement: React.FC<PatientEngagementProps> = ({ sessionId }) => {
                   </select>
                 </div>
               </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  Weight (kg)
-                </label>
-                <input
-                  type="number"
-                  value={appointmentFormData.weight}
-                  onChange={(e) => handleAppointmentFormChange('weight', e.target.value)}
-                  className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  placeholder="Weight"
-                  min="0"
-                  max="500"
-                  step="0.1"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  Doctor <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={appointmentFormData.doctorId}
-                  onChange={(e) => handleAppointmentFormChange('doctorId', e.target.value)}
-                  className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  disabled={loadingDoctors}
-                  onFocus={() => {
-                    if (doctors.length === 0) {
-                      fetchDoctorsAndDepartments();
-                    }
-                  }}
-                >
-                  <option value="">Select a doctor</option>
-                  {doctors.map((doctor) => (
-                    <option key={doctor.id} value={doctor.id}>
-                      {doctor.name} - {doctor.department_name}
-                    </option>
-                  ))}
-                </select>
-                {loadingDoctors && (
-                  <p className="text-xs text-gray-500 mt-0.5">Loading...</p>
-                )}
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  Department <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={appointmentFormData.departmentId}
-                  onChange={(e) => handleAppointmentFormChange('departmentId', e.target.value)}
-                  className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  disabled={loadingDepartments}
-                  onFocus={() => {
-                    if (departments.length === 0) {
-                      fetchDoctorsAndDepartments();
-                    }
-                  }}
-                >
-                  <option value="">Select a department</option>
-                  {departments.map((dept) => (
-                    <option key={dept.id} value={dept.id}>
-                      {dept.name}
-                    </option>
-                  ))}
-                </select>
-                {loadingDepartments && (
-                  <p className="text-xs text-gray-500 mt-0.5">Loading...</p>
-                )}
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  Date & Time <span className="text-red-500">*</span>
-                </label>
-                <button
-                  type="button"
-                  onClick={fetchAvailableSlots}
-                  disabled={!appointmentFormData.doctorId || loadingSlots}
-                  className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white hover:bg-gray-50 disabled:bg-gray-100 disabled:cursor-not-allowed flex items-center justify-between"
-                >
-                  <span className="text-gray-700">
-                    {appointmentFormData.appointmentDate && appointmentFormData.appointmentTime
-                      ? `${new Date(appointmentFormData.appointmentDate).toLocaleDateString()} at ${new Date(`2000-01-01T${appointmentFormData.appointmentTime}`).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-                      : appointmentFormData.doctorId
-                        ? 'Click to view available slots'
-                        : 'Select a doctor first'}
-                  </span>
-                  <Calendar className="h-3 w-3 text-gray-500" />
-                </button>
-                {loadingSlots && (
-                  <p className="text-xs text-gray-500 mt-0.5">Loading available slots...</p>
-                )}
-                {appointmentFormData.appointmentDate && appointmentFormData.appointmentTime && (
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Weight (kg)
+                  </label>
+                  <input
+                    type="number"
+                    value={appointmentFormData.weight}
+                    onChange={(e) => handleAppointmentFormChange('weight', e.target.value)}
+                    className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    placeholder="Weight"
+                    min="0"
+                    max="500"
+                    step="0.1"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Date & Time <span className="text-red-500">*</span>
+                  </label>
                   <button
                     type="button"
-                    onClick={() => {
-                      setAppointmentFormData(prev => ({
-                        ...prev,
-                        appointmentDate: '',
-                        appointmentTime: ''
-                      }));
-                      setConflictError('');
-                    }}
-                    className="text-xs text-red-600 hover:text-red-800 mt-1"
+                    onClick={fetchAvailableSlots}
+                    disabled={!appointmentFormData.doctorId || loadingSlots}
+                    className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white hover:bg-gray-50 disabled:bg-gray-100 disabled:cursor-not-allowed flex items-center justify-between"
                   >
-                    Clear selection
+                    <span className="text-gray-700 truncate">
+                      {appointmentFormData.appointmentDate && appointmentFormData.appointmentTime
+                        ? `${new Date(appointmentFormData.appointmentDate).toLocaleDateString()} at ${new Date(`2000-01-01T${appointmentFormData.appointmentTime}`).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                        : appointmentFormData.doctorId
+                          ? 'Click to view slots'
+                          : 'Select doctor first'}
+                    </span>
+                    <Calendar className="h-3 w-3 text-gray-500 flex-shrink-0" />
                   </button>
-                )}
+                  {loadingSlots && (
+                    <p className="text-xs text-gray-500 mt-0.5">Loading...</p>
+                  )}
+                  {appointmentFormData.appointmentDate && appointmentFormData.appointmentTime && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAppointmentFormData(prev => ({
+                          ...prev,
+                          appointmentDate: '',
+                          appointmentTime: ''
+                        }));
+                        setConflictError('');
+                      }}
+                      className="text-xs text-red-600 hover:text-red-800 mt-1"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Doctor <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={appointmentFormData.doctorId}
+                    onChange={(e) => handleAppointmentFormChange('doctorId', e.target.value)}
+                    className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    disabled={loadingDoctors}
+                  >
+                    <option value="">Select a doctor</option>
+                    {doctors.map((doctor) => (
+                      <option key={doctor.id} value={String(doctor.id)}>
+                        {doctor.name} - {doctor.department_name}
+                      </option>
+                    ))}
+                  </select>
+                  {loadingDoctors && (
+                    <p className="text-xs text-gray-500 mt-0.5">Loading...</p>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Department <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={appointmentFormData.departmentId}
+                    onChange={(e) => handleAppointmentFormChange('departmentId', e.target.value)}
+                    className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    disabled={loadingDepartments}
+                  >
+                    <option value="">Select a department</option>
+                    {departments.map((dept) => (
+                      <option key={dept.id} value={String(dept.id)}>
+                        {dept.name}
+                      </option>
+                    ))}
+                  </select>
+                  {loadingDepartments && (
+                    <p className="text-xs text-gray-500 mt-0.5">Loading...</p>
+                  )}
+                </div>
               </div>
               {conflictError && (
                 <div className="bg-red-50 border border-red-200 rounded-md p-2">
@@ -897,11 +1098,55 @@ const PatientEngagement: React.FC<PatientEngagementProps> = ({ sessionId }) => {
               </button>
             </div>
             </div>
-          </div>
-        </div>
+            </div>
 
-        {/* Right Panel - Query Results and Input */}
-        <div className="w-[950px] flex-shrink-0 flex flex-col min-h-0">
+            {/* Column 2: Quick Actions / Today's Summary */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col min-h-0 overflow-hidden">
+              <div className="px-4 pt-4 pb-2 flex-shrink-0">
+                <h2 className="text-sm font-semibold text-gray-900 flex items-center">
+                  <Clock className="h-4 w-4 mr-2 text-amber-600" />
+                  Today&apos;s Summary
+                </h2>
+              </div>
+              <div className="flex-1 overflow-y-auto px-3 pb-3 pt-2">
+                <div className="space-y-2 text-xs text-gray-600">
+                  <p>Today: <span className="font-medium text-gray-900">{dailyAppointments.filter(a => (a.appointmentDateRaw || '').startsWith(new Date().toISOString().split('T')[0]) && a.status !== 'completed' && a.status !== 'cancelled').length}</span> appointments</p>
+                  <p>Tomorrow: <span className="font-medium text-gray-900">{dailyAppointments.filter(a => (a.appointmentDateRaw || '').startsWith(new Date(Date.now() + 86400000).toISOString().split('T')[0])).length}</span> appointments</p>
+                  <div className="pt-3 border-t border-gray-100">
+                    <p className="text-gray-500 text-[11px]">Switch to Appointments tab to view and manage the full schedule.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Column 3: Quick Tips / Doctors */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col min-h-0 overflow-hidden">
+              <div className="px-4 pt-4 pb-2 flex-shrink-0">
+                <h2 className="text-sm font-semibold text-gray-900 flex items-center">
+                  <UserCircle className="h-4 w-4 mr-2 text-green-600" />
+                  Quick Tips
+                </h2>
+              </div>
+              <div className="flex-1 overflow-y-auto px-3 pb-3 pt-2">
+                <ul className="space-y-2 text-xs text-gray-600 list-disc list-inside">
+                  <li>Select doctor to see available slots</li>
+                  <li>Use Query tab for natural language booking</li>
+                  <li>Check for conflicts before confirming</li>
+                  <li>Patient ID is auto-generated (PAT-YYMMDD-XXXX)</li>
+                </ul>
+                {doctors.length > 0 && (
+                  <div className="pt-3 mt-3 border-t border-gray-100">
+                    <p className="text-xs font-medium text-gray-700 mb-1">{doctors.length} doctors available</p>
+                    <p className="text-[11px] text-gray-500">Select from dropdown in the form</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'query' && (
+        <div className="flex-1 min-w-0 flex flex-col min-h-0">
           {/* Results Container */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex-1 overflow-y-auto overflow-x-hidden hide-scrollbar">
             <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
@@ -910,11 +1155,11 @@ const PatientEngagement: React.FC<PatientEngagementProps> = ({ sessionId }) => {
             </h2>
             
             {queryMessages.length === 0 && !isLoading && (
-              <div className="flex items-center justify-center h-64">
-                <div className="text-center max-w-md">
+              <div className="flex items-center justify-center h-64 w-full">
+                <div className="text-center w-full max-w-2xl px-4">
                   <BrainCircuit className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                   <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                    Welcome to Patient Engagement
+                    Welcome to Frontdesk
                   </h3>
                   <p className="text-gray-600 mb-6">
                     I can help you query patient data, manage appointments, and interact with your hospital database. 
@@ -1071,7 +1316,7 @@ const PatientEngagement: React.FC<PatientEngagementProps> = ({ sessionId }) => {
                                 >
                                   <option value="">Select a doctor</option>
                                   {doctors.map((doctor) => (
-                                    <option key={doctor.id} value={doctor.id}>
+                                    <option key={doctor.id} value={String(doctor.id)}>
                                       {doctor.name} - {doctor.department_name}
                                     </option>
                                   ))}
@@ -1092,7 +1337,7 @@ const PatientEngagement: React.FC<PatientEngagementProps> = ({ sessionId }) => {
                                 >
                                   <option value="">Select a department</option>
                                   {departments.map((dept) => (
-                                    <option key={dept.id} value={dept.id}>
+                                    <option key={dept.id} value={String(dept.id)}>
                                       {dept.name}
                                     </option>
                                   ))}
@@ -1331,6 +1576,7 @@ const PatientEngagement: React.FC<PatientEngagementProps> = ({ sessionId }) => {
             </form>
           </div>
         </div>
+        )}
       </div>
 
       {/* Slot Picker Modal */}
@@ -1372,7 +1618,7 @@ const PatientEngagement: React.FC<PatientEngagementProps> = ({ sessionId }) => {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {/* Date Navigation */}
+                  {/* Date Navigation - same as patient portal */}
                   <div className="flex items-center justify-between mb-4">
                     <button
                       onClick={() => {
@@ -1381,7 +1627,6 @@ const PatientEngagement: React.FC<PatientEngagementProps> = ({ sessionId }) => {
                         ).sort();
                         if (dateRangeOffset > 0) {
                           setDateRangeOffset(prev => prev - 1);
-                          // Also update selected date to the first date in the new range
                           const newStartIndex = (dateRangeOffset - 1) * 7;
                           if (dates[newStartIndex]) {
                             setSelectedDate(dates[newStartIndex]);
@@ -1389,36 +1634,13 @@ const PatientEngagement: React.FC<PatientEngagementProps> = ({ sessionId }) => {
                         }
                       }}
                       disabled={dateRangeOffset === 0}
-                      className="p-2 rounded-md border border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="p-2 rounded-md border border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
                     >
                       <ChevronLeft className="h-4 w-4" />
                     </button>
-                    <div className="flex-1 mx-4">
-                      <div className="flex flex-wrap gap-2 justify-center">
-                        {(() => {
-                          const dates = Object.keys(availableSlots)
-                            .filter(date => (availableSlots[date] || []).length > 0)
-                            .sort();
-                          const startIndex = dateRangeOffset * 7;
-                          const endIndex = startIndex + 7;
-                          const visibleDates = dates.slice(startIndex, endIndex);
-                          
-                          return visibleDates.map(date => (
-                            <button
-                              key={date}
-                              onClick={() => setSelectedDate(date)}
-                              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                                selectedDate === date
-                                  ? 'bg-blue-600 text-white'
-                                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                              }`}
-                            >
-                              {new Date(date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-                            </button>
-                          ));
-                        })()}
-                      </div>
-                    </div>
+                    <span className="text-sm font-medium text-gray-700">
+                      {selectedDate ? new Date(selectedDate).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : 'Select a date'}
+                    </span>
                     <button
                       onClick={() => {
                         const dates = Object.keys(availableSlots).filter(date => 
@@ -1427,24 +1649,53 @@ const PatientEngagement: React.FC<PatientEngagementProps> = ({ sessionId }) => {
                         const maxOffset = Math.floor((dates.length - 1) / 7);
                         if (dateRangeOffset < maxOffset) {
                           setDateRangeOffset(prev => prev + 1);
-                          // Also update selected date to the first date in the new range
                           const newStartIndex = (dateRangeOffset + 1) * 7;
                           if (dates[newStartIndex]) {
                             setSelectedDate(dates[newStartIndex]);
                           }
                         }
                       }}
-                      disabled={(() => {
-                        const dates = Object.keys(availableSlots).filter(date => 
-                          (availableSlots[date] || []).length > 0
-                        ).sort();
-                        const maxOffset = Math.floor((dates.length - 1) / 7);
-                        return dateRangeOffset >= maxOffset;
-                      })()}
-                      className="p-2 rounded-md border border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      disabled={dateRangeOffset >= Math.floor((Object.keys(availableSlots).filter(date => 
+                        (availableSlots[date] || []).length > 0
+                      ).length - 1) / 7)}
+                      className="p-2 rounded-md border border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
                     >
                       <ChevronRight className="h-4 w-4" />
                     </button>
+                  </div>
+
+                  {/* Available Dates - 7-column grid like patient portal */}
+                  <div className="grid grid-cols-7 gap-2 mb-4">
+                    {Object.keys(availableSlots)
+                      .filter(date => (availableSlots[date] || []).length > 0)
+                      .sort()
+                      .slice(dateRangeOffset * 7, (dateRangeOffset + 1) * 7)
+                      .map(date => {
+                        const dateObj = new Date(date);
+                        const isSelected = selectedDate === date;
+                        const isToday = date === new Date().toISOString().split('T')[0];
+                        return (
+                          <button
+                            key={date}
+                            onClick={() => setSelectedDate(date)}
+                            className={`p-3 rounded-lg border-2 transition-all duration-200 hover:scale-105 ${
+                              isSelected
+                                ? 'border-blue-600 bg-blue-50 text-blue-900 font-semibold'
+                                : 'border-gray-200 hover:border-blue-300 bg-white'
+                            } ${isToday ? 'ring-2 ring-green-400' : ''}`}
+                          >
+                            <div className="text-xs text-gray-500 mb-1">
+                              {dateObj.toLocaleDateString('en-US', { weekday: 'short' })}
+                            </div>
+                            <div className="text-lg font-medium">
+                              {dateObj.getDate()}
+                            </div>
+                            <div className="text-xs text-gray-400 mt-1">
+                              {availableSlots[date]?.length || 0} slots
+                            </div>
+                          </button>
+                        );
+                      })}
                   </div>
 
                   {/* Time Slots Grid */}
@@ -1454,15 +1705,26 @@ const PatientEngagement: React.FC<PatientEngagementProps> = ({ sessionId }) => {
                         Available slots for {new Date(selectedDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
                       </h3>
                       <div className="grid grid-cols-4 gap-2">
-                        {availableSlots[selectedDate].map((slot) => (
-                          <button
-                            key={slot.time}
-                            onClick={() => handleSlotSelect(selectedDate, slot.time)}
-                            className="px-3 py-2 rounded-md border border-gray-300 hover:border-blue-500 hover:bg-blue-50 text-sm font-medium text-gray-700 hover:text-blue-700 transition-colors"
-                          >
-                            {slot.displayTime}
-                          </button>
-                        ))}
+                        {availableSlots[selectedDate].map((slot) => {
+                          const isDisabled = isSlotDisabled(slot.time, selectedDate);
+                          const isSelected = appointmentFormData.appointmentDate === selectedDate && appointmentFormData.appointmentTime === slot.time;
+                          return (
+                            <button
+                              key={slot.time}
+                              onClick={() => handleSlotSelect(selectedDate, slot.time)}
+                              disabled={isDisabled}
+                              className={`px-3 py-2 rounded-md border-2 transition-all duration-200 ${
+                                isDisabled
+                                  ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed opacity-50'
+                                  : isSelected
+                                  ? 'border-blue-600 bg-blue-50 text-blue-900 font-semibold hover:scale-105'
+                                  : 'border-gray-200 hover:border-blue-300 bg-white hover:scale-105'
+                              }`}
+                            >
+                              {slot.displayTime}
+                            </button>
+                          );
+                        })}
                       </div>
                       {availableSlots[selectedDate].length === 0 && (
                         <p className="text-gray-500 text-sm text-center py-4">No available slots for this date</p>
@@ -1489,20 +1751,179 @@ const PatientEngagement: React.FC<PatientEngagementProps> = ({ sessionId }) => {
         </div>
       )}
 
+      {/* Edit Appointment Modal */}
+      {editingAppointment && (
+        <EditAppointmentModal
+          appointment={dailyToAppointment(editingAppointment)}
+          onClose={() => setEditingAppointment(null)}
+          onSave={handleSaveAppointment}
+        />
+      )}
     </div>
   );
 };
 
-// Add new AppointmentCarousel component
-const AppointmentCarousel: React.FC<{ appointments: DailyAppointment[] }> = ({ appointments }) => {
-  const [currentIndex, setCurrentIndex] = useState(0);
+// Appointments by day (Today | Tomorrow | Completed) grouped by Department → Doctor → Appointments
+interface AppointmentsByDayColumnsProps {
+  appointments: DailyAppointment[];
+  sortBy: 'alphabetical' | 'time';
+  onEdit?: (apt: DailyAppointment) => void;
+  onStatusChange?: (appointmentId: number, newStatus: string) => void;
+  updatingStatus?: number | null;
+}
+const AppointmentsByDayColumns: React.FC<AppointmentsByDayColumnsProps> = ({ appointments, sortBy, onEdit, onStatusChange, updatingStatus }) => {
+  const todayStr = new Date().toISOString().split('T')[0];
+  const tomorrowStr = new Date(Date.now() + 86400000).toISOString().split('T')[0];
 
-  const nextAppointment = () => {
-    setCurrentIndex((prev) => (prev + 1) % appointments.length);
+  const isCompletedOrCancelled = (a: DailyAppointment) => a.status === 'completed' || a.status === 'cancelled';
+  const todayAppointments = appointments.filter(a => (a.appointmentDateRaw || '').startsWith(todayStr) && !isCompletedOrCancelled(a));
+  const tomorrowAppointments = appointments.filter(a => (a.appointmentDateRaw || '').startsWith(tomorrowStr) && !isCompletedOrCancelled(a));
+  const completedAppointments = appointments.filter(a => (a.appointmentDateRaw || '') < todayStr || isCompletedOrCancelled(a));
+
+  const parseTime = (apt: DailyAppointment) => apt.appointmentTimeRaw || '00:00:00';
+
+  // Group by Department → Doctor → Appointments
+  const groupByDeptThenDoctor = (list: DailyAppointment[]) => {
+    const deptMap: Record<string, Record<string, DailyAppointment[]>> = {};
+    list.forEach(a => {
+      const dept = a.department || 'General';
+      const doctor = a.doctorName || 'Unknown';
+      if (!deptMap[dept]) deptMap[dept] = {};
+      if (!deptMap[dept][doctor]) deptMap[dept][doctor] = [];
+      deptMap[dept][doctor].push(a);
+    });
+    return deptMap;
   };
 
-  const prevAppointment = () => {
-    setCurrentIndex((prev) => (prev - 1 + appointments.length) % appointments.length);
+  const showActions = (colTitle: string) => colTitle === 'Today' || colTitle === 'Tomorrow';
+
+  const DayColumn: React.FC<{ title: string; list: DailyAppointment[]; sortBy: 'alphabetical' | 'time' }> = ({ title, list, sortBy: sortMode }) => {
+    // Past appointments in Completed column: show "completed" unless cancelled
+    const displayStatus = (apt: DailyAppointment) =>
+      title === 'Completed' && apt.status !== 'cancelled' ? 'completed' : apt.status;
+    const byDeptDoctor = groupByDeptThenDoctor(list);
+
+    const getMinTime = (apts: DailyAppointment[]) =>
+      apts.length ? apts.reduce((min, a) => (parseTime(a) < parseTime(min) ? a : min), apts[0]) : null;
+
+    let departments: string[];
+    if (sortMode === 'alphabetical') {
+      departments = Object.keys(byDeptDoctor).sort();
+    } else {
+      departments = Object.keys(byDeptDoctor).sort((da, db) => {
+        const minA = getMinTime(Object.values(byDeptDoctor[da]).flat());
+        const minB = getMinTime(Object.values(byDeptDoctor[db]).flat());
+        const tA = minA ? parseTime(minA) : '99:99:99';
+        const tB = minB ? parseTime(minB) : '99:99:99';
+        return tA.localeCompare(tB);
+      });
+    }
+
+    const sortDoctors = (doctors: [string, DailyAppointment[]][]) => {
+      if (sortMode === 'alphabetical') {
+        return doctors.sort(([a], [b]) => a.localeCompare(b));
+      }
+      return doctors.sort(([, aptsA], [, aptsB]) => {
+        const minA = getMinTime(aptsA);
+        const minB = getMinTime(aptsB);
+        const tA = minA ? parseTime(minA) : '99:99:99';
+        const tB = minB ? parseTime(minB) : '99:99:99';
+        return tA.localeCompare(tB);
+      });
+    };
+
+    const sortAppointments = (apts: DailyAppointment[]) => {
+      if (sortMode === 'alphabetical') {
+        return [...apts].sort((a, b) => a.patientName.localeCompare(b.patientName));
+      }
+      return [...apts].sort((a, b) => parseTime(a).localeCompare(parseTime(b)));
+    };
+
+    return (
+      <div className="flex-1 min-w-0 border border-gray-200 rounded-lg overflow-hidden">
+        <div className="bg-gray-50 px-3 py-2 border-b border-gray-200">
+          <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
+        </div>
+        <div className="p-3 overflow-y-auto max-h-[500px] space-y-4">
+          {departments.length === 0 ? (
+            <p className="text-sm text-gray-500 text-center py-4">No appointments</p>
+          ) : (
+            departments.map(dept => (
+              <div key={dept} className="space-y-2">
+                <p className="text-sm font-semibold text-gray-900">{dept}</p>
+                {sortDoctors(Object.entries(byDeptDoctor[dept])).map(([doctor, apts]) => (
+                  <div key={doctor} className="ml-3 space-y-2">
+                    <p className="text-sm font-medium text-blue-600">{doctor}</p>
+                    <ul className="ml-3 space-y-2">
+                      {sortAppointments(apts).map(apt => {
+                        const isForFamilyMember = !!(apt.familyMemberId || apt.familyMemberFirstName || apt.familyMemberLastName);
+                        const familyMemberName = [apt.familyMemberFirstName, apt.familyMemberLastName].filter(Boolean).join(' ').trim();
+                        return (
+                        <li key={apt.id} className={`text-sm rounded-lg px-4 py-3 border min-h-[88px] ${getAppointmentStatusContainer(displayStatus(apt))}`}>
+                          <div className="flex flex-wrap items-start justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              {apt.patientId && <span className="block text-xs text-gray-600 font-medium mb-0.5">ID: {apt.patientId}</span>}
+                              <span className="font-semibold text-gray-900">{apt.patientName}</span>
+                              {isForFamilyMember && (
+                                <span className="block text-xs text-blue-600 mt-0.5">
+                                  For: {familyMemberName}{apt.familyMemberRelationship ? ` (${apt.familyMemberRelationship})` : ''}
+                                  {apt.familyMemberPhone && ` · ${apt.familyMemberPhone}`}
+                                </span>
+                              )}
+                              <span className="block text-gray-600 text-xs mt-0.5">· {apt.appointmentDate} · {apt.appointmentTime}</span>
+                              {(apt.familyMemberPhone || apt.patientPhone) && (
+                                <span className="block text-gray-600 text-xs mt-0.5">
+                                  {isForFamilyMember && apt.familyMemberPhone ? `Contact: ${apt.familyMemberPhone}` : `Phone: ${apt.patientPhone}`}
+                                  {isForFamilyMember && !apt.familyMemberPhone && apt.patientPhone && ` (Primary)`}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              <span className={`px-2 py-1 rounded text-xs font-medium ${getAppointmentStatusColor(displayStatus(apt))}`}>
+                                {displayStatus(apt)}
+                              </span>
+                              {showActions(title) && onEdit && onStatusChange && (
+                                <>
+                                  <button
+                                    onClick={() => onEdit(apt)}
+                                    className="p-1.5 rounded hover:bg-blue-100 text-blue-600"
+                                    title="Edit"
+                                  >
+                                    <Edit size={14} />
+                                  </button>
+                                  <div className="relative">
+                                    <select
+                                      value={apt.status === 'confirmed' ? 'scheduled' : apt.status === 'no_show' ? 'cancelled' : apt.status}
+                                      onChange={(e) => onStatusChange(apt.appointmentId, e.target.value)}
+                                      disabled={updatingStatus === apt.appointmentId}
+                                      className="text-xs px-2 py-1 rounded border border-gray-300 bg-white cursor-pointer appearance-none pr-6"
+                                    >
+                                      <option value="scheduled">Scheduled</option>
+                                      <option value="pending">Pending</option>
+                                      <option value="completed">Completed</option>
+                                      <option value="cancelled">Cancelled</option>
+                                    </select>
+                                    {updatingStatus === apt.appointmentId && (
+                                      <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75 rounded">
+                                        <div className="animate-spin rounded-full h-3 w-3 border-b border-blue-600"></div>
+                                      </div>
+                                    )}
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </li>
+                      );})}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    );
   };
 
   if (appointments.length === 0) {
@@ -1510,130 +1931,17 @@ const AppointmentCarousel: React.FC<{ appointments: DailyAppointment[] }> = ({ a
       <div className="flex items-center justify-center h-48">
         <div className="text-center">
           <Calendar className="h-10 w-10 text-gray-400 mx-auto mb-2" />
-          <p className="text-gray-600 text-sm">No appointments today</p>
+          <p className="text-gray-600 text-sm">No appointments</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="relative h-full">
-      {/* Navigation Buttons */}
-      {appointments.length > 1 && (
-        <>
-          <button
-            onClick={prevAppointment}
-            className="absolute left-2 bottom-1 z-20 text-gray-500 hover:text-gray-700 transition-colors duration-200"
-          >
-            <ChevronLeft size={16} />
-          </button>
-          <button
-            onClick={nextAppointment}
-            className="absolute right-2 bottom-1 z-20 text-gray-500 hover:text-gray-700 transition-colors duration-200"
-          >
-            <ChevronRight size={16} />
-          </button>
-        </>
-      )}
-
-      {/* Carousel Container */}
-      <div className="relative h-full overflow-hidden">
-        {appointments.map((appointment, index) => {
-          const isActive = index === currentIndex;
-          const isNext = index === (currentIndex + 1) % appointments.length;
-          const isPrev = index === (currentIndex - 1 + appointments.length) % appointments.length;
-          
-          let transformClass = '';
-          let opacityClass = '';
-          let zIndex = '';
-          
-          if (isActive) {
-            transformClass = 'translate-x-0 scale-100';
-            opacityClass = 'opacity-100';
-            zIndex = 'z-10';
-          } else if (isNext) {
-            transformClass = 'translate-x-4 scale-90';
-            opacityClass = 'opacity-60';
-            zIndex = 'z-5';
-          } else if (isPrev) {
-            transformClass = '-translate-x-4 scale-90';
-            opacityClass = 'opacity-60';
-            zIndex = 'z-5';
-          } else {
-            transformClass = 'translate-x-0 scale-80';
-            opacityClass = 'opacity-20';
-            zIndex = 'z-0';
-          }
-
-          return (
-            <div
-              key={appointment.id}
-              className={`absolute inset-0 transition-all duration-500 ease-out ${transformClass} ${opacityClass} ${zIndex}`}
-            >
-              <div className="bg-white border border-gray-200 rounded-lg p-2 h-full shadow-md hover:shadow-lg transition-all duration-300 overflow-hidden">
-                <div className="flex justify-between items-start mb-1.5">
-                  <h3 className="font-semibold text-gray-900 text-xs truncate flex-1 mr-1">
-                    {appointment.patientName}
-                  </h3>
-                  <span className={`px-1 py-0.5 rounded-full text-xs font-medium flex-shrink-0 ${
-                    appointment.status === 'confirmed' ? 'bg-green-100 text-green-800' :
-                    appointment.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                    'bg-red-100 text-red-800'
-                  }`}>
-                    {appointment.status}
-                  </span>
-                </div>
-                
-                <div className="space-y-0.5 text-xs">
-                  <div className="flex items-center space-x-1">
-                    <div className="w-1 h-1 bg-blue-500 rounded-full flex-shrink-0"></div>
-                    <span className="text-gray-600 truncate">Contact: {appointment.patientPhone}</span>
-                  </div>
-                  
-                  <div className="flex items-center space-x-1">
-                    <div className="w-1 h-1 bg-green-500 rounded-full flex-shrink-0"></div>
-                    <span className="text-gray-600 truncate">Date: {appointment.appointmentDate}</span>
-                  </div>
-                  
-                  <div className="flex items-center space-x-1">
-                    <div className="w-1 h-1 bg-purple-500 rounded-full flex-shrink-0"></div>
-                    <span className="text-gray-600 truncate">Time: {appointment.appointmentTime}</span>
-                  </div>
-                  
-                  <div className="flex items-center space-x-1">
-                    <div className="w-1 h-1 bg-orange-500 rounded-full flex-shrink-0"></div>
-                    <span className="text-gray-600 truncate">Doctor: {appointment.doctorName}</span>
-                  </div>
-                  
-                  <div className="flex items-center space-x-1">
-                    <div className="w-1 h-1 bg-red-500 rounded-full flex-shrink-0"></div>
-                    <span className="text-gray-600 truncate">Dept: {appointment.department}</span>
-                  </div>
-                </div>
-
-                {/* Progress indicator */}
-                <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2">
-                  <div className="flex space-x-0.5">
-                    {appointments.map((_, idx) => (
-                      <div
-                        key={idx}
-                        className={`w-1 h-1 rounded-full transition-all duration-300 ${
-                          idx === currentIndex ? 'bg-blue-500' : 'bg-gray-300'
-                        }`}
-                      />
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Appointment counter */}
-      <div className="absolute top-1 right-1 bg-white/80 rounded-full px-1.5 py-0.5 text-xs text-gray-600 font-medium">
-        {currentIndex + 1} / {appointments.length}
-      </div>
+    <div className="grid grid-cols-3 gap-4 min-h-[200px]">
+      <DayColumn title="Today" list={todayAppointments} sortBy={sortBy} />
+      <DayColumn title="Tomorrow" list={tomorrowAppointments} sortBy={sortBy} />
+      <DayColumn title="Completed" list={completedAppointments} sortBy={sortBy} />
     </div>
   );
 };

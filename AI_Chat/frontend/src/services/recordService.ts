@@ -1,8 +1,13 @@
 /**
  * Medical Record Service - API calls for medical records
+ * Uses JWT (Authorization: Bearer) for auth.
  */
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL + '/api';
+import { getAuthHeaders, authenticatedFetch } from './authService';
+
+import { getApiRoot } from '../utils/apiBase';
+
+const API_BASE = getApiRoot();
 
 export interface MedicalRecord {
   record_id: number;
@@ -22,21 +27,6 @@ export interface MedicalRecord {
 }
 
 class RecordService {
-  private getPatientId(): string | null {
-    return sessionStorage.getItem('patient_id');
-  }
-
-  private getAuthHeaders(): HeadersInit {
-    const patientId = this.getPatientId();
-    const headers: HeadersInit = {
-      'Content-Type': 'application/json',
-    };
-    if (patientId) {
-      headers['X-Patient-ID'] = patientId;
-    }
-    return headers;
-  }
-
   async getRecords(params?: {
     type?: string;
     start_date?: string;
@@ -53,9 +43,9 @@ class RecordService {
       }
 
       const url = `${API_BASE}/patient/medical-records${queryParams.toString() ? `?${queryParams}` : ''}`;
-      const response = await fetch(url, {
+      const response = await authenticatedFetch(url, {
         method: 'GET',
-        headers: this.getAuthHeaders(),
+        headers: getAuthHeaders(),
       });
       const data = await response.json();
       return data;
@@ -66,9 +56,9 @@ class RecordService {
 
   async getRecord(recordId: number): Promise<{ success: boolean; record?: MedicalRecord; error?: string }> {
     try {
-      const response = await fetch(`${API_BASE}/patient/medical-records/${recordId}`, {
+      const response = await authenticatedFetch(`${API_BASE}/patient/medical-records/${recordId}`, {
         method: 'GET',
-        headers: this.getAuthHeaders(),
+        headers: getAuthHeaders(),
       });
       const data = await response.json();
       return data;
@@ -79,9 +69,9 @@ class RecordService {
 
   async downloadRecord(recordId: number): Promise<Blob | null> {
     try {
-      const response = await fetch(`${API_BASE}/patient/medical-records/${recordId}/download`, {
+      const response = await authenticatedFetch(`${API_BASE}/patient/medical-records/${recordId}/download`, {
         method: 'GET',
-        headers: this.getAuthHeaders(),
+        headers: getAuthHeaders(),
       });
       if (response.ok) {
         return await response.blob();
@@ -94,15 +84,12 @@ class RecordService {
 
   async uploadMedicalRecord(formData: FormData): Promise<{ success: boolean; record?: MedicalRecord; error?: string }> {
     try {
-      const patientId = this.getPatientId();
-      if (patientId) {
-        formData.append('X-Patient-ID', patientId);
-      }
-
-      const response = await fetch(`${API_BASE}/patient/medical-records`, {
+      const headers = getAuthHeaders() as Record<string, string>;
+      delete headers['Content-Type']; // Let browser set multipart boundary for FormData
+      const response = await authenticatedFetch(`${API_BASE}/patient/medical-records`, {
         method: 'POST',
+        headers,
         body: formData,
-        // Don't set Content-Type header, let browser set it with boundary for FormData
       });
       const data = await response.json();
       return data;

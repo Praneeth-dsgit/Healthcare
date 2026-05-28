@@ -317,7 +317,8 @@ APPOINTMENT DATA TO INSERT:
 - Patient Gender: {appointment_data.get('gender', '')}
 - Patient Weight (kg): {appointment_data.get('weight', '')}
 - Doctor ID: {appointment_data.get('doctorId', '')}
-- Department ID: {appointment_data.get('departmentId', '')}
+- Facility ID: {appointment_data.get('facility_id', '')}
+- Generated Patient ID (USE THIS when creating new patient): {appointment_data.get('generated_patient_id', '')}
 - Appointment Date: {appointment_data.get('appointmentDate', '')}
 - Appointment Time: {appointment_data.get('appointmentTime', '')}
 - Reason: {appointment_data.get('reason', '')}
@@ -325,21 +326,16 @@ APPOINTMENT DATA TO INSERT:
 IMPORTANT RULES:
 1. You need to find or create the patient first (check if patient exists by phone or name)
 2. Use the provided doctor_id directly (no need to look it up)
-3. Combine appointment_date and appointment_time into a single DATETIME value
-4. The appointments table structure is:
-   - appointment_id (auto-increment, primary key)
-   - patient_id (foreign key to patients table)
-   - doctor_id (foreign key to doctors table) - use the provided doctor_id directly
-   - appointment_date (DATETIME - combine date and time)
-   - status (ENUM: 'Scheduled', 'Pending', 'Cancelled' - default to 'Scheduled')
-
-5. If patient doesn't exist, you need to INSERT into patients table first, then get the patient_id
-6. If patient exists, use their existing patient_id
-7. Use the doctor_id provided directly (it's already validated)
-8. When inserting patient data, include age, gender, and weight_kg fields if they are provided and exist in the patients table schema
-9. Check the actual patients table schema to see which fields are available (age, gender, weight_kg, etc.)
-10. If age is provided but the table has date_of_birth instead, calculate date_of_birth from age (current date - age years)
-11. Generate a proper INSERT statement for the appointments table
+3. Use the provided facility_id directly - it is REQUIRED for the appointments table
+4. Use appointment_date (DATE) and appointment_time (TIME) as separate columns - put the date in appointment_date and time in appointment_time
+5. The appointments table structure includes: patient_id, family_member_id (nullable), doctor_id, facility_id (REQUIRED), appointment_date (DATE), appointment_time (TIME)
+6. If patient doesn't exist, you MUST INSERT into patients table first. When creating a NEW patient, you MUST use the "Generated Patient ID" exactly as provided (format PAT-YYMMDD-XXXX, e.g. PAT-251224-8AHT). NEVER use phone, email, or name as patient_id.
+7. If patient exists (or Generated Patient ID is empty), find them by phone/name and use their existing patient_id
+8. Use the doctor_id and facility_id provided directly (they are already validated)
+9. When inserting patient data, include age, gender, and weight_kg fields if they are provided and exist in the patients table schema
+10. Check the actual patients table schema to see which fields are available (age, gender, weight_kg, etc.)
+11. If age is provided but the table has date_of_birth instead, calculate date_of_birth from age (current date - age years)
+12. Generate a proper INSERT statement for the appointments table
 
 Generate the SQL INSERT statement(s) needed. If patient doesn't exist, generate two INSERT statements:
 1. First INSERT into patients table
@@ -1642,6 +1638,74 @@ Patient Identifier:"""
         except Exception as e:
             logger.error(f"Error updating daily appointments cache: {e}")
             return False
+
+    def get_appointments_by_date_range(self, start_date: date, end_date: date):
+        """Get appointments for a date range (inclusive)"""
+        try:
+            start_str = start_date.strftime('%Y-%m-%d')
+            end_str = end_date.strftime('%Y-%m-%d')
+            logger.info(f"Fetching appointments from {start_str} to {end_str}")
+
+            sql_query = f"""
+            SELECT 
+                a.appointment_id,
+                a.patient_id,
+                a.family_member_id,
+                a.doctor_id,
+                a.facility_id,
+                p.first_name as patient_first_name,
+                p.last_name as patient_last_name,
+                p.email as patient_email,
+                CONCAT(p.first_name, ' ', p.last_name) as patient_name,
+                p.phone as patient_phone,
+                fm.first_name as family_member_first_name,
+                fm.last_name as family_member_last_name,
+                fm.relationship as family_member_relationship,
+                fm.phone as family_member_phone,
+                a.appointment_date,
+                a.appointment_time,
+                a.appointment_type,
+                a.reason,
+                a.notes,
+                CONCAT(d.first_name, ' ', d.last_name) as doctor_name,
+                s.name as specialty_name,
+                f.name as facility_name,
+                a.status
+            FROM appointments a
+            JOIN patients p ON a.patient_id = p.patient_id
+            LEFT JOIN family_members fm ON a.family_member_id = fm.family_member_id
+            JOIN doctors d ON a.doctor_id = d.doctor_id
+            LEFT JOIN specialties s ON d.specialty_id = s.specialty_id
+            JOIN facilities f ON a.facility_id = f.facility_id
+            WHERE DATE(a.appointment_date) >= '{start_str}'
+            AND DATE(a.appointment_date) <= '{end_str}'
+            ORDER BY a.appointment_date ASC, a.appointment_time ASC
+            """
+
+            results, error = self.execute_query(sql_query)
+            if error:
+                return {'success': False, 'error': error, 'appointments': []}
+
+            formatted = []
+            for row in results:
+                formatted_appointment = {}
+                for key, value in row.items():
+                    if value is None:
+                        formatted_appointment[key] = None
+                    elif isinstance(value, timedelta):
+                        formatted_appointment[key] = str(value)
+                    elif hasattr(value, 'isoformat'):
+                        formatted_appointment[key] = value.isoformat()
+                    elif isinstance(value, (date, datetime)):
+                        formatted_appointment[key] = value.isoformat()
+                    else:
+                        formatted_appointment[key] = value
+                formatted.append(formatted_appointment)
+
+            return {'success': True, 'appointments': formatted, 'count': len(formatted)}
+        except Exception as e:
+            logger.error(f"Error fetching appointments by date range: {e}")
+            return {'success': False, 'error': str(e), 'appointments': []}
 
     def get_cached_daily_appointments(self):
         """Get daily appointments from cache"""

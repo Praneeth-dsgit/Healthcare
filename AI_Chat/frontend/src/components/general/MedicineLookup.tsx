@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Search, BookOpen, AlertCircle, Pill } from 'lucide-react';
+import { getApiBaseUrl } from '../../utils/apiBase';
 
 interface MedicineData {
   Disease: string;
@@ -28,7 +29,7 @@ const MedicineLookup: React.FC = () => {
     setLoading(true);
     try {
       // Try loading from API endpoint first
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/medicine_kbase.json`);
+      const response = await fetch(`${getApiBaseUrl()}/api/medicine_kbase.json`);
       if (response.ok) {
         const data = await response.json();
         setMedicineData(data);

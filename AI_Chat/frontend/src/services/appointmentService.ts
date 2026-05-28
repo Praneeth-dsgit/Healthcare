@@ -5,7 +5,9 @@
 
 import { getAuthHeaders, authenticatedFetch } from './authService';
 
-const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000') + '/api';
+import { getApiRoot } from '../utils/apiBase';
+
+const API_BASE = getApiRoot();
 
 export interface Appointment {
   appointment_id: number;
@@ -17,7 +19,7 @@ export interface Appointment {
   appointment_time: string;
   appointment_type: 'consultation' | 'follow_up' | 'emergency' | 'routine';
   reason?: string;
-  status: 'scheduled' | 'confirmed' | 'completed' | 'cancelled' | 'no_show';
+  status: 'scheduled' | 'pending' | 'completed' | 'cancelled';
   notes?: string;
   created_at: string;
   doctor_first_name?: string;

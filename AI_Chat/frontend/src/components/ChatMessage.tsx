@@ -9,9 +9,13 @@ interface ChatMessageProps {
   message: Message;
   onPreviewClick?: (fileUrl: string, fileType: string, fileName: string) => void;
   onEdit?: (id: string) => void;
+  /** Show upload progress bar below the image (for the message that is currently uploading) */
+  showUploadProgress?: boolean;
+  uploadProgress?: number;
+  analyzing?: boolean;
 }
 
-const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewClick, onEdit }) => {
+const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewClick, onEdit, showUploadProgress, uploadProgress = 0, analyzing }) => {
   const isUser = message.role === 'user';
   // File preview logic
   const isImage = message.fileUrl && message.fileType && message.fileType.startsWith('image/');
@@ -120,49 +124,68 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onPreviewClick, onEd
               <img src={message.fileUrl} alt={message.fileName || 'Uploaded image'} className="max-h-40 rounded shadow border hover:scale-105 transition-transform" />
             </button>
             <div className="text-xs text-gray-200 mt-1 truncate">{message.fileName}</div>
+            {(showUploadProgress || analyzing) && (
+              <div className="mt-2 w-full space-y-1">
+                {showUploadProgress && (
+                  <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                    <div className="h-full bg-primary-500 transition-all duration-300" style={{ width: `${uploadProgress}%` }} />
+                  </div>
+                )}
+                {analyzing && (
+                  <p className="text-xs text-gray-300">Analyzing...</p>
+                )}
+              </div>
+            )}
           </div>
         )}
         {isUser && isPDF && (
-          hasPdfThumbnail ? (
-            <button
-              type="button"
-              className="mb-2 flex flex-col items-center focus:outline-none"
-              onClick={() => onPreviewClick && message.fileUrl && message.fileType && message.fileName && onPreviewClick(message.fileUrl, message.fileType, message.fileName)}
-            >
-              <img src={message.pdfThumbnail} alt={message.fileName || 'PDF preview'} className="max-h-32 rounded shadow border mb-1" />
-              <span className="text-xs text-gray-200 truncate">{message.fileName}</span>
-            </button>
-          ) : (
-            <button
-              type="button"
-              className="mb-2 flex items-center gap-2 focus:outline-none"
-              onClick={() => onPreviewClick && message.fileUrl && message.fileType && message.fileName && onPreviewClick(message.fileUrl, message.fileType, message.fileName)}
-            >
-              <FileText size={28} className="text-primary-200" />
-              <span className="text-xs text-gray-200 truncate">{message.fileName}</span>
-            </button>
-          )
+          <div className="mb-2">
+            {hasPdfThumbnail ? (
+              <button
+                type="button"
+                className="flex flex-col items-center focus:outline-none"
+                onClick={() => onPreviewClick && message.fileUrl && message.fileType && message.fileName && onPreviewClick(message.fileUrl, message.fileType, message.fileName)}
+              >
+                <img src={message.pdfThumbnail} alt={message.fileName || 'PDF preview'} className="max-h-32 rounded shadow border mb-1" />
+                <span className="text-xs text-gray-200 truncate">{message.fileName}</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="flex items-center gap-2 focus:outline-none"
+                onClick={() => onPreviewClick && message.fileUrl && message.fileType && message.fileName && onPreviewClick(message.fileUrl, message.fileType, message.fileName)}
+              >
+                <FileText size={28} className="text-primary-200" />
+                <span className="text-xs text-gray-200 truncate">{message.fileName}</span>
+              </button>
+            )}
+            {(showUploadProgress || analyzing) && (
+              <div className="mt-2 w-full space-y-1">
+                {showUploadProgress && (
+                  <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                    <div className="h-full bg-primary-500 transition-all duration-300" style={{ width: `${uploadProgress}%` }} />
+                  </div>
+                )}
+                {analyzing && (
+                  <p className="text-xs text-gray-300">Analyzing...</p>
+                )}
+              </div>
+            )}
+          </div>
         )}
         {isUser ? (
           message.content ? <p className="whitespace-pre-wrap text-base leading-relaxed content-stable streaming-content">{message.content}</p> : null
         ) : (
           <>
-            <div className="prose prose-sm max-w-none streaming-content content-stable">
-              <div className="whitespace-pre-wrap text-sm leading-relaxed" style={{ whiteSpace: 'pre-wrap', wordWrap: 'break-word' }}>
+            <div className="streaming-content content-stable prose prose-sm max-w-none prose-p:mb-1 prose-p:leading-relaxed">
+              <div className="text-sm" style={{ wordWrap: 'break-word' }}>
                 <ReactMarkdown
                   components={{
-                    a: ({node, ...props}) => <a {...props} className="text-blue-600 underline" target="_blank" rel="noopener noreferrer" />,
-                    p: ({node, ...props}) => <p {...props} className="mb-2 leading-relaxed whitespace-pre-wrap" style={{ whiteSpace: 'pre-wrap' }} />,
-                    ul: ({node, ...props}) => <ul {...props} className="list-disc mb-2 space-y-1 ml-6" />,
-                    ol: ({node, ...props}) => <ol {...props} className="list-decimal mb-2 space-y-1 ml-6" />,
-                    li: ({node, ...props}) => <li {...props} className="mb-1 whitespace-pre-wrap" style={{ whiteSpace: 'pre-wrap' }} />,
-                    h1: ({node, ...props}) => <h1 {...props} className="text-xl font-bold mb-2 mt-4" />,
-                    h2: ({node, ...props}) => <h2 {...props} className="text-lg font-semibold mb-2 mt-3" />,
-                    h3: ({node, ...props}) => <h3 {...props} className="text-base font-medium mb-1 mt-2" />,
-                    strong: ({node, ...props}) => <strong {...props} className="font-semibold text-gray-900" />,
-                    em: ({node, ...props}) => <em {...props} className="italic" />,
-                    code: ({node, ...props}) => <code {...props} className="bg-gray-100 px-1 py-0.5 rounded text-sm" />,
-                    pre: ({node, ...props}) => <pre {...props} className="bg-gray-100 p-2 rounded overflow-x-auto mb-2 whitespace-pre-wrap" style={{ whiteSpace: 'pre-wrap' }} />
+                    p: ({ node, ...props }) => <p {...props} className="mb-1 leading-relaxed whitespace-pre-wrap" style={{ whiteSpace: 'pre-wrap' }} />,
+                    h2: ({ node, ...props }) => <h2 {...props} className="text-base font-semibold text-gray-900 mt-3 mb-1 first:mt-0" />,
+                    h3: ({ node, ...props }) => <h3 {...props} className="text-sm font-medium text-gray-800 mt-2 mb-0.5" />,
+                    strong: ({ node, ...props }) => <strong {...props} className="font-semibold text-gray-900" />,
+                    em: ({ node, ...props }) => <em {...props} className="italic" />,
                   }}
                 >
                   {message.content}

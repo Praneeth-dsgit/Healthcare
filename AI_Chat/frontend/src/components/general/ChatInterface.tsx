@@ -6,6 +6,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Menu, X, Stethoscope, FileText, Users, HelpCircle } from 'lucide-react';
 import { Message } from '../../types';
+import { getApiBaseUrl } from '../../utils/apiBase';
 
 const ChatInterface: React.FC = () => {
   // Load messages from localStorage on mount
@@ -105,7 +106,7 @@ const ChatInterface: React.FC = () => {
     setIsLoading(true);
 
     try {
-      const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+      const API_BASE = getApiBaseUrl();
       const { authenticatedFetch, getAuthHeaders } = await import('../../services/authService');
       const response = await authenticatedFetch(`${API_BASE}/api/chat/stream`, {
         method: 'POST',

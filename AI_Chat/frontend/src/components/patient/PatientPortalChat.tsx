@@ -11,6 +11,7 @@ import { patientService, Patient, FamilyMember } from '../../services/patientSer
 import { doctorService, Doctor, Specialty } from '../../services/doctorService';
 import { recordService, MedicalRecord } from '../../services/recordService';
 import { radiologyService, RadiologyBooking } from '../../services/radiologyService';
+import { getApiBaseUrl } from '../../utils/apiBase';
 
 interface Message {
   id: string;
@@ -597,7 +598,7 @@ const PatientPortalChat = React.forwardRef<{ clearMessages: () => void }, {}>((_
         // Try to extract and book directly
         try {
           const { authenticatedFetch, getAuthHeaders } = await import('../../services/authService');
-          const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+          const API_BASE = getApiBaseUrl();
           const response = await authenticatedFetch(`${API_BASE}/api/patient-portal/extract-and-book`, {
             method: 'POST',
             headers: getAuthHeaders(),
@@ -651,7 +652,7 @@ const PatientPortalChat = React.forwardRef<{ clearMessages: () => void }, {}>((_
           .join('\n');
 
         const { authenticatedFetch, getAuthHeaders } = await import('../../services/authService');
-        const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+        const API_BASE = getApiBaseUrl();
         const response = await authenticatedFetch(`${API_BASE}/api/patient-portal/query`, {
           method: 'POST',
           headers: getAuthHeaders(),
@@ -699,7 +700,7 @@ const PatientPortalChat = React.forwardRef<{ clearMessages: () => void }, {}>((_
         }));
 
       const { authenticatedFetch, getAuthHeaders } = await import('../../services/authService');
-      const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+      const API_BASE = getApiBaseUrl();
       const response = await authenticatedFetch(`${API_BASE}/api/patient-portal/chat`, {
         method: 'POST',
         headers: getAuthHeaders(),

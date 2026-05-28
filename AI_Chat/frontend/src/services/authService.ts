@@ -3,7 +3,9 @@
  * No session cookies. Use Authorization: Bearer <accessToken> for API calls.
  */
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+import { getApiBaseUrl } from '../utils/apiBase';
+
+const API_BASE = getApiBaseUrl();
 
 const KEY_ACCESS = 'accessToken';
 const KEY_REFRESH = 'refreshToken';
@@ -103,7 +105,10 @@ export async function authenticatedFetch(
     const token = getAccessToken();
     if (token) headers.set('Authorization', `Bearer ${token}`);
   }
-  if (!headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
+  // Don't set Content-Type for FormData - browser must set multipart boundary
+  if (!headers.has('Content-Type') && !(options.body instanceof FormData)) {
+    headers.set('Content-Type', 'application/json');
+  }
   let res = await fetch(url, { ...options, headers });
   if (res.status === 401) {
     const newToken = await refreshAccessToken();

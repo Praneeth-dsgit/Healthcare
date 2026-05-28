@@ -397,8 +397,17 @@ const AppointmentBooking: React.FC = () => {
         {/* Step 2: Date & Time */}
         {step === 2 && selectedDoctor && (
           <div className="bg-white rounded-lg shadow-md hover:shadow-lg p-6 transition-all duration-300">
-            <div className="flex items-center justify-between mb-4">
-              <div>
+            <div className="flex items-start gap-3 mb-4">
+              <button
+                type="button"
+                onClick={() => setStep(1)}
+                className="text-blue-600 hover:text-blue-800 p-1 rounded-lg hover:bg-blue-50 transition-all duration-200 shrink-0"
+                aria-label="Back"
+                title="Back"
+              >
+                <ArrowLeft className="h-5 w-5" />
+              </button>
+              <div className="min-w-0">
                 <h2 className="text-xl font-semibold">Select Date & Time</h2>
                 {selectedDoctor.facility_name && (
                   <p className="text-sm text-gray-600 mt-1">
@@ -406,12 +415,6 @@ const AppointmentBooking: React.FC = () => {
                   </p>
                 )}
               </div>
-              <button
-                onClick={() => setStep(1)}
-                className="text-blue-600 hover:text-blue-700 hover:underline transition-all duration-200"
-              >
-                ← Back
-              </button>
             </div>
             <div className="space-y-4">
               <div>
@@ -488,14 +491,17 @@ const AppointmentBooking: React.FC = () => {
         {/* Step 3: Confirm */}
         {step === 3 && selectedDoctor && (
           <div className="bg-white rounded-lg shadow-md hover:shadow-lg p-6 transition-all duration-300">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold">Confirm Appointment</h2>
+            <div className="flex items-start gap-3 mb-4">
               <button
+                type="button"
                 onClick={() => setStep(2)}
-                className="text-blue-600 hover:text-blue-700 hover:underline transition-all duration-200"
+                className="text-blue-600 hover:text-blue-800 p-1 rounded-lg hover:bg-blue-50 transition-all duration-200 shrink-0"
+                aria-label="Back"
+                title="Back"
               >
-                ← Back
+                <ArrowLeft className="h-5 w-5" />
               </button>
+              <h2 className="text-xl font-semibold min-w-0">Confirm Appointment</h2>
             </div>
             <div className="space-y-4">
               <div className="border border-gray-200 rounded-lg p-4">

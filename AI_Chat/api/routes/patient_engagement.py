@@ -90,6 +90,28 @@ def get_daily_appointments():
         logger.error(f"Daily appointments error: {e}")
         return jsonify({'error': 'Internal server error'}), 500
 
+@patient_engagement_bp.route('/appointments-by-date', methods=['GET'])
+def get_appointments_by_date():
+    """Get appointments for today and tomorrow (or custom date range via query params)"""
+    try:
+        from datetime import date, timedelta
+        today = date.today()
+        start_date = request.args.get('start_date', today.strftime('%Y-%m-%d'))
+        end_date = request.args.get('end_date', (today + timedelta(days=1)).strftime('%Y-%m-%d'))
+        try:
+            start_d = date.fromisoformat(start_date)
+            end_d = date.fromisoformat(end_date)
+        except ValueError:
+            return jsonify({'error': 'Invalid date format. Use YYYY-MM-DD'}), 400
+        agent = DatabaseAgent()
+        result = agent.get_appointments_by_date_range(start_d, end_d)
+        if result['success']:
+            return jsonify(result), 200
+        return jsonify({'error': result.get('error', 'Unknown error')}), 400
+    except Exception as e:
+        logger.error(f"Appointments by date error: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
 @patient_engagement_bp.route('/doctors', methods=['GET'])
 def get_doctors():
     """Get list of all doctors with their departments"""
@@ -99,11 +121,12 @@ def get_doctors():
         sql_query = """
         SELECT 
             d.doctor_id as id,
-            d.first_name as name,
-            d.department_id,
-            dept.name as department_name
+            CONCAT(d.first_name, ' ', d.last_name) as name,
+            d.specialty_id as department_id,
+            s.name as department_name
         FROM doctors d
-        LEFT JOIN departments dept ON d.department_id = dept.department_id
+        LEFT JOIN specialties s ON d.specialty_id = s.specialty_id
+        WHERE d.is_active = TRUE
         ORDER BY d.first_name
         """
         
@@ -123,15 +146,16 @@ def get_doctors():
 
 @patient_engagement_bp.route('/departments', methods=['GET'])
 def get_departments():
-    """Get list of all departments"""
+    """Get list of all departments/specialties"""
     try:
         agent = DatabaseAgent()
         
+        # Use specialties table (schema has specialties, not departments)
         sql_query = """
         SELECT 
-            department_id as id,
+            specialty_id as id,
             name
-        FROM departments
+        FROM specialties
         ORDER BY name
         """
         
@@ -452,21 +476,58 @@ def book_appointment_internal(data, agent):
             if not data.get(field):
                 return jsonify({'success': False, 'error': f'Missing required field: {field}'}), 400
         
-        # Get doctor name from doctor_id for response
-        doctor_query = f"SELECT first_name, department_id FROM doctors WHERE doctor_id = {data.get('doctorId')}"
+        # Get doctor name from doctor_id for response (schema uses specialty_id, not department_id)
+        doctor_id = data.get('doctorId')
+        doctor_query = f"SELECT first_name, last_name, specialty_id FROM doctors WHERE doctor_id = {doctor_id}"
         doctor_result, doctor_error = agent.execute_query(doctor_query)
         
         if doctor_error or not doctor_result:
             return jsonify({'success': False, 'error': 'Doctor not found'}), 400
         
-        doctor_name = doctor_result[0].get('first_name')
-        department_id = doctor_result[0].get('department_id')
+        doctor_row = doctor_result[0]
+        doctor_name = f"{doctor_row.get('first_name', '')} {doctor_row.get('last_name', '')}".strip()
+        specialty_id = doctor_row.get('specialty_id')
         
-        # Get department name
-        dept_query = f"SELECT name FROM departments WHERE department_id = {department_id}"
-        dept_result, dept_error = agent.execute_query(dept_query)
-        department_name = dept_result[0].get('name') if dept_result and not dept_error else ''
+        # Get specialty/department name from specialties table
+        department_name = ''
+        if specialty_id:
+            dept_query = f"SELECT name FROM specialties WHERE specialty_id = {specialty_id}"
+            dept_result, dept_error = agent.execute_query(dept_query)
+            department_name = dept_result[0].get('name') if dept_result and not dept_error else ''
         
+        # Resolve facility_id (required for appointments) - use doctor's facility or first available
+        facility_id = data.get('facility_id')
+        if not facility_id:
+            facility_query = f"""
+            SELECT df.facility_id FROM doctor_facilities df
+            WHERE df.doctor_id = {doctor_id} AND df.is_active = TRUE
+            ORDER BY df.is_primary DESC
+            LIMIT 1
+            """
+            facility_result, facility_error = agent.execute_query(facility_query)
+            if facility_result and not facility_error:
+                facility_id = facility_result[0].get('facility_id')
+        if not facility_id:
+            default_facility_query = "SELECT facility_id FROM facilities WHERE is_active = TRUE LIMIT 1"
+            default_result, _ = agent.execute_query(default_facility_query)
+            if default_result:
+                facility_id = default_result[0].get('facility_id')
+        if not facility_id:
+            return jsonify({'success': False, 'error': 'No facility available. Please add a facility first.'}), 400
+        data['facility_id'] = facility_id
+
+        # Ensure new patients get PAT-YYMMDD-XXXX format (same as signup)
+        from utils.patient_id_generator import generate_patient_id
+        patient_phone = (data.get('patientPhone') or '').strip().replace(' ', '').replace('-', '')
+        patient_is_new = True
+        if patient_phone:
+            safe_phone = patient_phone.replace("'", "''")
+            patient_exists_query = f"SELECT patient_id FROM patients WHERE REPLACE(REPLACE(COALESCE(phone,''), ' ', ''), '-', '') = '{safe_phone}' LIMIT 1"
+            patient_exists_result, _ = agent.execute_query(patient_exists_query)
+            patient_is_new = not patient_exists_result or len(patient_exists_result) == 0
+        if patient_is_new:
+            data['generated_patient_id'] = generate_patient_id(prefix="PAT", format_type="short")
+
         # Check for conflicts
         conflict_sql = f"""
         SELECT appointment_id, appointment_date, status
@@ -550,6 +611,85 @@ def book_appointment():
         logger.error(f"Appointment booking error: {e}")
         logger.error(f"Full traceback: {traceback.format_exc()}")
         return jsonify({'success': False, 'error': f'Internal server error: {str(e)}'}), 500
+
+
+# ---------------------------------------------------------------------------
+# Front Desk (reception) endpoints - administrative registration only
+# ---------------------------------------------------------------------------
+
+@patient_engagement_bp.route('/front-desk/register-patient', methods=['POST'])
+def front_desk_register_patient():
+    """Register a new patient from front desk (walk-in). No user account. UHID auto-generated."""
+    try:
+        data = request.get_json() or {}
+        first_name = (data.get('first_name') or '').strip()
+        last_name = (data.get('last_name') or '').strip()
+        phone = (data.get('phone') or '').strip()
+        date_of_birth = data.get('date_of_birth')
+        gender = (data.get('gender') or '').strip().lower()
+        address = (data.get('address') or '').strip() or None
+
+        if not first_name:
+            return jsonify({'success': False, 'error': 'First name is required'}), 400
+        if not last_name:
+            last_name = first_name
+        if not phone:
+            return jsonify({'success': False, 'error': 'Phone is required'}), 400
+        if not date_of_birth:
+            return jsonify({'success': False, 'error': 'Date of birth is required'}), 400
+        if gender not in ('male', 'female', 'other'):
+            return jsonify({'success': False, 'error': 'Valid gender (male/female/other) is required'}), 400
+
+        from sqlalchemy import text
+        from utils.patient_id_generator import generate_patient_id
+
+        patient_id = generate_patient_id(prefix="PAT", format_type="short")
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                db.session.execute(
+                    text("""
+                        INSERT INTO patients (
+                            patient_id, user_id, first_name, last_name, date_of_birth, gender,
+                            phone, email, address, is_active
+                        ) VALUES (
+                            :patient_id, NULL, :first_name, :last_name, :date_of_birth, :gender,
+                            :phone, NULL, :address, TRUE
+                        )
+                    """),
+                    {
+                        'patient_id': patient_id,
+                        'first_name': first_name,
+                        'last_name': last_name,
+                        'date_of_birth': date_of_birth,
+                        'gender': gender,
+                        'phone': phone,
+                        'address': address,
+                    }
+                )
+                db.session.commit()
+                logger.info(f"Front desk registered patient: {patient_id} ({first_name} {last_name})")
+                return jsonify({
+                    'success': True,
+                    'uhid': patient_id,
+                    'patient_id': patient_id,
+                    'message': f'Patient registered with UHID {patient_id}',
+                }), 200
+            except Exception as insert_error:
+                err_str = str(insert_error).lower()
+                if 'duplicate' in err_str or '1062' in err_str:
+                    if attempt < max_retries - 1:
+                        patient_id = generate_patient_id(prefix="PAT", format_type="short")
+                        continue
+                db.session.rollback()
+                raise
+        return jsonify({'success': False, 'error': 'Failed to generate unique patient ID'}), 500
+    except Exception as e:
+        logger.error(f"Front desk register patient error: {e}")
+        logger.error(traceback.format_exc())
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 
 # Patient Portal Routes (separate blueprint but related functionality)
 patient_portal_bp = Blueprint('patient_portal', __name__, url_prefix='/api/patient-portal')

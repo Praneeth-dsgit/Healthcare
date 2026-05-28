@@ -2,7 +2,9 @@
  * Facility Service - API calls for healthcare facility search
  */
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL + '/api';
+import { getApiRoot } from '../utils/apiBase';
+
+const API_BASE = getApiRoot();
 
 export interface Facility {
   facility_id: number;

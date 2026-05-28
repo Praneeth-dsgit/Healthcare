@@ -7,6 +7,7 @@ import React, { useState, useEffect } from 'react';
 import { Calendar, Clock, User, MapPin, Search, Edit, Pill } from 'lucide-react';
 import { appointmentService, Appointment } from '../../services/appointmentService';
 import EditAppointmentModal from './EditAppointmentModal';
+import { getAppointmentStatusColor, getAppointmentStatusContainer } from '../../utils/appointmentStatusColors';
 
 interface DoctorAppointmentsProps {
   onPrescribe?: (patientId: string, patientName: string) => void;
@@ -130,25 +131,6 @@ const DoctorAppointments: React.FC<DoctorAppointmentsProps> = ({ onPrescribe }) 
     }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'scheduled':
-        return 'bg-blue-100 text-blue-800';
-      case 'confirmed':
-        return 'bg-green-100 text-green-800';
-      case 'completed':
-        return 'bg-gray-100 text-gray-800';
-      case 'cancelled':
-        return 'bg-red-100 text-red-800';
-      case 'no_show':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'pending':
-        return 'bg-orange-100 text-orange-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
-
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -207,14 +189,14 @@ const DoctorAppointments: React.FC<DoctorAppointmentsProps> = ({ onPrescribe }) 
             <p className="mt-4 text-gray-600">No appointments found</p>
           </div>
         ) : (
-          <div className="divide-y divide-gray-200">
+          <div className="p-4 space-y-4">
             {filteredAppointments.map((appointment) => (
-              <div key={appointment.appointment_id} className="p-6 hover:bg-gray-50 transition-colors">
+              <div key={appointment.appointment_id} className={`p-6 rounded-lg border-2 transition-colors ${getAppointmentStatusContainer(appointment.status)}`}>
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between">
                   <div className="flex-1">
                     <div className="flex items-center space-x-3 mb-2">
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(appointment.status)}`}>
-                        {appointment.status.charAt(0).toUpperCase() + appointment.status.slice(1)}
+                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${getAppointmentStatusColor(appointment.status)}`}>
+                        {(appointment.status as string) === 'confirmed' ? 'Scheduled' : (appointment.status as string) === 'no_show' ? 'Cancelled' : appointment.status.charAt(0).toUpperCase() + appointment.status.slice(1)}
                       </span>
                       <span className="text-sm text-gray-500">{appointment.appointment_type}</span>
                     </div>
@@ -292,17 +274,15 @@ const DoctorAppointments: React.FC<DoctorAppointmentsProps> = ({ onPrescribe }) 
                     
                     <div className="relative">
                       <select
-                        value={appointment.status}
+                        value={(appointment.status as string) === 'confirmed' ? 'scheduled' : (appointment.status as string) === 'no_show' ? 'cancelled' : appointment.status}
                         onChange={(e) => handleStatusChange(appointment.appointment_id, e.target.value)}
                         disabled={updatingStatus === appointment.appointment_id}
                         className="flex items-center justify-center space-x-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm cursor-pointer appearance-none pr-8"
                       >
                         <option value="scheduled">Scheduled</option>
-                        <option value="confirmed">Confirmed</option>
                         <option value="pending">Pending</option>
                         <option value="completed">Completed</option>
                         <option value="cancelled">Cancelled</option>
-                        <option value="no_show">No Show</option>
                       </select>
                       {updatingStatus === appointment.appointment_id && (
                         <div className="absolute inset-0 flex items-center justify-center bg-gray-600 bg-opacity-75 rounded-lg">

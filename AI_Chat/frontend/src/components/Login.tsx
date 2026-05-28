@@ -3,8 +3,9 @@ import { Eye, EyeOff, UserPlus, AlertCircle } from 'lucide-react';
 import UsageStatisticsModal from './UsageStatisticsModal';
 import { roleService } from '../services/roleService';
 import { setTokens, getAuthHeaders, clearAuth } from '../services/authService';
+import { getApiBaseUrl } from '../utils/apiBase';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://192.168.5.111:5000';
+const API_BASE = getApiBaseUrl();
 
 interface LoginProps {
   onLoginSuccess: () => void;
@@ -112,7 +113,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, onNavigateToSignup, redir
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-            Email Address
+            Email address
           </label>
           <input
             id="email"

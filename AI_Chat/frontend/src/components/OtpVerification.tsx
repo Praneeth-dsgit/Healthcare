@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { getApiBaseUrl } from '../utils/apiBase';
 
 const OtpVerification: React.FC<{ email?: string; onVerified: () => void }> = ({ email: propEmail, onVerified }) => {
   // Get email from props, localStorage, or use empty string
@@ -14,7 +15,7 @@ const OtpVerification: React.FC<{ email?: string; onVerified: () => void }> = ({
     setLoading(true);
     setMessage('');
     try {
-      const res = await fetch('http://localhost:5000/api/verify-otp', {
+      const res = await fetch(`${getApiBaseUrl()}/api/verify-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, otp }),
@@ -50,7 +51,7 @@ const OtpVerification: React.FC<{ email?: string; onVerified: () => void }> = ({
     setResending(true);
     setMessage('');
     try {
-      const res = await fetch('http://localhost:5000/api/resend-otp', {
+      const res = await fetch(`${getApiBaseUrl()}/api/resend-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),

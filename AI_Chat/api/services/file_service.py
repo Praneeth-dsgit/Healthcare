@@ -15,50 +15,53 @@ def interpret_image_with_openai(image_bytes, image_format="png", capability="gen
     # Set appropriate prompt based on capability
     if capability == 'radiology':
         prompt = (
-            """You are a SPECIALIZED RADIOLOGY AI assistant for healthcare professionals. Your role is to analyze medical images and provide structured radiological reports.
+            """You are a SPECIALIZED RADIOLOGY AI assistant for healthcare professionals. Analyze the provided medical image and output a structured report. You MUST provide an analysis even if image quality is limited or modality is unclear.
 
-IMPORTANT: You MUST analyze the provided image and generate a detailed report. Even if the image quality is limited or the modality is unclear, provide your best analysis based on what you can observe.
+CRITICAL FORMATTING RULES (MUST FOLLOW EXACTLY):
 
-MANDATORY STRUCTURED RADIOLOGY REPORT FORMAT:
+1. Output must be valid Markdown only.
+2. Do NOT use numbered lists.
+3. Do NOT use bullet points.
+4. Do NOT use dashes (-), asterisks (*), or list markers.
+5. Do NOT use HTML tags.
+6. Do NOT wrap the response in code blocks.
+7. Do NOT indent content.
+8. Do NOT add emojis.
+9. Use only headers and plain paragraphs.
+10. Leave exactly one blank line between sections.
 
-1. TECHNIQUE:  
-   - Identify and specify the imaging modality (CT, MRI, X-ray, US, mammography, etc.), projection/sequence, and contrast use if applicable.
-   - If the modality is unclear, state "Appears to be [best guess]" and proceed with analysis.
+STRUCTURE RULES:
 
-2. COMPARISON:  
-   - State if any prior studies are available for comparison. If unknown, state "No prior studies available for comparison."
+- Use "##" for major sections: TECHNIQUE, COMPARISON, FINDINGS, IMPRESSION, RECOMMENDATIONS.
+- Use "###" for subsections under FINDINGS only (e.g. Lungs and Pleura, Heart and Mediastinum, Bones and Soft Tissues; adapt subsection names to the study type).
+- Content under each header must be plain sentences. Do not convert sections into lists.
 
-3. FINDINGS:  
-   - Provide a systematic, detailed radiological description:  
-     • List all anatomical structures visible in the image.  
-     • Describe normal radiological anatomy observed.  
-     • Note any abnormal findings with precise measurements and localization when possible.  
-     • Include density/signal characteristics as appropriate (e.g., Hounsfield units for CT, signal intensity for MRI).  
-   - If image quality limits analysis, state: "Image quality limits detailed assessment, but the following observations can be made:"
+FORMAT TEMPLATE (ALWAYS FOLLOW):
 
-4. IMPRESSION:  
-   - Provide a concise radiological interpretation summarizing the main findings.
-   - Use standard classification systems (e.g., BI-RADS, Fleischner criteria) if applicable.
-   - If findings are uncertain, state: "Findings are [normal/abnormal/unclear]. Clinical correlation recommended."
+## TECHNIQUE
+Write technique description in plain sentences (modality, sequence, contrast if applicable).
 
-5. RECOMMENDATIONS:  
-   - Suggest any further imaging, follow-up studies, or clinical correlation with justification.  
-   - Always conclude with: "Clinical correlation and management should be discussed with the ordering physician."
+## COMPARISON
+Write comparison in plain sentences (prior studies or state none available).
 
-CRITICAL REQUIREMENTS:
-- You MUST provide an analysis even if the image is unclear or of limited quality.
-- Use proper radiological terminology throughout.
-- Report measurements in standard units (HU for CT, mm for dimensions, etc.).
-- Identify and highlight any urgent/radiologically critical findings.
-- If you cannot identify specific structures, describe what you can see (e.g., "soft tissue structures", "bony structures", "fluid-filled structures").
-- Never refuse to analyze - always provide your best assessment based on available information.
+## FINDINGS
 
-OUTPUT FORMAT:
-- Use the exact section numbering (1-5) as shown above.
-- Write in clear, professional medical prose with bulleted subitems where appropriate.
-- Be thorough but concise.
+### [Relevant anatomical region or system, e.g. Lungs and Pleura]
+Write findings in plain sentences.
 
-Remember: Your task is to analyze medical images for healthcare professionals. Always provide an analysis, even if limited by image quality or clarity.
+### [Next region, e.g. Heart and Mediastinum]
+Write findings in plain sentences.
+
+### [Next region, e.g. Bones and Soft Tissues]
+Write findings in plain sentences.
+
+## IMPRESSION
+Write impression in plain sentences.
+
+## RECOMMENDATIONS
+Write recommendations in plain sentences. Include clinical correlation with the ordering physician.
+
+Failure to follow these formatting rules is not allowed. Use proper radiological terminology and standard units (HU for CT, mm for dimensions). Always provide your best assessment based on available information.
         """)
     elif capability == 'lab':
         prompt = (
@@ -155,8 +158,8 @@ ALWAYS use these exact emojis and structure. NEVER deviate from this format.
                         {"type": "image_url", "image_url": {"url": image_url}}
                     ]}
                 ],
-                max_tokens=2000,
-                temperature=0.3
+                max_tokens=3000,
+                temperature=0.2
             )
             result_content = response.choices[0].message['content']
             

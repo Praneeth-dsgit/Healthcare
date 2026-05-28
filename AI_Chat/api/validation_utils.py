@@ -1,11 +1,18 @@
 from functools import wraps
+import json
+import logging
 from flask import request, jsonify
 from pydantic import ValidationError
-from typing import Type, Dict, Any, Optional
-import logging
+from typing import Type, Dict, Any, Optional, List
+
 from models import BaseModel
 
 logger = logging.getLogger(__name__)
+
+
+def pydantic_errors_for_json(errors: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Pydantic v2 error dicts may include non-JSON values (e.g. ctx.error: ValueError). Round-trip via default=str."""
+    return json.loads(json.dumps(errors, default=str))
 
 def validate_request(model_class: Type[BaseModel]):
     """
@@ -41,11 +48,12 @@ def validate_request(model_class: Type[BaseModel]):
                 return f(*args, **kwargs)
                 
             except ValidationError as e:
-                logger.warning(f"Validation error: {e.errors()}")
+                safe_details = pydantic_errors_for_json(e.errors())
+                logger.warning(f"Validation error: {safe_details}")
                 return jsonify({
                     'success': False,
                     'error': 'Validation error',
-                    'details': e.errors()
+                    'details': safe_details
                 }), 400
                 
             except Exception as e:
@@ -85,11 +93,12 @@ def validate_response(model_class: Type[BaseModel]):
                 return jsonify(validated_response.dict())
                 
             except ValidationError as e:
-                logger.error(f"Response validation error: {e.errors()}")
+                safe_details = pydantic_errors_for_json(e.errors())
+                logger.error(f"Response validation error: {safe_details}")
                 return jsonify({
                     'success': False,
                     'error': 'Response validation error',
-                    'details': e.errors()
+                    'details': safe_details
                 }), 500
                 
             except Exception as e:
@@ -114,7 +123,7 @@ def handle_validation_errors(f):
             return jsonify({
                 'success': False,
                 'error': 'Validation error',
-                'details': e.errors()
+                'details': pydantic_errors_for_json(e.errors())
             }), 400
         except ValueError as e:
             return jsonify({

@@ -61,14 +61,27 @@ def verify_token(token: str, expected_type: str = TOKEN_TYPE_ACCESS) -> dict:
     return payload
 
 
-def get_patient_id_for_user(user_id: int) -> str | None:
+def get_patient_id_for_user(user_id: int, email: str | None = None) -> str | None:
     """Resolve patient_id for a user (patients only). Returns None for doctors/admins."""
     try:
         result = db.session.execute(
             db.text("SELECT patient_id FROM patients WHERE user_id = :user_id AND is_active = TRUE LIMIT 1"),
             {"user_id": user_id},
         ).fetchone()
-        return result[0] if result else None
+        if result:
+            return result[0]
+        # Fallback: resolve by email (handles cases where user_id link is missing)
+        if email:
+            result = db.session.execute(
+                db.text("""
+                    SELECT p.patient_id FROM patients p
+                    JOIN users u ON p.user_id = u.id
+                    WHERE u.email = :email AND p.is_active = TRUE LIMIT 1
+                """),
+                {"email": email},
+            ).fetchone()
+            return result[0] if result else None
+        return None
     except Exception as e:
         logger.warning("Failed to resolve patient_id for user %s: %s", user_id, e)
         return None
@@ -100,7 +113,7 @@ def require_jwt(f):
             return jsonify({"error": "Invalid or expired token"}), 401
         g.user_id = payload["sub"]
         g.user_email = payload["email"]
-        g.patient_id = get_patient_id_for_user(g.user_id)
+        g.patient_id = get_patient_id_for_user(g.user_id, g.user_email)
         return f(*args, **kwargs)
 
     return decorated

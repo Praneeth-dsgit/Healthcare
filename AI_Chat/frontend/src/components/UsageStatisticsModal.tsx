@@ -105,7 +105,7 @@ const UsageStatisticsModal: React.FC<UsageStatisticsModalProps> = ({ isOpen, onC
       general: 'General',
       radiology: 'Radiology',
       lab: 'Laboratory',
-      engagement: 'Patient Engagement'
+      engagement: 'Frontdesk'
     };
     return labels[capability as keyof typeof labels] || capability;
   };

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { UserCheck, LogIn, Eye, EyeOff } from 'lucide-react';
+import { getApiBaseUrl } from '../utils/apiBase';
 
 interface SignupProps {
   onSignupSuccess: (email: string) => void;
@@ -25,7 +26,7 @@ const Signup: React.FC<SignupProps> = ({ onSignupSuccess, onNavigateToLogin }) =
     setShowEmailExistsDialog(false);
     
     try {
-      const res = await fetch('http://localhost:5000/api/signup', {
+      const res = await fetch(`${getApiBaseUrl()}/api/signup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
