@@ -1,12 +1,204 @@
 /**
- * Family Members Management Component
- * Manage family members linked to primary patient
+ * Family Members — manage family linked to primary patient
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Users, Plus, Edit, Trash2, User, Calendar } from 'lucide-react';
+import {
+  Users,
+  Plus,
+  Edit,
+  Trash2,
+  Calendar,
+  Mail,
+  Phone,
+  Heart,
+  User,
+  X,
+  Save,
+} from 'lucide-react';
 import { patientService, FamilyMember } from '../../services/patientService';
+
+const inputClass =
+  'form-field w-full px-2.5 py-2 text-sm transition-all duration-200';
+
+const labelClass = 'form-label mb-1 block text-xs';
+
+function calcAge(dob: string): number | null {
+  if (!dob) return null;
+  const birth = new Date(dob);
+  if (Number.isNaN(birth.getTime())) return null;
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const m = today.getMonth() - birth.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+  return age;
+}
+
+function getInitials(first: string, last: string): string {
+  return `${(first || '').charAt(0)}${(last || '').charAt(0)}`.toUpperCase() || '?';
+}
+
+const relationshipColors: Record<string, string> = {
+  spouse: 'bg-violet-500/15 text-violet-300',
+  child: 'bg-sky-500/15 text-sky-300',
+  parent: 'bg-amber-500/15 text-amber-300',
+  sibling: 'bg-emerald-500/15 text-emerald-300',
+  other: 'bg-slate-500/20 text-slate-300',
+};
+
+interface DetailRowProps {
+  label: string;
+  value: React.ReactNode;
+}
+
+const DetailRow: React.FC<DetailRowProps> = ({ label, value }) => (
+  <div>
+    <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500 sm:text-xs">{label}</p>
+    <p className="mt-0.5 text-sm font-medium text-slate-100">{value || '—'}</p>
+  </div>
+);
+
+interface MemberCardProps {
+  member: FamilyMember;
+  onEdit: () => void;
+  onDelete: () => void;
+  onBook: () => void;
+}
+
+const MemberCard: React.FC<MemberCardProps> = ({ member, onEdit, onDelete, onBook }) => {
+  const age = calcAge(member.date_of_birth);
+  const initials = getInitials(member.first_name, member.last_name);
+  const relClass = relationshipColors[member.relationship] || relationshipColors.other;
+
+  return (
+    <article className="premium-card flex h-full flex-col overflow-hidden">
+      {/* Card hero */}
+      <div className="border-b border-slate-700/60 bg-gradient-to-r from-teal-500/8 to-transparent px-5 py-4 sm:px-6">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-400 to-teal-600 text-lg font-extrabold text-slate-950 ring-2 ring-teal-400/25">
+              {initials}
+            </div>
+            <div className="min-w-0">
+              <h3 className="truncate text-lg font-bold text-slate-100">
+                {member.first_name} {member.last_name}
+              </h3>
+              <span className={`mt-1 inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ${relClass}`}>
+                {member.relationship}
+              </span>
+            </div>
+          </div>
+          <div className="flex shrink-0 gap-1">
+            <button
+              type="button"
+              onClick={onEdit}
+              className="rounded-lg p-2 text-teal-300 transition-colors hover:bg-slate-800/80"
+              title="Edit"
+            >
+              <Edit className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={onDelete}
+              className="rounded-lg p-2 text-rose-400 transition-colors hover:bg-rose-500/10"
+              title="Remove"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Row: Personal | Health */}
+      <div className="grid flex-1 grid-cols-1 gap-0 sm:grid-cols-2">
+        <div className="space-y-3 border-slate-700/40 p-5 sm:border-r">
+          <div className="mb-1 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-slate-400">
+            <User className="h-3.5 w-3.5 text-teal-400" />
+            Personal
+          </div>
+          <DetailRow
+            label="Date of birth"
+            value={
+              <>
+                {new Date(member.date_of_birth).toLocaleDateString(undefined, {
+                  year: 'numeric',
+                  month: 'short',
+                  day: 'numeric',
+                })}
+                {age !== null && <span className="text-slate-400"> ({age} yrs)</span>}
+              </>
+            }
+          />
+          <DetailRow label="Gender" value={<span className="capitalize">{member.gender}</span>} />
+        </div>
+
+        <div className="space-y-3 p-5">
+          <div className="mb-1 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-slate-400">
+            <Heart className="h-3.5 w-3.5 text-rose-400" />
+            Health
+          </div>
+          <DetailRow label="Blood type" value={member.blood_type || 'Not set'} />
+          {(member.height_cm || member.weight_kg) && (
+            <DetailRow
+              label="Height / weight"
+              value={`${member.height_cm ? `${member.height_cm} cm` : '—'} / ${member.weight_kg ? `${member.weight_kg} kg` : '—'}`}
+            />
+          )}
+          {member.allergies && (
+            <DetailRow
+              label="Allergies"
+              value={
+                member.allergies.length > 60
+                  ? `${member.allergies.slice(0, 60)}…`
+                  : member.allergies
+              }
+            />
+          )}
+          {member.medical_history && (
+            <DetailRow
+              label="Medical history"
+              value={
+                member.medical_history.length > 60
+                  ? `${member.medical_history.slice(0, 60)}…`
+                  : member.medical_history
+              }
+            />
+          )}
+        </div>
+      </div>
+
+      {/* Row: Contact + action */}
+      <div className="mt-auto border-t border-slate-700/60 bg-slate-900/30 px-5 py-4 sm:px-6">
+        <div className="mb-3 flex flex-wrap gap-4 text-sm">
+          {member.phone && (
+            <span className="inline-flex items-center gap-1.5 text-slate-300">
+              <Phone className="h-3.5 w-3.5 text-slate-500" />
+              {member.phone}
+            </span>
+          )}
+          {member.email && (
+            <span className="inline-flex min-w-0 items-center gap-1.5 truncate text-slate-300">
+              <Mail className="h-3.5 w-3.5 shrink-0 text-slate-500" />
+              <span className="truncate">{member.email}</span>
+            </span>
+          )}
+          {!member.phone && !member.email && (
+            <span className="text-xs text-slate-500">No contact details</span>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={onBook}
+          className="portal-accent-button flex w-full items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-bold"
+        >
+          <Calendar className="h-4 w-4" />
+          Book Appointment
+        </button>
+      </div>
+    </article>
+  );
+};
 
 const FamilyMembers: React.FC = () => {
   const navigate = useNavigate();
@@ -18,8 +210,7 @@ const FamilyMembers: React.FC = () => {
 
   useEffect(() => {
     loadFamilyMembers();
-    // Check if we should show the add form from navigation state
-    if ((location.state as any)?.showAddForm) {
+    if ((location.state as { showAddForm?: boolean })?.showAddForm) {
       setShowAddForm(true);
     }
   }, [location.state]);
@@ -38,7 +229,9 @@ const FamilyMembers: React.FC = () => {
     }
   };
 
-  const handleAddMember = async (memberData: any) => {
+  const handleAddMember = async (
+    memberData: Omit<FamilyMember, 'family_member_id' | 'primary_patient_id' | 'is_active'>
+  ) => {
     try {
       const result = await patientService.addFamilyMember(memberData);
       if (result.success) {
@@ -50,7 +243,7 @@ const FamilyMembers: React.FC = () => {
     }
   };
 
-  const handleUpdateMember = async (memberId: number, memberData: any) => {
+  const handleUpdateMember = async (memberId: number, memberData: Partial<FamilyMember>) => {
     try {
       const result = await patientService.updateFamilyMember(memberId, memberData);
       if (result.success) {
@@ -76,173 +269,127 @@ const FamilyMembers: React.FC = () => {
     }
   };
 
+  const relationshipCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    familyMembers.forEach((m) => {
+      counts[m.relationship] = (counts[m.relationship] || 0) + 1;
+    });
+    return counts;
+  }, [familyMembers]);
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center p-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      <div className="mx-auto flex w-full max-w-7xl items-center justify-center p-12">
+        <div className="premium-card w-full max-w-sm p-6 text-center">
+          <div className="healthcare-loading mx-auto mb-3" />
+          <p className="font-semibold text-slate-200">Loading family</p>
+          <p className="mt-1 text-sm text-slate-500">Fetching members…</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="p-6">
-      <div className="max-w-4xl mx-auto">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center">
-            <Users className="h-6 w-6 mr-2 text-blue-600" />
-            Your Family
-          </h1>
-          <button
-            onClick={() => setShowAddForm(true)}
-            className="bg-blue-600 hover:bg-blue-700 hover:shadow-lg hover:scale-105 text-white px-4 py-2 rounded-lg flex items-center transition-all duration-200"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add Family Member
-          </button>
-        </div>
-
-        {familyMembers.length === 0 ? (
-          <div className="bg-white rounded-lg shadow-md hover:shadow-lg p-12 text-center transition-all duration-300">
-            <Users className="h-16 w-16 mx-auto mb-4 text-gray-400" />
-            <p className="text-gray-600 mb-4">No family members added yet</p>
+    <div className="mx-auto w-full max-w-7xl space-y-5 p-4 sm:p-6 lg:p-8 animate-fade-in-up">
+      {/* Hero — full width */}
+      <div className="premium-card w-full overflow-hidden">
+        <div className="relative px-5 py-4 sm:px-8 sm:py-5 lg:px-10">
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-teal-500/12 via-transparent to-violet-500/8" />
+          <div className="relative flex w-full flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex min-w-0 flex-1 items-center gap-3 sm:gap-4">
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-400 to-teal-600 shadow-lg ring-2 ring-teal-400/30 sm:h-16 sm:w-16">
+                <Users className="h-7 w-7 text-slate-950 sm:h-8 sm:w-8" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-bold uppercase tracking-wide text-teal-300">Care circle</p>
+                <h1 className="section-heading text-2xl font-extrabold leading-tight sm:text-3xl">
+                  Your Family
+                </h1>
+                <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                  <span className="rounded-full bg-teal-500/15 px-3 py-1 text-sm font-bold text-teal-200">
+                    {familyMembers.length} member{familyMembers.length !== 1 ? 's' : ''}
+                  </span>
+                  {Object.entries(relationshipCounts).map(([rel, count]) => (
+                    <span
+                      key={rel}
+                      className={`rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ${relationshipColors[rel] || relationshipColors.other}`}
+                    >
+                      {count} {rel}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
             <button
+              type="button"
               onClick={() => setShowAddForm(true)}
-              className="bg-blue-600 hover:bg-blue-700 hover:shadow-lg hover:scale-105 text-white px-6 py-2 rounded-lg transition-all duration-200"
+              className="portal-accent-button inline-flex shrink-0 items-center justify-center gap-2 rounded-lg px-5 py-2.5 text-sm font-bold"
             >
-              Add Your First Family Member
+              <Plus className="h-4 w-4" />
+              Add Family Member
             </button>
           </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {familyMembers.map((member) => (
-              <div key={member.family_member_id} className="bg-white rounded-lg shadow-md hover:shadow-lg p-6 transition-all duration-300 hover:scale-[1.02]">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-center">
-                    <div className="bg-blue-100 rounded-full p-3 mr-3">
-                      <User className="h-6 w-6 text-blue-600" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-gray-900">
-                        {member.first_name} {member.last_name}
-                      </h3>
-                      <p className="text-sm text-gray-600 capitalize">{member.relationship}</p>
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => setEditingMember(member)}
-                      className="p-2 text-blue-600 hover:bg-blue-50 hover:shadow-md hover:scale-110 rounded transition-all duration-200"
-                    >
-                      <Edit className="h-4 w-4" />
-                    </button>
-                    <button
-                      onClick={() => handleDeleteMember(member.family_member_id)}
-                      className="p-2 text-red-600 hover:bg-red-50 hover:shadow-md hover:scale-110 rounded transition-all duration-200"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
-                <div className="space-y-2 text-sm">
-                  <div>
-                    <span className="text-gray-600">DOB:</span>{' '}
-                    <span className="font-medium">
-                      {new Date(member.date_of_birth).toLocaleDateString()}
-                    </span>
-                    {(() => {
-                      const birthDate = new Date(member.date_of_birth);
-                      const today = new Date();
-                      let age = today.getFullYear() - birthDate.getFullYear();
-                      const monthDiff = today.getMonth() - birthDate.getMonth();
-                      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-                        age--;
-                      }
-                      return age >= 0 ? ` (${age} years)` : '';
-                    })()}
-                  </div>
-                  <div>
-                    <span className="text-gray-600">Gender:</span>{' '}
-                    <span className="font-medium capitalize">{member.gender}</span>
-                  </div>
-                  {member.phone && (
-                    <div>
-                      <span className="text-gray-600">Phone:</span>{' '}
-                      <span className="font-medium">{member.phone}</span>
-                    </div>
-                  )}
-                  {member.email && (
-                    <div>
-                      <span className="text-gray-600">Email:</span>{' '}
-                      <span className="font-medium">{member.email}</span>
-                    </div>
-                  )}
-                  {member.blood_type && (
-                    <div>
-                      <span className="text-gray-600">Blood Type:</span>{' '}
-                      <span className="font-medium">{member.blood_type}</span>
-                    </div>
-                  )}
-                  {(member.height_cm || member.weight_kg) && (
-                    <div>
-                      <span className="text-gray-600">Height/Weight:</span>{' '}
-                      <span className="font-medium">
-                        {member.height_cm ? `${member.height_cm} cm` : 'N/A'} / {member.weight_kg ? `${member.weight_kg} kg` : 'N/A'}
-                      </span>
-                    </div>
-                  )}
-                  {member.medical_history && (
-                    <div>
-                      <span className="text-gray-600">Medical History:</span>{' '}
-                      <span className="font-medium text-xs">{member.medical_history.substring(0, 50)}{member.medical_history.length > 50 ? '...' : ''}</span>
-                    </div>
-                  )}
-                  {member.allergies && (
-                    <div>
-                      <span className="text-gray-600">Allergies:</span>{' '}
-                      <span className="font-medium text-xs">{member.allergies.substring(0, 50)}{member.allergies.length > 50 ? '...' : ''}</span>
-                    </div>
-                  )}
-                </div>
-                <button 
-                  onClick={() => navigate('/portal/appointments', { state: { familyMemberId: member.family_member_id } })}
-                  className="mt-4 w-full bg-blue-600 hover:bg-blue-700 hover:shadow-lg hover:scale-105 text-white py-2 rounded-lg text-sm font-medium flex items-center justify-center transition-all duration-200"
-                >
-                  <Calendar className="h-4 w-4 mr-2" />
-                  Book Appointment
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Add/Edit Form Modal */}
-        {showAddForm && (
-          <FamilyMemberForm
-            member={null}
-            onSave={handleAddMember}
-            onClose={() => {
-              setShowAddForm(false);
-            }}
-          />
-        )}
-        {editingMember && (
-          <FamilyMemberForm
-            member={editingMember}
-            onSave={(memberData) => handleUpdateMember(editingMember.family_member_id, memberData)}
-            onClose={() => {
-              setEditingMember(null);
-            }}
-          />
-        )}
+        </div>
       </div>
+
+      {/* Members grid */}
+      {familyMembers.length === 0 ? (
+        <div className="premium-card p-12 text-center sm:p-16">
+          <Users className="mx-auto mb-4 h-16 w-16 text-slate-600" />
+          <p className="text-lg font-semibold text-slate-200">No family members yet</p>
+          <p className="mx-auto mt-2 max-w-md text-sm text-slate-500">
+            Add spouse, children, or parents to book appointments and manage their health information in one place.
+          </p>
+          <button
+            type="button"
+            onClick={() => setShowAddForm(true)}
+            className="portal-accent-button mt-6 inline-flex items-center gap-2 rounded-lg px-6 py-2.5 text-sm font-bold"
+          >
+            <Plus className="h-4 w-4" />
+            Add Your First Family Member
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 xl:grid-cols-3">
+          {familyMembers.map((member) => (
+            <MemberCard
+              key={member.family_member_id}
+              member={member}
+              onEdit={() => setEditingMember(member)}
+              onDelete={() => handleDeleteMember(member.family_member_id)}
+              onBook={() =>
+                navigate('/portal/appointments', {
+                  state: { familyMemberId: member.family_member_id },
+                })
+              }
+            />
+          ))}
+        </div>
+      )}
+
+      {showAddForm && (
+        <FamilyMemberForm
+          member={null}
+          onSave={handleAddMember}
+          onClose={() => setShowAddForm(false)}
+        />
+      )}
+      {editingMember && (
+        <FamilyMemberForm
+          member={editingMember}
+          onSave={(data) => handleUpdateMember(editingMember.family_member_id, data)}
+          onClose={() => setEditingMember(null)}
+        />
+      )}
     </div>
   );
 };
 
-// Family Member Form Component
 interface FamilyMemberFormProps {
   member?: FamilyMember | null;
-  onSave: (data: any) => void;
+  onSave: (
+    data: Omit<FamilyMember, 'family_member_id' | 'primary_patient_id' | 'is_active'>
+  ) => void;
   onClose: () => void;
 }
 
@@ -256,221 +403,206 @@ const FamilyMemberForm: React.FC<FamilyMemberFormProps> = ({ member, onSave, onC
     phone: member?.phone || '',
     email: member?.email || '',
     blood_type: member?.blood_type || '',
-    height_cm: member?.height_cm || undefined,
-    weight_kg: member?.weight_kg || undefined,
+    height_cm: member?.height_cm as number | undefined,
+    weight_kg: member?.weight_kg as number | undefined,
     medical_history: member?.medical_history || '',
     allergies: member?.allergies || '',
   });
 
-  // Calculate age from date of birth
-  const calculateAge = (dob: string): number | null => {
-    if (!dob) return null;
-    const birthDate = new Date(dob);
-    const today = new Date();
-    let age = today.getFullYear() - birthDate.getFullYear();
-    const monthDiff = today.getMonth() - birthDate.getMonth();
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-      age--;
-    }
-    return age;
-  };
+  const update = (patch: Partial<typeof formData>) =>
+    setFormData((prev) => ({ ...prev, ...patch }));
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSave(formData);
   };
 
+  const age = formData.date_of_birth ? calcAge(formData.date_of_birth) : null;
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
-      <div className="bg-white rounded-lg shadow-xl hover:shadow-2xl max-w-2xl w-full p-6 my-8 max-h-[90vh] overflow-y-auto transition-all duration-300">
-        <h2 className="text-xl font-semibold mb-4">
-          {member ? 'Edit Family Member' : 'Add Family Member'}
-        </h2>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Relationship
-            </label>
-            <select
-              value={formData.relationship}
-              onChange={(e) => setFormData({ ...formData, relationship: e.target.value as any })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md hover:border-blue-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200"
-              required
-            >
-              <option value="spouse">Spouse</option>
-              <option value="child">Child</option>
-              <option value="parent">Parent</option>
-              <option value="sibling">Sibling</option>
-              <option value="other">Other</option>
-            </select>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">First Name</label>
-              <input
-                type="text"
-                value={formData.first_name}
-                onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md hover:border-blue-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200"
-                required
-              />
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+      <div className="modal-surface flex w-full max-w-2xl flex-col overflow-hidden">
+        <div className="flex shrink-0 items-center justify-between border-b border-slate-700/60 px-4 py-3">
+          <h2 className="text-base font-bold text-slate-100">
+            {member ? 'Edit family member' : 'Add family member'}
+          </h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-800/60 hover:text-slate-100"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="flex max-h-[min(520px,calc(100vh-4rem))] flex-col">
+          <div className="space-y-3 overflow-y-auto px-4 py-3">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <div className="col-span-2 sm:col-span-1">
+                <label className={labelClass}>Relationship</label>
+                <select
+                  className={inputClass}
+                  value={formData.relationship}
+                  onChange={(e) => update({ relationship: e.target.value as FamilyMember['relationship'] })}
+                  required
+                >
+                  <option value="spouse">Spouse</option>
+                  <option value="child">Child</option>
+                  <option value="parent">Parent</option>
+                  <option value="sibling">Sibling</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+              <div>
+                <label className={labelClass}>First name</label>
+                <input
+                  type="text"
+                  className={inputClass}
+                  value={formData.first_name}
+                  onChange={(e) => update({ first_name: e.target.value })}
+                  required
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Last name</label>
+                <input
+                  type="text"
+                  className={inputClass}
+                  value={formData.last_name}
+                  onChange={(e) => update({ last_name: e.target.value })}
+                  required
+                />
+              </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
-              <input
-                type="text"
-                value={formData.last_name}
-                onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md hover:border-blue-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200"
-                required
-              />
+
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <div>
+                <label className={labelClass}>Date of birth</label>
+                <input
+                  type="date"
+                  className={inputClass}
+                  value={formData.date_of_birth}
+                  onChange={(e) => update({ date_of_birth: e.target.value })}
+                  required
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Age</label>
+                <input
+                  type="text"
+                  className={`${inputClass} opacity-70`}
+                  value={age !== null ? `${age} yrs` : ''}
+                  disabled
+                  readOnly
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Gender</label>
+                <select
+                  className={inputClass}
+                  value={formData.gender}
+                  onChange={(e) => update({ gender: e.target.value as FamilyMember['gender'] })}
+                  required
+                >
+                  <option value="male">Male</option>
+                  <option value="female">Female</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+              <div>
+                <label className={labelClass}>Blood type</label>
+                <select
+                  className={inputClass}
+                  value={formData.blood_type}
+                  onChange={(e) => update({ blood_type: e.target.value })}
+                >
+                  <option value="">—</option>
+                  {['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'].map((bt) => (
+                    <option key={bt} value={bt}>{bt}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <div>
+                <label className={labelClass}>Height (cm)</label>
+                <input
+                  type="number"
+                  className={inputClass}
+                  value={formData.height_cm ?? ''}
+                  onChange={(e) =>
+                    update({ height_cm: e.target.value ? parseFloat(e.target.value) : undefined })
+                  }
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Weight (kg)</label>
+                <input
+                  type="number"
+                  className={inputClass}
+                  value={formData.weight_kg ?? ''}
+                  onChange={(e) =>
+                    update({ weight_kg: e.target.value ? parseFloat(e.target.value) : undefined })
+                  }
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Phone</label>
+                <input
+                  type="tel"
+                  className={inputClass}
+                  value={formData.phone}
+                  onChange={(e) => update({ phone: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Email</label>
+                <input
+                  type="email"
+                  className={inputClass}
+                  value={formData.email}
+                  onChange={(e) => update({ email: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <div>
+                <label className={labelClass}>Medical history (optional)</label>
+                <textarea
+                  className={inputClass}
+                  rows={1}
+                  value={formData.medical_history}
+                  onChange={(e) => update({ medical_history: e.target.value })}
+                  placeholder="Past conditions, surgeries"
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Allergies (optional)</label>
+                <textarea
+                  className={inputClass}
+                  rows={1}
+                  value={formData.allergies}
+                  onChange={(e) => update({ allergies: e.target.value })}
+                  placeholder="Medications, food, etc."
+                />
+              </div>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Date of Birth</label>
-              <input
-                type="date"
-                value={formData.date_of_birth}
-                onChange={(e) => setFormData({ ...formData, date_of_birth: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md hover:border-blue-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Age</label>
-              <input
-                type="text"
-                value={formData.date_of_birth ? `${calculateAge(formData.date_of_birth)} years` : ''}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50"
-                disabled
-                readOnly
-              />
-            </div>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
-            <select
-              value={formData.gender}
-              onChange={(e) => setFormData({ ...formData, gender: e.target.value as any })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md hover:border-blue-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200"
-              required
-            >
-              <option value="male">Male</option>
-              <option value="female">Female</option>
-              <option value="other">Other</option>
-            </select>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Phone (Optional)</label>
-              <input
-                type="tel"
-                value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md hover:border-blue-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Email (Optional)</label>
-              <input
-                type="email"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md hover:border-blue-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200"
-              />
-            </div>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Blood Type (Optional)</label>
-            <select
-              value={formData.blood_type}
-              onChange={(e) => setFormData({ ...formData, blood_type: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md hover:border-blue-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200"
-            >
-              <option value="">Select Blood Type</option>
-              <optgroup label="Common Blood Groups">
-                <option value="A+">A+</option>
-                <option value="A-">A-</option>
-                <option value="B+">B+</option>
-                <option value="B-">B-</option>
-                <option value="AB+">AB+</option>
-                <option value="AB-">AB-</option>
-                <option value="O+">O+</option>
-                <option value="O-">O-</option>
-              </optgroup>
-              <optgroup label="Rare Blood Groups">
-                <option value="Bombay (hh)">Bombay (hh)</option>
-                <option value="Rh-null">Rh-null</option>
-                <option value="Duffy-null">Duffy-null</option>
-                <option value="Kell-null">Kell-null</option>
-                <option value="Kidd-null">Kidd-null</option>
-                <option value="MNS-null">MNS-null</option>
-                <option value="Lutheran-null">Lutheran-null</option>
-                <option value="Diego-null">Diego-null</option>
-                <option value="Colton-null">Colton-null</option>
-                <option value="Vel-negative">Vel-negative</option>
-                <option value="Lan-negative">Lan-negative</option>
-                <option value="Jr(a)-negative">Jr(a)-negative</option>
-                <option value="Ok(a)-negative">Ok(a)-negative</option>
-                <option value="Yt(a)-negative">Yt(a)-negative</option>
-                <option value="Other Rare">Other Rare</option>
-              </optgroup>
-            </select>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Height (cm) (Optional)</label>
-              <input
-                type="number"
-                value={formData.height_cm || ''}
-                onChange={(e) => setFormData({ ...formData, height_cm: e.target.value ? parseFloat(e.target.value) : undefined })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md hover:border-blue-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200"
-                placeholder="e.g., 170"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Weight (kg) (Optional)</label>
-              <input
-                type="number"
-                value={formData.weight_kg || ''}
-                onChange={(e) => setFormData({ ...formData, weight_kg: e.target.value ? parseFloat(e.target.value) : undefined })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md hover:border-blue-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200"
-                placeholder="e.g., 70"
-              />
-            </div>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Medical History (Optional)</label>
-            <textarea
-              value={formData.medical_history}
-              onChange={(e) => setFormData({ ...formData, medical_history: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md hover:border-blue-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200"
-              rows={3}
-              placeholder="Enter any past medical conditions, surgeries, or chronic illnesses"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Allergies (Optional)</label>
-            <textarea
-              value={formData.allergies}
-              onChange={(e) => setFormData({ ...formData, allergies: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md hover:border-blue-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200"
-              rows={2}
-              placeholder="Enter any known allergies (medications, food, environmental, etc.)"
-            />
-          </div>
-          <div className="flex gap-3">
+
+          <div className="flex shrink-0 gap-2 border-t border-slate-700/60 px-4 py-3">
             <button
               type="submit"
-              className="flex-1 bg-blue-600 hover:bg-blue-700 hover:shadow-lg hover:scale-105 text-white py-2 rounded-lg transition-all duration-200"
+              className="portal-accent-button flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-sm font-bold"
             >
-              {member ? 'Update' : 'Add'} Member
+              <Save className="h-3.5 w-3.5" />
+              {member ? 'Update' : 'Add member'}
             </button>
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 bg-gray-200 hover:bg-gray-300 hover:shadow-md hover:scale-105 text-gray-700 py-2 rounded-lg transition-all duration-200"
+              className="ghost-button flex-1 rounded-lg py-2 text-sm font-bold"
             >
               Cancel
             </button>
@@ -482,4 +614,3 @@ const FamilyMemberForm: React.FC<FamilyMemberFormProps> = ({ member, onSave, onC
 };
 
 export default FamilyMembers;
-

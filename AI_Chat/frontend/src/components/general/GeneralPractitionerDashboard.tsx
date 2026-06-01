@@ -4,16 +4,18 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Calendar, FileText, Search, BarChart3, User, LogOut, ChevronDown } from 'lucide-react';
+import { Calendar, FileText, Search, BarChart3, User, LogOut, ChevronDown, Users } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import DoctorAppointments from './DoctorAppointments';
 import PrescriptionUpload from './PrescriptionUpload';
 import MedicineLookup from './MedicineLookup';
 import ReportsAnalytics from './ReportsAnalytics';
+import SegmentTabs from '../ui/SegmentTabs';
+import StatCard from '../ui/StatCard';
 import { doctorService, Doctor } from '../../services/doctorService';
 import { roleService } from '../../services/roleService';
 
-type TabType = 'appointments' | 'prescriptions' | 'medicine' | 'analytics';
+type TabType = 'appointments' | 'prescriptions' | 'analytics';
 
 const GeneralPractitionerDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('appointments');
@@ -23,10 +25,9 @@ const GeneralPractitionerDashboard: React.FC = () => {
   const [prescriptionPatientId, setPrescriptionPatientId] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  const tabs = [
+  const mainTabs = [
     { id: 'appointments' as TabType, label: 'Appointments', icon: Calendar },
     { id: 'prescriptions' as TabType, label: 'Prescriptions', icon: FileText },
-    { id: 'medicine' as TabType, label: 'Medicine Lookup', icon: Search },
     { id: 'analytics' as TabType, label: 'Reports & Analytics', icon: BarChart3 },
   ];
 
@@ -50,129 +51,127 @@ const GeneralPractitionerDashboard: React.FC = () => {
 
   const handleLogout = () => {
     import('../../services/authService').then((m) => m.clearAuth());
-    // Clear role cache
     roleService.clearCache();
     navigate('/login');
   };
 
-  const doctorName = doctor 
-    ? `${doctor.first_name} ${doctor.last_name}`.trim() 
+  const doctorName = doctor
+    ? `${doctor.first_name} ${doctor.last_name}`.trim()
     : 'Doctor';
   const doctorSpecialty = doctor?.specialty_name || 'General Practitioner';
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-blue-300 shadow-sm border-b border-gray-100">
-        <div className="w-full px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-6">
-              <div>
-                <h1 className="text-xl font-bold text-blue-600">Acufore Health</h1>
-                <p className="text-xs text-gray-500">Healthcare Management</p>
-              </div>
-              <div className="h-12 w-px bg-gray-300"></div>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">General Practitioner Dashboard</h1>
-              <p className="text-sm text-gray-600 mt-1">Manage appointments, prescriptions, and patient care</p>
-              </div>
+    <div className="app-shell flex h-screen flex-col overflow-hidden" data-portal="doctor">
+      <div className="app-topbar z-30 shrink-0">
+        <div className="flex items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
+          <div className="flex min-w-0 items-center gap-4">
+            <div className="brand-mark flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-sm font-black text-white">
+              AH
             </div>
-            
-            {/* Profile Menu */}
-            <div className="relative">
-              <button
-                onClick={() => setShowProfileMenu(!showProfileMenu)}
-                className="flex items-center space-x-3 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-              >
-                <div className="flex items-center space-x-2">
-                  <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
-                    <User className="w-6 h-6 text-blue-600" />
-                  </div>
-                  <div className="text-left hidden sm:block">
-                    <p className="text-sm font-medium text-gray-900">
-                      {loadingDoctor ? 'Loading...' : doctorName}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      {loadingDoctor ? '' : doctorSpecialty}
-                    </p>
-                  </div>
-                </div>
-                <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform ${showProfileMenu ? 'rotate-180' : ''}`} />
-              </button>
+            <div className="min-w-0">
+              <p className="text-xs font-bold uppercase tracking-wide text-sky-300">Doctor Portal</p>
+              <h1 className="truncate text-xl font-extrabold text-slate-100 sm:text-2xl">
+                General Practitioner Dashboard
+              </h1>
+              <p className="mt-0.5 text-sm text-slate-400">
+                Manage appointments, prescriptions, and patient care
+              </p>
+            </div>
+          </div>
 
-              {/* Dropdown Menu */}
-              {showProfileMenu && (
-                <>
-                  <div
-                    className="fixed inset-0 z-10"
-                    onClick={() => setShowProfileMenu(false)}
-                  />
-                  <div className="absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-20">
-                    <div className="py-1">
-                      <div className="px-4 py-3 border-b border-gray-200 sm:hidden">
-                        <p className="text-sm font-medium text-gray-900">{doctorName}</p>
-                        <p className="text-xs text-gray-500 mt-1">{doctorSpecialty}</p>
-                      </div>
-                      <button
-                        onClick={handleLogout}
-                        className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
-                      >
-                        <LogOut className="w-4 h-4 mr-2" />
-                        Logout
-                      </button>
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
+          <div className="relative">
+            <button
+              onClick={() => setShowProfileMenu(!showProfileMenu)}
+              className="ghost-button flex items-center gap-3 rounded-xl px-3 py-2"
+            >
+              <div className="flex h-10 w-10 items-center justify-center rounded-full border border-sky-500/30 bg-sky-500/15">
+                <User className="h-6 w-6 text-sky-300" />
+              </div>
+              <div className="hidden text-left sm:block">
+                <p className="text-sm font-bold text-slate-100">
+                  {loadingDoctor ? 'Loading...' : doctorName}
+                </p>
+                <p className="text-xs text-slate-400">
+                  {loadingDoctor ? '' : doctorSpecialty}
+                </p>
+              </div>
+              <ChevronDown
+                className={`h-4 w-4 text-slate-400 transition-transform ${showProfileMenu ? 'rotate-180' : ''}`}
+              />
+            </button>
+
+            {showProfileMenu && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setShowProfileMenu(false)} />
+                <div className="premium-card absolute right-0 z-20 mt-2 w-48 overflow-hidden rounded-xl">
+                  <button
+                    onClick={handleLogout}
+                    className="flex w-full items-center px-4 py-2.5 text-sm text-slate-200 transition-colors hover:bg-red-500/15 hover:text-red-300"
+                  >
+                    <LogOut className="mr-2 h-4 w-4" />
+                    Logout
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="bg-white border-b border-gray-200">
-        <div className="w-full px-4 sm:px-6 lg:px-8">
-          <nav className="flex space-x-8" aria-label="Tabs">
-            {tabs.map((tab) => {
-              const Icon = tab.icon;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`
-                    flex items-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors
-                    ${
-                      activeTab === tab.id
-                        ? 'border-blue-500 text-blue-600'
-                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                    }
-                  `}
-                >
-                  <Icon size={18} />
-                  <span>{tab.label}</span>
-                </button>
-              );
-            })}
-          </nav>
-        </div>
-      </div>
-
-      {/* Content */}
       <div className="flex-1 overflow-auto">
-        <div className="w-full px-4 sm:px-6 lg:px-8 py-6">
-          {activeTab === 'appointments' && (
-            <DoctorAppointments
-              onPrescribe={(patientId) => {
-                setPrescriptionPatientId(patientId);
-                setActiveTab('prescriptions');
-              }}
+        <div className="mx-auto flex max-w-[1600px] flex-col gap-5 px-4 py-5 sm:px-6 lg:px-8 xl:flex-row xl:items-start">
+          <div className="min-w-0 flex-1 space-y-5">
+            <div className="flex justify-start">
+              <div className="grid w-full max-w-md grid-cols-2 gap-3 animate-stagger-children sm:w-auto">
+                <StatCard
+                  label="Today's Appointments"
+                  value="—"
+                  icon={Calendar}
+                  accentClass="text-sky-300 bg-sky-500/15"
+                />
+                <StatCard
+                  label="Patients Seen"
+                  value="—"
+                  icon={Users}
+                  accentClass="text-sky-300 bg-sky-500/15"
+                />
+              </div>
+            </div>
+
+            <SegmentTabs
+              tabs={mainTabs}
+              activeTab={activeTab}
+              onChange={(id) => setActiveTab(id as TabType)}
             />
-          )}
-          {activeTab === 'prescriptions' && (
-            <PrescriptionUpload initialPatientId={prescriptionPatientId || undefined} />
-          )}
-          {activeTab === 'medicine' && <MedicineLookup />}
-          {activeTab === 'analytics' && <ReportsAnalytics />}
+
+            <div className="premium-card tab-content-fade p-4 sm:p-6">
+              {activeTab === 'appointments' && (
+                <DoctorAppointments
+                  onPrescribe={(patientId) => {
+                    setPrescriptionPatientId(patientId);
+                    setActiveTab('prescriptions');
+                  }}
+                />
+              )}
+              {activeTab === 'prescriptions' && (
+                <PrescriptionUpload initialPatientId={prescriptionPatientId || undefined} />
+              )}
+              {activeTab === 'analytics' && <ReportsAnalytics />}
+            </div>
+          </div>
+
+          <aside className="premium-card flex h-[min(560px,calc(100vh-8rem))] max-h-[calc(100vh-8rem)] w-full shrink-0 flex-col overflow-hidden xl:sticky xl:top-5 xl:h-[calc(100vh-7rem)] xl:w-[min(100%,420px)]">
+            <div className="shrink-0 border-b border-sky-500/20 px-4 py-3 sm:px-5">
+              <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-100">
+                <Search className="h-4 w-4 text-sky-400" />
+                Medicine Lookup
+              </h2>
+              <p className="mt-0.5 text-xs text-slate-400">Search diseases, symptoms, and treatments</p>
+            </div>
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-4 sm:p-5">
+              <MedicineLookup embedded />
+            </div>
+          </aside>
         </div>
       </div>
     </div>
@@ -180,4 +179,3 @@ const GeneralPractitionerDashboard: React.FC = () => {
 };
 
 export default GeneralPractitionerDashboard;
-

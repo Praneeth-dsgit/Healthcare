@@ -24,6 +24,16 @@ import {
 } from 'recharts';
 import { getApiBaseUrl } from '../../utils/apiBase';
 
+const CHART_TOOLTIP_STYLE = {
+  backgroundColor: 'rgba(15, 23, 42, 0.95)',
+  border: '1px solid rgba(71, 85, 105, 0.8)',
+  borderRadius: '8px',
+  color: '#e2e8f0',
+};
+
+const CHART_TICK = { fill: '#94a3b8', fontSize: 10 };
+const CHART_GRID_STROKE = 'rgba(71, 85, 105, 0.45)';
+
 const ReportsAnalytics: React.FC = () => {
   const [stats, setStats] = useState({
     totalAppointments: 0,
@@ -308,81 +318,77 @@ const ReportsAnalytics: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div className="flex h-64 items-center justify-center">
+        <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-sky-400" />
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between">
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900">Reports & Analytics</h2>
-            <p className="text-sm text-gray-600 mt-1">Practice overview and insights</p>
-          </div>
-          <div className="mt-4 md:mt-0 flex gap-2 flex-wrap items-center">
+    <div className="space-y-5">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-100">Reports & Analytics</h2>
+          <p className="mt-1 text-sm text-slate-400">Practice overview and insights</p>
+        </div>
+        <div className="mt-4 flex flex-wrap items-center gap-2 md:mt-0">
             <div className="relative">
               <select
                 value={dateRange}
                 onChange={(e) => setDateRange(e.target.value as 'week' | 'month' | 'year')}
-                className="appearance-none px-4 py-2 pr-10 rounded-lg text-sm font-medium bg-white border border-gray-300 text-gray-700 hover:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-pointer"
+                className="form-field cursor-pointer appearance-none py-2 pl-4 pr-10 text-sm font-medium"
               >
                 <option value="week">Week</option>
                 <option value="month">Month</option>
                 <option value="year">Year</option>
               </select>
-              <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
+                <svg className="h-5 w-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
               </div>
             </div>
-            <button 
+            <button
+              type="button"
               onClick={handleGenerateReport}
               disabled={generatingReport}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="portal-accent-button flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
             >
               <FileText size={18} />
               {generatingReport ? 'Generating...' : 'Generate AI Report'}
               {generatingReport && (
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-slate-900" />
               )}
             </button>
-          </div>
         </div>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
         {statCards.map((stat, index) => {
           const Icon = stat.icon;
           return (
-            <div key={index} className="bg-white rounded-lg shadow p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className={`${stat.color} p-3 rounded-lg`}>
+            <div key={index} className="rounded-xl border border-slate-700/50 bg-slate-900/30 p-5">
+              <div className="mb-4 flex items-center justify-between">
+                <div className={`${stat.color} rounded-lg p-3`}>
                   <Icon className="text-white" size={24} />
                 </div>
-                <span className="text-sm text-green-600 font-medium">{stat.change}</span>
+                <span className="text-sm font-medium text-emerald-400">{stat.change}</span>
               </div>
-              <h3 className="text-sm font-medium text-gray-600 mb-1">{stat.title}</h3>
-              <p className="text-3xl font-bold text-gray-900">{stat.value}</p>
+              <h3 className="mb-1 text-sm font-medium text-slate-400">{stat.title}</h3>
+              <p className="text-3xl font-bold text-slate-100">{stat.value}</p>
             </div>
           );
         })}
       </div>
 
-      {/* Charts Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Appointments Overview Chart */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Appointments Overview</h3>
-            <button 
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+        <div className="rounded-xl border border-slate-700/50 bg-slate-900/30 p-5">
+          <div className="mb-4 flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-slate-100">Appointments Overview</h3>
+            <button
+              type="button"
               onClick={() => handleExport('appointments')}
-              className="text-blue-600 hover:text-blue-800 flex items-center space-x-1"
+              className="flex items-center gap-1 text-sky-300 transition-colors hover:text-sky-200"
             >
               <ArrowUp size={16} />
               <span className="text-sm">Export</span>
@@ -391,43 +397,37 @@ const ReportsAnalytics: React.FC = () => {
           {appointmentsChartData.length > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={appointmentsChartData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis 
-                  dataKey="date" 
+                <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_STROKE} />
+                <XAxis
+                  dataKey="date"
                   angle={-45}
                   textAnchor="end"
                   height={80}
-                  tick={{ fontSize: 10 }}
+                  tick={CHART_TICK}
                 />
-                <YAxis tick={{ fontSize: 10 }} />
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: '#fff', 
-                    border: '1px solid #e5e7eb',
-                    borderRadius: '8px'
-                  }}
-                />
-                <Legend />
-                <Bar dataKey="count" fill="#3b82f6" name="Appointments" radius={[8, 8, 0, 0]} />
+                <YAxis tick={CHART_TICK} />
+                <Tooltip contentStyle={CHART_TOOLTIP_STYLE} />
+                <Legend wrapperStyle={{ color: '#94a3b8' }} />
+                <Bar dataKey="count" fill="#38bdf8" name="Appointments" radius={[8, 8, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           ) : (
-            <div className="h-64 flex items-center justify-center text-gray-500">
+            <div className="flex h-64 items-center justify-center text-slate-500">
               <div className="text-center">
-                <BarChart3 size={48} className="mx-auto mb-2 text-gray-400" />
+                <BarChart3 size={48} className="mx-auto mb-2 text-slate-500" />
                 <p className="text-sm">No appointment data available</p>
               </div>
             </div>
           )}
         </div>
 
-        {/* Appointments by Status Pie Chart */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Appointments by Status</h3>
-            <button 
+        <div className="rounded-xl border border-slate-700/50 bg-slate-900/30 p-5">
+          <div className="mb-4 flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-slate-100">Appointments by Status</h3>
+            <button
+              type="button"
               onClick={() => handleExport('appointments')}
-              className="text-blue-600 hover:text-blue-800 flex items-center space-x-1"
+              className="flex items-center gap-1 text-sky-300 transition-colors hover:text-sky-200"
             >
               <ArrowUp size={16} />
               <span className="text-sm">Export</span>
@@ -453,39 +453,35 @@ const ReportsAnalytics: React.FC = () => {
                      return <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />;
                    })}
                  </Pie>
-                 <Tooltip 
-                   contentStyle={{ 
-                     backgroundColor: '#fff', 
-                     border: '1px solid #e5e7eb',
-                     borderRadius: '8px'
-                   }}
+                 <Tooltip
+                   contentStyle={CHART_TOOLTIP_STYLE}
                    formatter={(value: any, name: any) => [`${value} (${((value / appointmentsByStatus.reduce((sum, item) => sum + item.value, 0)) * 100).toFixed(1)}%)`, name]}
                  />
-                 <Legend 
-                   verticalAlign="bottom" 
+                 <Legend
+                   verticalAlign="bottom"
                    height={50}
-                   wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }}
+                   wrapperStyle={{ fontSize: '11px', paddingTop: '10px', color: '#94a3b8' }}
                    iconType="circle"
                  />
                </PieChart>
              </ResponsiveContainer>
            ) : (
-            <div className="h-64 flex items-center justify-center text-gray-500">
+            <div className="flex h-64 items-center justify-center text-slate-500">
               <div className="text-center">
-                <BarChart3 size={48} className="mx-auto mb-2 text-gray-400" />
+                <BarChart3 size={48} className="mx-auto mb-2 text-slate-500" />
                 <p className="text-sm">No status data available</p>
               </div>
             </div>
           )}
         </div>
 
-        {/* Prescriptions Trend Chart */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Prescriptions Trend</h3>
-            <button 
-              onClick={() => handleExport('appointments')}
-              className="text-blue-600 hover:text-blue-800 flex items-center space-x-1"
+        <div className="rounded-xl border border-slate-700/50 bg-slate-900/30 p-5">
+          <div className="mb-4 flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-slate-100">Prescriptions Trend</h3>
+            <button
+              type="button"
+              onClick={() => handleExport('prescriptions')}
+              className="flex items-center gap-1 text-sky-300 transition-colors hover:text-sky-200"
             >
               <ArrowUp size={16} />
               <span className="text-sm">Export</span>
@@ -494,38 +490,32 @@ const ReportsAnalytics: React.FC = () => {
           {prescriptionsChartData.length > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
               <LineChart data={prescriptionsChartData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis 
-                  dataKey="date" 
+                <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_STROKE} />
+                <XAxis
+                  dataKey="date"
                   angle={-45}
                   textAnchor="end"
                   height={80}
-                  tick={{ fontSize: 10 }}
+                  tick={CHART_TICK}
                 />
-                <YAxis tick={{ fontSize: 10 }} />
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: '#fff', 
-                    border: '1px solid #e5e7eb',
-                    borderRadius: '8px'
-                  }}
-                />
-                <Legend />
-                <Line 
-                  type="monotone" 
-                  dataKey="count" 
-                  stroke="#f59e0b" 
+                <YAxis tick={CHART_TICK} />
+                <Tooltip contentStyle={CHART_TOOLTIP_STYLE} />
+                <Legend wrapperStyle={{ color: '#94a3b8' }} />
+                <Line
+                  type="monotone"
+                  dataKey="count"
+                  stroke="#fbbf24"
                   strokeWidth={3}
                   name="Prescriptions"
-                  dot={{ fill: '#f59e0b', r: 4 }}
+                  dot={{ fill: '#fbbf24', r: 4 }}
                   activeDot={{ r: 6 }}
                 />
               </LineChart>
             </ResponsiveContainer>
           ) : (
-            <div className="h-64 flex items-center justify-center text-gray-500">
+            <div className="flex h-64 items-center justify-center text-slate-500">
               <div className="text-center">
-                <TrendingUp size={48} className="mx-auto mb-2 text-gray-400" />
+                <TrendingUp size={48} className="mx-auto mb-2 text-slate-500" />
                 <p className="text-sm">No prescription data available</p>
               </div>
             </div>

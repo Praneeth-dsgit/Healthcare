@@ -89,8 +89,13 @@ interface QueueItem {
   appointmentId: string;
 }
 
-const FrontDeskDashboard: React.FC<{ sessionId?: string | null; onLogout?: () => void }> = ({ sessionId, onLogout }) => {
-  const [activeTab, setActiveTab] = useState<NavTab>('dashboard');
+const FrontDeskDashboard: React.FC<{
+  sessionId?: string | null;
+  onLogout?: () => void;
+  forcedTab?: NavTab;
+  hideNav?: boolean;
+}> = ({ sessionId, onLogout, forcedTab, hideNav = false }) => {
+  const [activeTab, setActiveTab] = useState<NavTab>(forcedTab ?? 'dashboard');
   const [stats, setStats] = useState<FrontDeskStats>({
     todayAppointments: 0,
     waitingPatients: 0,
@@ -100,7 +105,6 @@ const FrontDeskDashboard: React.FC<{ sessionId?: string | null; onLogout?: () =>
     doctorsAvailable: 0,
   });
   const [loadingStats, setLoadingStats] = useState(true);
-  const [loadingAppointments, setLoadingAppointments] = useState(false);
   const [loadingAppointments, setLoadingAppointments] = useState(false);
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -142,6 +146,10 @@ const FrontDeskDashboard: React.FC<{ sessionId?: string | null; onLogout?: () =>
   // Queue
   const [queueList, setQueueList] = useState<QueueItem[]>([]);
   const [loadingQueue, setLoadingQueue] = useState(false);
+
+  useEffect(() => {
+    if (forcedTab) setActiveTab(forcedTab);
+  }, [forcedTab]);
 
   const fetchStats = useCallback(async () => {
     setLoadingStats(true);
@@ -374,6 +382,7 @@ const FrontDeskDashboard: React.FC<{ sessionId?: string | null; onLogout?: () =>
 
   const billSubtotal = billItems.reduce((s, i) => s + i.total, 0);
   const billTotal = Math.max(0, billSubtotal - discount);
+  const displayTab = forcedTab ?? activeTab;
 
   const navItems: { id: NavTab; label: string; icon: React.ReactNode }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="w-4 h-4" /> },
@@ -385,23 +394,25 @@ const FrontDeskDashboard: React.FC<{ sessionId?: string | null; onLogout?: () =>
   ];
 
   return (
-    <div className="flex flex-col h-full w-full min-h-0 bg-[#f8fafc]">
+    <div className="flex h-full min-h-0 w-full flex-col">
+      {!hideNav && (
+        <>
       {/* Access control note */}
-      <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 border-b border-amber-200 text-amber-800 text-sm">
-        <AlertCircle className="w-4 h-4 flex-shrink-0" />
+      <div className="flex items-center gap-2 border-b border-amber-500/30 bg-amber-500/10 px-4 py-2 text-sm text-amber-200/90">
+        <AlertCircle className="h-4 w-4 shrink-0" />
         <span>Front Desk — Administrative & billing access only. No access to clinical notes or prescription editing.</span>
       </div>
 
       {/* Top horizontal nav */}
-      <nav className="flex items-center gap-1 px-4 py-3 bg-white border-b border-gray-200 shadow-sm flex-shrink-0">
+      <nav className="flex shrink-0 items-center gap-1 border-b border-slate-700/50 bg-slate-900/50 px-4 py-3">
         {navItems.map((item) => (
           <button
             key={item.id}
             onClick={() => setActiveTab(item.id)}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
+            className={`flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-all ${
               activeTab === item.id
-                ? 'bg-[#1e40af] text-white shadow-md'
-                : 'text-gray-600 hover:bg-gray-100'
+                ? 'portal-accent-button shadow-md'
+                : 'text-slate-400 hover:bg-slate-800/60'
             }`}
           >
             {item.icon}
@@ -409,47 +420,51 @@ const FrontDeskDashboard: React.FC<{ sessionId?: string | null; onLogout?: () =>
           </button>
         ))}
         <div className="flex-1" />
+        {onLogout && (
         <button
           onClick={onLogout}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-red-50 hover:text-red-700 transition-colors"
+          className="flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-slate-400 transition-colors hover:bg-red-500/15 hover:text-red-300"
         >
-          <LogOut className="w-4 h-4" />
+          <LogOut className="h-4 w-4" />
           Logout
         </button>
+        )}
       </nav>
+        </>
+      )}
 
       {/* Main content */}
-      <main className="flex-1 overflow-y-auto p-6 min-h-0">
-        {activeTab === 'dashboard' && (
+      <main className="content-panel min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
+        {displayTab === 'dashboard' && (
           <>
-            <h1 className="text-xl font-semibold text-gray-900 mb-4">Dashboard</h1>
+            <h1 className="section-heading text-xl font-semibold text-slate-100 mb-4">Dashboard</h1>
             {loadingStats ? (
               <div className="flex items-center justify-center py-12">
-                <div className="animate-spin rounded-full h-8 w-8 border-2 border-[#1e40af] border-t-transparent" />
+                <div className="animate-spin rounded-full h-8 w-8 border-2 border-[var(--portal-accent)] border-t-transparent" />
               </div>
             ) : (
               <>
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
                   {[
-                    { label: "Today's Appointments", value: stats.todayAppointments, icon: <Calendar className="w-5 h-5" />, color: 'bg-blue-50 text-blue-700 border-blue-100' },
-                    { label: 'Waiting Patients', value: stats.waitingPatients, icon: <Clock className="w-5 h-5" />, color: 'bg-amber-50 text-amber-700 border-amber-100' },
-                    { label: 'Completed Visits', value: stats.completedVisits, icon: <CheckCircle className="w-5 h-5" />, color: 'bg-green-50 text-green-700 border-green-100' },
-                    { label: 'Pending Payments', value: stats.pendingPayments, icon: <CreditCard className="w-5 h-5" />, color: 'bg-orange-50 text-orange-700 border-orange-100' },
-                    { label: "Today's Revenue", value: `₹${stats.todayRevenue}`, icon: <DollarSign className="w-5 h-5" />, color: 'bg-teal-50 text-teal-700 border-teal-100' },
-                    { label: 'Doctor Availability', value: stats.doctorsAvailable, icon: <Stethoscope className="w-5 h-5" />, color: 'bg-indigo-50 text-indigo-700 border-indigo-100' },
+                    { label: "Today's Appointments", value: stats.todayAppointments, icon: <Calendar className="w-5 h-5" />, color: 'bg-sky-500/15 text-sky-300 border-sky-500/30' },
+                    { label: 'Waiting Patients', value: stats.waitingPatients, icon: <Clock className="w-5 h-5" />, color: 'bg-amber-500/15 text-amber-300 border-amber-500/30' },
+                    { label: 'Completed Visits', value: stats.completedVisits, icon: <CheckCircle className="w-5 h-5" />, color: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30' },
+                    { label: 'Pending Payments', value: stats.pendingPayments, icon: <CreditCard className="w-5 h-5" />, color: 'bg-orange-500/15 text-orange-300 border-orange-500/30' },
+                    { label: "Today's Revenue", value: `₹${stats.todayRevenue}`, icon: <DollarSign className="w-5 h-5" />, color: 'bg-teal-500/15 text-teal-300 border-teal-500/30' },
+                    { label: 'Doctor Availability', value: stats.doctorsAvailable, icon: <Stethoscope className="w-5 h-5" />, color: 'bg-violet-500/15 text-violet-300 border-violet-500/30' },
                   ].map((card) => (
                     <div
                       key={card.label}
-                      className="healthcare-card rounded-xl p-4 border transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5"
+                      className="premium-card premium-card-hover rounded-xl p-4 transition-all duration-200"
                     >
                       <div className={`inline-flex p-2 rounded-lg border ${card.color} mb-3`}>{card.icon}</div>
-                      <p className="text-2xl font-bold text-gray-900">{card.value}</p>
-                      <p className="text-xs font-medium text-gray-500 mt-0.5">{card.label}</p>
+                      <p className="text-2xl font-bold text-slate-100">{card.value}</p>
+                      <p className="text-xs font-medium text-slate-400 mt-0.5">{card.label}</p>
                     </div>
                   ))}
                 </div>
                 <div className="mb-4">
-                  <h2 className="text-sm font-semibold text-gray-700 mb-3">Quick Actions</h2>
+                  <h2 className="text-sm font-semibold text-slate-300 mb-3">Quick Actions</h2>
                   <div className="flex flex-wrap gap-3">
                     {[
                       { label: 'New Patient', icon: <UserPlus className="w-5 h-5" />, tab: 'registration' as NavTab },
@@ -461,7 +476,7 @@ const FrontDeskDashboard: React.FC<{ sessionId?: string | null; onLogout?: () =>
                       <button
                         key={btn.label}
                         onClick={() => setActiveTab(btn.tab)}
-                        className="flex items-center gap-2 px-5 py-3 rounded-xl bg-white border border-gray-200 text-gray-700 font-semibold shadow-sm hover:bg-[#1e40af] hover:text-white hover:border-[#1e40af] transition-all"
+                        className="ghost-button flex items-center gap-2 rounded-xl border border-slate-600/80 px-5 py-3 font-semibold text-slate-200 transition-all hover:border-[var(--portal-accent)] hover:bg-[var(--portal-accent-muted)] hover:text-amber-100"
                       >
                         {btn.icon}
                         {btn.label}
@@ -474,51 +489,51 @@ const FrontDeskDashboard: React.FC<{ sessionId?: string | null; onLogout?: () =>
           </>
         )}
 
-        {activeTab === 'registration' && (
+        {displayTab === 'registration' && (
           <div className="max-w-3xl">
-            <h1 className="text-xl font-semibold text-gray-900 mb-4">New Patient Registration</h1>
-            <div className="healthcare-card rounded-xl p-6 border bg-white shadow-sm">
+            <h1 className="section-heading text-xl font-semibold text-slate-100 mb-4">New Patient Registration</h1>
+            <div className="premium-card rounded-xl p-6 border border-slate-700/50">
               {regSuccess && (
-                <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-green-800 text-sm">
+                <div className="mb-4 p-3 bg-emerald-500/15 border border-emerald-500/30 rounded-lg text-emerald-200 text-sm">
                   Patient registered. UHID: <strong>{uhid}</strong>
                 </div>
               )}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Full Name *</label>
+                  <label className="form-label block mb-1">Full Name *</label>
                   <input
                     type="text"
                     value={regForm.fullName}
                     onChange={(e) => setRegForm((p) => ({ ...p, fullName: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1e40af] focus:border-[#1e40af]"
+                    className="form-field w-full"
                     placeholder="Full Name"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Mobile Number *</label>
+                  <label className="form-label block mb-1">Mobile Number *</label>
                   <input
                     type="tel"
                     value={regForm.mobile}
                     onChange={(e) => setRegForm((p) => ({ ...p, mobile: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1e40af] focus:border-[#1e40af]"
+                    className="form-field w-full"
                     placeholder="Mobile"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Date of Birth *</label>
+                  <label className="form-label block mb-1">Date of Birth *</label>
                   <input
                     type="date"
                     value={regForm.dateOfBirth}
                     onChange={(e) => setRegForm((p) => ({ ...p, dateOfBirth: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1e40af] focus:border-[#1e40af]"
+                    className="form-field w-full"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Gender *</label>
+                  <label className="form-label block mb-1">Gender *</label>
                   <select
                     value={regForm.gender}
                     onChange={(e) => setRegForm((p) => ({ ...p, gender: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1e40af] focus:border-[#1e40af]"
+                    className="form-field w-full"
                   >
                     <option value="">Select</option>
                     <option value="male">Male</option>
@@ -527,25 +542,25 @@ const FrontDeskDashboard: React.FC<{ sessionId?: string | null; onLogout?: () =>
                   </select>
                 </div>
                 <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+                  <label className="form-label block mb-1">Address</label>
                   <input
                     type="text"
                     value={regForm.address}
                     onChange={(e) => setRegForm((p) => ({ ...p, address: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1e40af] focus:border-[#1e40af]"
+                    className="form-field w-full"
                     placeholder="Address"
                   />
                 </div>
                 <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">ID Proof Upload</label>
+                  <label className="form-label block mb-1">ID Proof Upload</label>
                   <div className="flex items-center gap-2">
                     <input
                       type="file"
                       accept="image/*,.pdf"
                       onChange={(e) => setRegForm((p) => ({ ...p, idProofFile: e.target.files?.[0] ?? null }))}
-                      className="text-sm text-gray-600 file:mr-2 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-gray-100 file:text-gray-700"
+                      className="text-sm text-slate-400 file:mr-2 file:rounded-lg file:border-0 file:bg-slate-700 file:px-4 file:py-2 file:text-slate-200"
                     />
-                    <Upload className="w-4 h-4 text-gray-400" />
+                    <Upload className="w-4 h-4 text-slate-500" />
                   </div>
                 </div>
               </div>
@@ -553,79 +568,79 @@ const FrontDeskDashboard: React.FC<{ sessionId?: string | null; onLogout?: () =>
                 <button
                   onClick={handleRegistrationSave}
                   disabled={regSaving}
-                  className="px-5 py-2.5 bg-[#1e40af] text-white rounded-lg font-medium hover:bg-[#1e3a8a] disabled:opacity-50"
+                  className="portal-accent-button rounded-lg px-5 py-2.5 font-medium disabled:opacity-50"
                 >
                   {regSaving ? 'Saving...' : 'Save'}
                 </button>
                 <button
                   onClick={handleRegistrationClear}
-                  className="px-5 py-2.5 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50"
+                  className="ghost-button rounded-lg px-5 py-2.5 font-medium"
                 >
                   Clear
                 </button>
               </div>
-              <p className="text-xs text-gray-500 mt-3">UHID will be auto-generated on save.</p>
+              <p className="text-xs text-slate-500 mt-3">UHID will be auto-generated on save.</p>
             </div>
           </div>
         )}
 
-        {activeTab === 'appointments' && (
+        {displayTab === 'appointments' && (
           <div className="max-w-2xl">
-            <h1 className="text-xl font-semibold text-gray-900 mb-4">Book Appointment</h1>
-            <div className="healthcare-card rounded-xl p-6 border bg-white shadow-sm space-y-4">
+            <h1 className="section-heading text-xl font-semibold text-slate-100 mb-4">Book Appointment</h1>
+            <div className="premium-card rounded-xl p-6 border border-slate-700/50 space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Patient Name *</label>
+                  <label className="form-label block mb-1">Patient Name *</label>
                   <input
                     type="text"
                     value={aptPatientName}
                     onChange={(e) => setAptPatientName(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1e40af]"
+                    className="form-field w-full"
                     placeholder="Patient Name"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Patient Phone *</label>
+                  <label className="form-label block mb-1">Patient Phone *</label>
                   <input
                     type="tel"
                     value={aptPatientPhone}
                     onChange={(e) => setAptPatientPhone(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1e40af]"
+                    className="form-field w-full"
                     placeholder="Phone"
                   />
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Doctor *</label>
+                <label className="form-label block mb-1">Doctor *</label>
                 <select
                   value={aptDoctorId}
                   onChange={(e) => setAptDoctorId(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1e40af]"
+                  className="form-field w-full"
                 >
                   <option value="">Select Doctor</option>
                   {doctors.map((d) => (
                     <option key={d.id} value={d.id}>{d.name} — {d.department_name}</option>
                   ))}
                 </select>
-                <p className="text-xs text-gray-500 mt-1">Doctor availability: {aptDoctorId ? 'Available' : 'Select doctor'}</p>
+                <p className="text-xs text-slate-500 mt-1">Doctor availability: {aptDoctorId ? 'Available' : 'Select doctor'}</p>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                  <label className="form-label block mb-1">Date</label>
                   <input
                     type="date"
                     value={aptDate}
                     min={new Date().toISOString().split('T')[0]}
                     onChange={(e) => setAptDate(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1e40af]"
+                    className="form-field w-full"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Time slot</label>
+                  <label className="form-label block mb-1">Time slot</label>
                   <select
                     value={aptTime}
                     onChange={(e) => setAptTime(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1e40af]"
+                    className="form-field w-full"
                   >
                     <option value="">Select time</option>
                     {aptDate && availableSlots[aptDate]?.map((s) => (
@@ -633,29 +648,29 @@ const FrontDeskDashboard: React.FC<{ sessionId?: string | null; onLogout?: () =>
                     ))}
                   </select>
                   {aptDoctorId && !aptDate && (
-                    <button type="button" onClick={fetchSlots} disabled={loadingSlots} className="text-xs text-blue-600 mt-1">
+                    <button type="button" onClick={fetchSlots} disabled={loadingSlots} className="mt-1 text-xs text-amber-400 hover:text-amber-300">
                       {loadingSlots ? 'Loading...' : 'Pick date first to load slots'}
                     </button>
                   )}
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Visit Type</label>
+                <label className="form-label block mb-1">Visit Type</label>
                 <select
                   value={aptVisitType}
                   onChange={(e) => setAptVisitType(e.target.value as 'new' | 'followup')}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1e40af]"
+                  className="form-field w-full"
                 >
                   <option value="new">New</option>
                   <option value="followup">Follow-up</option>
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                <label className="form-label block mb-1">Notes</label>
                 <textarea
                   value={aptNotes}
                   onChange={(e) => setAptNotes(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1e40af]"
+                  className="form-field w-full"
                   rows={2}
                   placeholder="Notes"
                 />
@@ -663,7 +678,7 @@ const FrontDeskDashboard: React.FC<{ sessionId?: string | null; onLogout?: () =>
               <button
                 onClick={handleBookAppointment}
                 disabled={aptSubmitting}
-                className="w-full py-3 bg-[#1e40af] text-white rounded-lg font-semibold hover:bg-[#1e3a8a] disabled:opacity-50"
+                className="portal-accent-button w-full rounded-lg py-3 font-semibold disabled:opacity-50"
               >
                 {aptSubmitting ? 'Booking...' : 'Book Appointment'}
               </button>
@@ -671,32 +686,32 @@ const FrontDeskDashboard: React.FC<{ sessionId?: string | null; onLogout?: () =>
           </div>
         )}
 
-        {activeTab === 'billing' && (
+        {displayTab === 'billing' && (
           <div className="max-w-4xl">
-            <h1 className="text-xl font-semibold text-gray-900 mb-4">Billing</h1>
-            <div className="healthcare-card rounded-xl p-6 border bg-white shadow-sm space-y-4">
+            <h1 className="section-heading text-xl font-semibold text-slate-100 mb-4">Billing</h1>
+            <div className="premium-card rounded-xl p-6 border border-slate-700/50 space-y-4">
               <div className="flex gap-3 flex-wrap">
                 <div className="flex-1 min-w-[200px]">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Patient Search</label>
+                  <label className="form-label block mb-1">Patient Search</label>
                   <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
                     <input
                       type="text"
                       value={billingPatientSearch}
                       onChange={(e) => setBillingPatientSearch(e.target.value)}
                       placeholder="Search by name or ID"
-                      className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1e40af]"
+                      className="form-field w-full pl-10"
                     />
                   </div>
                 </div>
                 <div className="flex gap-2 items-end">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Service</label>
+                    <label className="form-label block mb-1">Service</label>
                     <div className="flex gap-2">
                       <select
                         value={billingService}
                         onChange={(e) => setBillingService(e.target.value)}
-                        className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1e40af]"
+                        className="form-field"
                       >
                         <option value="">Select service</option>
                         <option value="Consultation">Consultation</option>
@@ -708,7 +723,7 @@ const FrontDeskDashboard: React.FC<{ sessionId?: string | null; onLogout?: () =>
                       <button
                         type="button"
                         onClick={addBillItem}
-                        className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200"
+                        className="ghost-button rounded-lg px-4 py-2 font-medium"
                       >
                         Add
                       </button>
@@ -716,26 +731,26 @@ const FrontDeskDashboard: React.FC<{ sessionId?: string | null; onLogout?: () =>
                   </div>
                 </div>
               </div>
-              <div className="border border-gray-200 rounded-lg overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-50">
+              <div className="border border-slate-700/50 rounded-lg overflow-hidden">
+                <table className="data-table-body w-full text-sm">
+                  <thead className="data-table-head">
                     <tr>
-                      <th className="text-left py-2 px-3 font-semibold text-gray-700">Service</th>
-                      <th className="text-right py-2 px-3 font-semibold text-gray-700">Qty</th>
-                      <th className="text-right py-2 px-3 font-semibold text-gray-700">Price</th>
-                      <th className="text-right py-2 px-3 font-semibold text-gray-700">Total</th>
+                      <th className="text-left py-2 px-3 font-semibold">Service</th>
+                      <th className="text-right py-2 px-3 font-semibold">Qty</th>
+                      <th className="text-right py-2 px-3 font-semibold">Price</th>
+                      <th className="text-right py-2 px-3 font-semibold">Total</th>
                       <th className="w-10" />
                     </tr>
                   </thead>
                   <tbody>
                     {billItems.map((item) => (
-                      <tr key={item.id} className="border-t border-gray-100">
-                        <td className="py-2 px-3">{item.serviceName}</td>
+                      <tr key={item.id} className="data-table-row border-t border-slate-700/40">
+                        <td className="py-2 px-3 text-slate-200">{item.serviceName}</td>
                         <td className="text-right py-2 px-3">{item.quantity}</td>
                         <td className="text-right py-2 px-3">₹{item.price}</td>
                         <td className="text-right py-2 px-3">₹{item.total}</td>
                         <td>
-                          <button type="button" onClick={() => removeBillItem(item.id)} className="p-1 text-red-600 hover:bg-red-50 rounded">
+                          <button type="button" onClick={() => removeBillItem(item.id)} className="rounded p-1 text-red-400 hover:bg-red-500/15">
                             <X className="w-4 h-4" />
                           </button>
                         </td>
@@ -746,21 +761,21 @@ const FrontDeskDashboard: React.FC<{ sessionId?: string | null; onLogout?: () =>
               </div>
               <div className="flex flex-wrap gap-4 items-center">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Discount (₹) — restricted</label>
+                  <label className="form-label block mb-1">Discount (₹) — restricted</label>
                   <input
                     type="number"
                     min={0}
                     value={discount}
                     onChange={(e) => setDiscount(Number(e.target.value) || 0)}
-                    className="w-28 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1e40af]"
+                    className="form-field w-28"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Payment Mode</label>
+                  <label className="form-label block mb-1">Payment Mode</label>
                   <select
                     value={paymentMode}
                     onChange={(e) => setPaymentMode(e.target.value as 'cash' | 'card' | 'upi')}
-                    className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1e40af]"
+                    className="form-field"
                   >
                     <option value="cash">Cash</option>
                     <option value="card">Card</option>
@@ -768,15 +783,15 @@ const FrontDeskDashboard: React.FC<{ sessionId?: string | null; onLogout?: () =>
                   </select>
                 </div>
               </div>
-              <div className="pt-4 border-t border-gray-200 flex flex-wrap items-center justify-between gap-4">
-                <div className="text-lg font-bold text-gray-900">
-                  Total: <span className="text-[#1e40af]">₹{billTotal}</span>
+              <div className="pt-4 border-t border-slate-700/50 flex flex-wrap items-center justify-between gap-4">
+                <div className="text-lg font-bold text-slate-100">
+                  Total: <span className="text-amber-400">₹{billTotal}</span>
                 </div>
                 <div className="flex gap-3">
-                  <button className="px-5 py-2.5 bg-[#1e40af] text-white rounded-lg font-semibold hover:bg-[#1e3a8a]">
+                  <button type="button" className="portal-accent-button rounded-lg px-5 py-2.5 font-semibold">
                     Generate Invoice
                   </button>
-                  <button className="px-5 py-2.5 border border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 flex items-center gap-2">
+                  <button type="button" className="ghost-button flex items-center gap-2 rounded-lg px-5 py-2.5 font-semibold">
                     <Printer className="w-4 h-4" />
                     Print
                   </button>
@@ -786,42 +801,42 @@ const FrontDeskDashboard: React.FC<{ sessionId?: string | null; onLogout?: () =>
           </div>
         )}
 
-        {activeTab === 'queue' && (
+        {displayTab === 'queue' && (
           <div>
-            <h1 className="text-xl font-semibold text-gray-900 mb-4">Queue Management</h1>
+            <h1 className="section-heading text-xl font-semibold text-slate-100 mb-4">Queue Management</h1>
             {loadingQueue ? (
               <div className="flex justify-center py-12">
-                <div className="animate-spin rounded-full h-8 w-8 border-2 border-[#1e40af] border-t-transparent" />
+                <div className="animate-spin rounded-full h-8 w-8 border-2 border-[var(--portal-accent)] border-t-transparent" />
               </div>
             ) : (
-              <div className="healthcare-card rounded-xl border bg-white shadow-sm overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-50">
+              <div className="premium-card rounded-xl border border-slate-700/50 overflow-hidden">
+                <table className="data-table-body w-full text-sm">
+                  <thead className="data-table-head">
                     <tr>
-                      <th className="text-left py-3 px-4 font-semibold text-gray-700">Token</th>
-                      <th className="text-left py-3 px-4 font-semibold text-gray-700">Patient</th>
-                      <th className="text-left py-3 px-4 font-semibold text-gray-700">Doctor</th>
-                      <th className="text-left py-3 px-4 font-semibold text-gray-700">Status</th>
-                      <th className="text-right py-3 px-4 font-semibold text-gray-700">Action</th>
+                      <th className="text-left py-3 px-4 font-semibold">Token</th>
+                      <th className="text-left py-3 px-4 font-semibold">Patient</th>
+                      <th className="text-left py-3 px-4 font-semibold">Doctor</th>
+                      <th className="text-left py-3 px-4 font-semibold">Status</th>
+                      <th className="text-right py-3 px-4 font-semibold">Action</th>
                     </tr>
                   </thead>
                   <tbody>
                     {queueList.map((q) => (
-                      <tr key={q.appointmentId} className="border-t border-gray-100 hover:bg-gray-50">
-                        <td className="py-3 px-4 font-medium">{q.token}</td>
-                        <td className="py-3 px-4">{q.patientName}</td>
-                        <td className="py-3 px-4">{q.doctorName}</td>
+                      <tr key={q.appointmentId} className="data-table-row border-t border-slate-700/40">
+                        <td className="py-3 px-4 font-medium text-slate-100">{q.token}</td>
+                        <td className="py-3 px-4 text-slate-300">{q.patientName}</td>
+                        <td className="py-3 px-4 text-slate-300">{q.doctorName}</td>
                         <td className="py-3 px-4">
                           <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${
-                            q.status === 'completed' ? 'bg-green-100 text-green-800' :
-                            q.status === 'in_consultation' ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'
+                            q.status === 'completed' ? 'bg-emerald-500/20 text-emerald-300' :
+                            q.status === 'in_consultation' ? 'bg-sky-500/20 text-sky-300' : 'bg-amber-500/20 text-amber-300'
                           }`}>
                             {q.status === 'completed' ? 'Completed' : q.status === 'in_consultation' ? 'In Consultation' : 'Waiting'}
                           </span>
                         </td>
                         <td className="py-3 px-4 text-right">
                           {q.status === 'waiting' && (
-                            <button className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#1e40af] text-white rounded-lg text-xs font-medium hover:bg-[#1e3a8a]">
+                            <button type="button" className="portal-accent-button inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium">
                               Call Next <ChevronRight className="w-3 h-3" />
                             </button>
                           )}
@@ -831,18 +846,18 @@ const FrontDeskDashboard: React.FC<{ sessionId?: string | null; onLogout?: () =>
                   </tbody>
                 </table>
                 {queueList.length === 0 && (
-                  <div className="py-12 text-center text-gray-500">No patients in queue.</div>
+                  <div className="py-12 text-center text-slate-500">No patients in queue.</div>
                 )}
               </div>
             )}
           </div>
         )}
 
-        {activeTab === 'reports' && (
+        {displayTab === 'reports' && (
           <div>
-            <h1 className="text-xl font-semibold text-gray-900 mb-4">Reports</h1>
-            <div className="healthcare-card rounded-xl p-8 border bg-white shadow-sm text-center text-gray-500">
-              <FileText className="w-12 h-12 mx-auto mb-3 text-gray-400" />
+            <h1 className="section-heading text-xl font-semibold text-slate-100 mb-4">Reports</h1>
+            <div className="premium-card rounded-xl p-8 border border-slate-700/50 text-center text-slate-400">
+              <FileText className="mx-auto mb-3 h-12 w-12 text-slate-500" />
               <p>Reports and analytics (daily summaries, revenue, appointments) can be configured here.</p>
             </div>
           </div>

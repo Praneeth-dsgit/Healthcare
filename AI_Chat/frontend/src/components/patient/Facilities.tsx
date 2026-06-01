@@ -4,9 +4,27 @@
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Building2, MapPin, Phone, Mail, Globe, Clock, Stethoscope, Calendar, User, Scan } from 'lucide-react';
+import {
+  Search,
+  Building2,
+  MapPin,
+  Phone,
+  Mail,
+  Globe,
+  Clock,
+  Stethoscope,
+  Calendar,
+  User,
+  Scan,
+  ArrowLeft,
+} from 'lucide-react';
 import { facilityService, Facility } from '../../services/facilityService';
 import { doctorService, Doctor } from '../../services/doctorService';
+import {
+  PortalPageShell,
+  PortalPageHero,
+  portalInputClass,
+} from './portalPageLayout';
 
 const Facilities: React.FC = () => {
   const navigate = useNavigate();
@@ -96,50 +114,91 @@ const Facilities: React.FC = () => {
     navigate('/portal/radiology/book');
   };
 
-  return (
-    <div className="p-6 max-w-7xl mx-auto">
-      {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Find Facilities</h1>
-        <p className="text-gray-600">Search for healthcare facilities, radiology centers, and find doctors available at your preferred locations</p>
-      </div>
+  const handleBackToFacilities = () => {
+    setShowDoctors(false);
+    setSelectedFacility(null);
+  };
 
-      {/* Search Section */}
-      <div className="bg-white rounded-lg shadow-md hover:shadow-lg p-6 mb-6 transition-all duration-300">
-        <div className="flex flex-row gap-4 items-center">
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-            <input
-              type="text"
-              placeholder="Search by facility name, city, or address..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 hover:border-blue-400 transition-all duration-200"
-            />
-          </div>
-          <div className="w-64">
-            <select
-              value={selectedFacilityType}
-              onChange={(e) => setSelectedFacilityType(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 hover:border-blue-400 transition-all duration-200"
+  const selectedFacilityData = selectedFacility
+    ? facilities.find((f) => f.facility_id === selectedFacility)
+    : undefined;
+
+  return (
+    <PortalPageShell>
+      <PortalPageHero
+        eyebrow={
+          showDoctors && selectedFacility ? (
+            <button
+              type="button"
+              onClick={handleBackToFacilities}
+              className="ghost-button -ml-1 inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-bold uppercase tracking-wide text-teal-300 transition-colors hover:text-teal-200"
             >
-              <option value="">All Facility Types</option>
-              <option value="hospital">Hospitals</option>
-              <option value="clinic">Clinics</option>
-              <option value="diagnostic_center">Radiology/Diagnostic Centers</option>
-              <option value="pharmacy">Pharmacies</option>
-              <option value="other">Other</option>
-            </select>
-          </div>
-          <button
-            onClick={handleSearch}
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 hover:shadow-lg hover:scale-105 transition-all duration-200 font-medium whitespace-nowrap"
-          >
-            Search
-          </button>
-        </div>
-      </div>
+              <ArrowLeft className="h-3.5 w-3.5" />
+              Back to Facilities
+            </button>
+          ) : (
+            'Locations'
+          )
+        }
+        title={
+          showDoctors && selectedFacilityData
+            ? `Doctors at ${selectedFacilityData.name}`
+            : 'Find Facilities'
+        }
+        subtitle={
+          showDoctors && selectedFacility
+            ? 'Browse doctors at this location and book an appointment.'
+            : 'Search hospitals and clinics, then view doctors available at each location.'
+        }
+        icon={<Building2 />}
+        badges={
+          showDoctors && selectedFacility ? (
+            <span className="rounded-full bg-teal-500/15 px-3 py-1 text-sm font-bold text-teal-200">
+              {doctors.length} doctor{doctors.length !== 1 ? 's' : ''}
+            </span>
+          ) : (
+            <span className="rounded-full bg-teal-500/15 px-3 py-1 text-sm font-bold text-teal-200">
+              {facilities.length} facilit{facilities.length !== 1 ? 'ies' : 'y'}
+            </span>
+          )
+        }
+        actions={
+          !showDoctors ? (
+            <div className="flex w-full min-w-0 flex-col gap-2 sm:min-w-[18rem] lg:min-w-[20rem] xl:min-w-[32rem] xl:flex-row xl:items-center">
+              <div className="relative min-w-0 flex-1">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+                <input
+                  type="text"
+                  placeholder="Search name, city, address..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                  className={`${portalInputClass} py-2 pl-9 text-sm`}
+                />
+              </div>
+              <select
+                value={selectedFacilityType}
+                onChange={(e) => setSelectedFacilityType(e.target.value)}
+                className={`${portalInputClass} w-full shrink-0 py-2 text-sm xl:w-48`}
+              >
+                <option value="">All facility types</option>
+                <option value="hospital">Hospitals</option>
+                <option value="clinic">Clinics</option>
+                <option value="diagnostic_center">Radiology / diagnostic</option>
+                <option value="pharmacy">Pharmacies</option>
+                <option value="other">Other</option>
+              </select>
+              <button
+                type="button"
+                onClick={handleSearch}
+                className="portal-accent-button shrink-0 rounded-lg px-5 py-2 text-sm font-bold whitespace-nowrap"
+              >
+                Search
+              </button>
+            </div>
+          ) : undefined
+        }
+      />
 
       {/* Results Section */}
       {loading && !showDoctors ? (
@@ -148,32 +207,14 @@ const Facilities: React.FC = () => {
           <p className="mt-4 text-gray-600">Loading facilities...</p>
         </div>
       ) : showDoctors && selectedFacility ? (
-        /* Doctors View */
         <div>
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <button
-                onClick={() => {
-                  setShowDoctors(false);
-                  setSelectedFacility(null);
-                }}
-                className="text-blue-600 hover:text-blue-700 hover:underline font-medium mb-2 transition-all duration-200"
-              >
-                ← Back to Facilities
-              </button>
-              <h2 className="text-2xl font-bold text-gray-900">
-                Doctors at {facilities.find(f => f.facility_id === selectedFacility)?.name}
-              </h2>
-            </div>
-          </div>
-
           {loading ? (
             <div className="text-center py-12">
               <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
               <p className="mt-4 text-gray-600">Loading doctors...</p>
             </div>
           ) : doctors.length === 0 ? (
-            <div className="bg-white rounded-lg shadow-md hover:shadow-lg p-12 text-center transition-all duration-300">
+            <div className="premium-card hover:shadow-lg p-12 text-center transition-all duration-300">
               <Stethoscope className="mx-auto text-gray-400 mb-4" size={48} />
               <h3 className="text-xl font-semibold text-gray-900 mb-2">No doctors found</h3>
               <p className="text-gray-600">No doctors are available at this facility</p>
@@ -183,7 +224,7 @@ const Facilities: React.FC = () => {
               {doctors.map((doctor) => (
                 <div
                   key={doctor.doctor_id}
-                  className="bg-white rounded-lg shadow-md p-6 hover:shadow-xl hover:scale-[1.02] transition-all duration-300 flex flex-col h-full"
+                  className="premium-card p-6 hover:shadow-xl hover:scale-[1.02] transition-all duration-300 flex flex-col h-full"
                 >
                   <div className="flex-1">
                     <div className="flex items-start justify-between mb-4">
@@ -243,7 +284,7 @@ const Facilities: React.FC = () => {
           )}
         </div>
       ) : facilities.length === 0 ? (
-        <div className="bg-white rounded-lg shadow-md hover:shadow-lg p-12 text-center transition-all duration-300">
+        <div className="premium-card hover:shadow-lg p-12 text-center transition-all duration-300">
           <Building2 className="mx-auto text-gray-400 mb-4" size={48} />
           <h3 className="text-xl font-semibold text-gray-900 mb-2">No facilities found</h3>
           <p className="text-gray-600">Try adjusting your search criteria</p>
@@ -254,7 +295,7 @@ const Facilities: React.FC = () => {
           {facilities.map((facility) => (
             <div
               key={facility.facility_id}
-              className="bg-white rounded-lg shadow-md p-6 hover:shadow-xl hover:scale-[1.02] transition-all duration-300 flex flex-col h-full"
+              className="premium-card p-6 hover:shadow-xl hover:scale-[1.02] transition-all duration-300 flex flex-col h-full"
             >
               <div className="flex-1">
                 <div className="flex items-start justify-between mb-4">
@@ -353,7 +394,7 @@ const Facilities: React.FC = () => {
           ))}
         </div>
       )}
-    </div>
+    </PortalPageShell>
   );
 };
 

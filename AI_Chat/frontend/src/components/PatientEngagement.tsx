@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Calendar, FileText, Clock, ArrowUp, Bot, UserCircle, BrainCircuit, ChevronLeft, ChevronRight, X, Edit } from 'lucide-react';
+import { Calendar, FileText, Clock, ArrowUp, Bot, UserCircle, BrainCircuit, ChevronLeft, ChevronRight, X, Edit, RefreshCw } from 'lucide-react';
 import EditAppointmentModal from './general/EditAppointmentModal';
+import SegmentTabs from './ui/SegmentTabs';
 import { appointmentService, Appointment } from '../services/appointmentService';
 import { getAppointmentStatusColor, getAppointmentStatusContainer } from '../utils/appointmentStatusColors';
 import { getApiBaseUrl } from '../utils/apiBase';
@@ -88,9 +89,11 @@ interface Department {
 
 interface PatientEngagementProps {
   sessionId?: string | null;
+  forcedTab?: 'appointments' | 'book' | 'query';
+  hideTabs?: boolean;
 }
 
-const PatientEngagement: React.FC<PatientEngagementProps> = ({ sessionId }) => {
+const PatientEngagement: React.FC<PatientEngagementProps> = ({ sessionId, forcedTab, hideTabs = false }) => {
   const [query, setQuery] = useState('');
   const [queryMessages, setQueryMessages] = useState<QueryMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -121,7 +124,7 @@ const PatientEngagement: React.FC<PatientEngagementProps> = ({ sessionId }) => {
   const [selectedDate, setSelectedDate] = useState<string>('');
   const [dateRangeOffset, setDateRangeOffset] = useState<number>(0);
   const [bookingSuccess, setBookingSuccess] = useState(false);
-  const [activeTab, setActiveTab] = useState<'appointments' | 'book' | 'query'>('appointments');
+  const [activeTab, setActiveTab] = useState<'appointments' | 'book' | 'query'>(forcedTab ?? 'appointments');
   const [appointmentsSortBy, setAppointmentsSortBy] = useState<'alphabetical' | 'time'>('time');
   const [editingAppointment, setEditingAppointment] = useState<DailyAppointment | null>(null);
   const [updatingStatus, setUpdatingStatus] = useState<number | null>(null);
@@ -802,350 +805,573 @@ const PatientEngagement: React.FC<PatientEngagementProps> = ({ sessionId }) => {
     { id: 'query' as const, label: 'Query Results', icon: FileText },
   ];
 
-  return (
-    <div className="flex flex-col h-full w-full min-w-0 bg-gray-50 overflow-hidden">
-      {/* Tab Bar - below header */}
-      <div className="flex-shrink-0 border-b border-gray-200 bg-white px-4">
-        <nav className="flex gap-1" aria-label="Tabs">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`
-                flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors
-                ${activeTab === tab.id
-                  ? 'border-blue-600 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }
-              `}
-            >
-              <tab.icon className="h-4 w-4" />
-              {tab.label}
-            </button>
-          ))}
-        </nav>
-      </div>
+  const displayTab = forcedTab ?? activeTab;
+  const isFrontdesk = hideTabs;
 
-      <div className="flex-1 flex gap-6 p-4 min-h-0 min-w-0 overflow-hidden w-full">
-        {/* Tab Content */}
-        {activeTab === 'appointments' && (
-          <div className="flex-1 min-w-0 flex flex-col">
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 flex-1 overflow-y-auto">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-sm font-semibold text-gray-900 flex items-center">
-                  <Clock className="h-4 w-4 mr-2 text-blue-600" />
-                  Appointments
-                </h2>
-                {!loadingAppointments && dailyAppointments.length > 0 && (
-                  <label className="flex items-center gap-2 text-xs font-medium text-gray-600">
-                    Sort by
-                    <select
-                      value={appointmentsSortBy}
-                      onChange={(e) => setAppointmentsSortBy(e.target.value as 'alphabetical' | 'time')}
-                      className="border border-gray-300 rounded-md px-2 py-1.5 focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                    >
-                      <option value="time">Time</option>
-                      <option value="alphabetical">Department</option>
-                    </select>
-                  </label>
-                )}
-              </div>
-              {loadingAppointments ? (
-                <div className="flex items-center justify-center h-40">
-                  <div className="text-center">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
-                    <p className="text-gray-600 text-sm">Loading appointments...</p>
-                  </div>
-                </div>
-              ) : (
-                <AppointmentsByDayColumns
-                  appointments={dailyAppointments}
-                  sortBy={appointmentsSortBy}
-                  onEdit={handleEditAppointment}
-                  onStatusChange={handleStatusChange}
-                  updatingStatus={updatingStatus}
+  useEffect(() => {
+    if (forcedTab) setActiveTab(forcedTab);
+  }, [forcedTab]);
+
+  const todayStr = new Date().toISOString().split('T')[0];
+  const tomorrowStr = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+  const todayAppointmentCount = dailyAppointments.filter(
+    (a) =>
+      (a.appointmentDateRaw || '').startsWith(todayStr) &&
+      a.status !== 'completed' &&
+      a.status !== 'cancelled'
+  ).length;
+  const tomorrowAppointmentCount = dailyAppointments.filter((a) =>
+    (a.appointmentDateRaw || '').startsWith(tomorrowStr)
+  ).length;
+  const todayUpcomingAppointments = dailyAppointments
+    .filter(
+      (a) =>
+        (a.appointmentDateRaw || '').startsWith(todayStr) &&
+        a.status !== 'completed' &&
+        a.status !== 'cancelled'
+    )
+    .sort((a, b) => (a.appointmentTimeRaw || '').localeCompare(b.appointmentTimeRaw || ''))
+    .slice(0, 6);
+
+  const renderBookAppointmentFields = (variant: 'default' | 'frontdesk') => {
+    const labelCls =
+      variant === 'frontdesk'
+        ? 'mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400'
+        : 'mb-1 block text-xs font-medium text-gray-700';
+    const fieldCls =
+      variant === 'frontdesk'
+        ? 'form-field w-full text-sm'
+        : 'w-full rounded-md border border-gray-300 px-2 py-1.5 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500';
+    const slotBtnCls =
+      variant === 'frontdesk'
+        ? 'form-field flex w-full items-center justify-between text-sm hover:bg-slate-800/60 disabled:cursor-not-allowed disabled:opacity-50'
+        : 'flex w-full items-center justify-between rounded-md border border-gray-300 bg-white px-2 py-1.5 text-xs hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100';
+    const submitCls =
+      variant === 'frontdesk'
+        ? `portal-accent-button mt-3 flex w-full items-center justify-center rounded-xl py-2.5 text-sm font-semibold ${
+            bookingSuccess
+              ? 'bg-emerald-600 hover:bg-emerald-600'
+              : isSubmittingAppointment || conflictError
+                ? 'cursor-not-allowed opacity-50'
+                : ''
+          }`
+        : `mt-2 flex w-full items-center justify-center rounded-md px-3 py-2 text-xs font-medium transition-colors ${
+            bookingSuccess
+              ? 'cursor-default bg-green-600 text-white'
+              : isSubmittingAppointment || conflictError
+                ? 'cursor-not-allowed bg-gray-400 text-white'
+                : 'bg-blue-600 text-white hover:bg-blue-700'
+          }`;
+    const gridGap = variant === 'frontdesk' ? 'gap-4' : 'gap-2';
+    const stackGap = variant === 'frontdesk' ? 'space-y-4' : 'space-y-2';
+
+    return (
+      <div className={stackGap}>
+        <div className={variant === 'frontdesk' ? 'grid gap-4 sm:grid-cols-2' : ''}>
+          <div>
+            <label className={labelCls}>
+              Patient Name <span className="text-red-400">*</span>
+            </label>
+            <input
+              type="text"
+              value={appointmentFormData.patientName}
+              onChange={(e) => handleAppointmentFormChange('patientName', e.target.value)}
+              className={fieldCls}
+              placeholder="Enter patient name"
+            />
+          </div>
+          <div>
+            <label className={labelCls}>
+              Phone Number <span className="text-red-400">*</span>
+            </label>
+            <input
+              type="tel"
+              value={appointmentFormData.patientPhone}
+              onChange={(e) => handleAppointmentFormChange('patientPhone', e.target.value)}
+              className={fieldCls}
+              placeholder="Enter phone number"
+            />
+          </div>
+        </div>
+        <div className={variant === 'frontdesk' ? 'grid gap-4 sm:grid-cols-2' : ''}>
+          <div className={variant === 'frontdesk' ? '' : ''}>
+            <label className={labelCls}>Email (Optional)</label>
+            <input
+              type="email"
+              value={appointmentFormData.patientEmail}
+              onChange={(e) => handleAppointmentFormChange('patientEmail', e.target.value)}
+              className={fieldCls}
+              placeholder="Enter email"
+            />
+          </div>
+          {variant === 'frontdesk' && (
+            <div className={`grid grid-cols-2 ${gridGap}`}>
+              <div>
+                <label className={labelCls}>Age</label>
+                <input
+                  type="number"
+                  value={appointmentFormData.age}
+                  onChange={(e) => handleAppointmentFormChange('age', e.target.value)}
+                  className={fieldCls}
+                  placeholder="Age"
+                  min="0"
+                  max="150"
                 />
-              )}
+              </div>
+              <div>
+                <label className={labelCls}>Gender</label>
+                <select
+                  value={appointmentFormData.gender}
+                  onChange={(e) => handleAppointmentFormChange('gender', e.target.value)}
+                  className={fieldCls}
+                >
+                  <option value="">Select</option>
+                  <option value="male">Male</option>
+                  <option value="female">Female</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+            </div>
+          )}
+        </div>
+        {variant === 'default' && (
+          <div className={`grid grid-cols-2 ${gridGap}`}>
+            <div>
+              <label className={labelCls}>Age</label>
+              <input
+                type="number"
+                value={appointmentFormData.age}
+                onChange={(e) => handleAppointmentFormChange('age', e.target.value)}
+                className={fieldCls}
+                placeholder="Age"
+                min="0"
+                max="150"
+              />
+            </div>
+            <div>
+              <label className={labelCls}>Gender</label>
+              <select
+                value={appointmentFormData.gender}
+                onChange={(e) => handleAppointmentFormChange('gender', e.target.value)}
+                className={fieldCls}
+              >
+                <option value="">Select</option>
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+                <option value="other">Other</option>
+              </select>
             </div>
           </div>
         )}
+        <div className={`grid grid-cols-2 ${gridGap}`}>
+          <div>
+            <label className={labelCls}>Weight (kg)</label>
+            <input
+              type="number"
+              value={appointmentFormData.weight}
+              onChange={(e) => handleAppointmentFormChange('weight', e.target.value)}
+              className={fieldCls}
+              placeholder="Weight"
+              min="0"
+              max="500"
+              step="0.1"
+            />
+          </div>
+          <div>
+            <label className={labelCls}>
+              Date & Time <span className="text-red-400">*</span>
+            </label>
+            <button type="button" onClick={fetchAvailableSlots} disabled={!appointmentFormData.doctorId || loadingSlots} className={slotBtnCls}>
+              <span className="truncate text-slate-200">
+                {appointmentFormData.appointmentDate && appointmentFormData.appointmentTime
+                  ? `${new Date(appointmentFormData.appointmentDate).toLocaleDateString()} at ${new Date(`2000-01-01T${appointmentFormData.appointmentTime}`).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                  : appointmentFormData.doctorId
+                    ? 'Click to view slots'
+                    : 'Select doctor first'}
+              </span>
+              <Calendar className="h-4 w-4 shrink-0 text-slate-400" />
+            </button>
+            {loadingSlots && <p className="mt-1 text-xs text-slate-500">Loading slots…</p>}
+            {appointmentFormData.appointmentDate && appointmentFormData.appointmentTime && (
+              <button
+                type="button"
+                onClick={() => {
+                  setAppointmentFormData((prev) => ({
+                    ...prev,
+                    appointmentDate: '',
+                    appointmentTime: '',
+                  }));
+                  setConflictError('');
+                }}
+                className="mt-1 text-xs text-red-400 hover:text-red-300"
+              >
+                Clear selection
+              </button>
+            )}
+          </div>
+        </div>
+        <div className={`grid grid-cols-2 ${gridGap}`}>
+          <div>
+            <label className={labelCls}>
+              Doctor <span className="text-red-400">*</span>
+            </label>
+            <select
+              value={appointmentFormData.doctorId}
+              onChange={(e) => handleAppointmentFormChange('doctorId', e.target.value)}
+              className={fieldCls}
+              disabled={loadingDoctors}
+            >
+              <option value="">Select a doctor</option>
+              {doctors.map((doctor) => (
+                <option key={doctor.id} value={String(doctor.id)}>
+                  {doctor.name} - {doctor.department_name}
+                </option>
+              ))}
+            </select>
+            {loadingDoctors && <p className="mt-1 text-xs text-slate-500">Loading doctors…</p>}
+          </div>
+          <div>
+            <label className={labelCls}>
+              Department <span className="text-red-400">*</span>
+            </label>
+            <select
+              value={appointmentFormData.departmentId}
+              onChange={(e) => handleAppointmentFormChange('departmentId', e.target.value)}
+              className={fieldCls}
+              disabled={loadingDepartments}
+            >
+              <option value="">Select a department</option>
+              {departments.map((dept) => (
+                <option key={dept.id} value={String(dept.id)}>
+                  {dept.name}
+                </option>
+              ))}
+            </select>
+            {loadingDepartments && <p className="mt-1 text-xs text-slate-500">Loading departments…</p>}
+          </div>
+        </div>
+        {conflictError && (
+          <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-3">
+            <p className="text-sm text-red-300">{conflictError}</p>
+          </div>
+        )}
+        <div>
+          <label className={labelCls}>Reason (Optional)</label>
+          <textarea
+            value={appointmentFormData.reason}
+            onChange={(e) => handleAppointmentFormChange('reason', e.target.value)}
+            className={`${fieldCls} resize-none`}
+            placeholder="Enter appointment reason"
+            rows={variant === 'frontdesk' ? 3 : 2}
+          />
+        </div>
+        <button
+          onClick={handleAppointmentSubmit}
+          disabled={isSubmittingAppointment || !!conflictError || bookingSuccess}
+          className={submitCls}
+        >
+          {bookingSuccess ? (
+            <>
+              <svg className="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              Booked successfully
+            </>
+          ) : isSubmittingAppointment ? (
+            <>
+              <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-b-transparent" />
+              Booking…
+            </>
+          ) : (
+            <>
+              <Calendar className="mr-2 h-4 w-4" />
+              Book Appointment
+            </>
+          )}
+        </button>
+      </div>
+    );
+  };
 
-        {activeTab === 'book' && (
-          <div className="flex-1 min-w-0 grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Column 1: Book Appointment Form */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col min-h-0 overflow-hidden">
-              <div className="px-4 pt-4 pb-2 flex-shrink-0">
-                <h2 className="text-sm font-semibold text-gray-900 flex items-center">
-                  <Calendar className="h-4 w-4 mr-2 text-blue-600" />
-                  Book Appointment
-                </h2>
-              </div>
-            <div className="flex-1 overflow-y-auto hide-scrollbar px-3 pb-3 pt-2">
-            <div className="space-y-2">
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  Patient Name <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={appointmentFormData.patientName}
-                  onChange={(e) => handleAppointmentFormChange('patientName', e.target.value)}
-                  className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  placeholder="Enter patient name"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  Phone Number <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="tel"
-                  value={appointmentFormData.patientPhone}
-                  onChange={(e) => handleAppointmentFormChange('patientPhone', e.target.value)}
-                  className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  placeholder="Enter phone number"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  Email (Optional)
-                </label>
-                <input
-                  type="email"
-                  value={appointmentFormData.patientEmail}
-                  onChange={(e) => handleAppointmentFormChange('patientEmail', e.target.value)}
-                  className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  placeholder="Enter email"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
-                    Age
-                  </label>
-                  <input
-                    type="number"
-                    value={appointmentFormData.age}
-                    onChange={(e) => handleAppointmentFormChange('age', e.target.value)}
-                    className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    placeholder="Age"
-                    min="0"
-                    max="150"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
-                    Gender
-                  </label>
-                  <select
-                    value={appointmentFormData.gender}
-                    onChange={(e) => handleAppointmentFormChange('gender', e.target.value)}
-                    className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  >
-                    <option value="">Select</option>
-                    <option value="male">Male</option>
-                    <option value="female">Female</option>
-                    <option value="other">Other</option>
-                  </select>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
-                    Weight (kg)
-                  </label>
-                  <input
-                    type="number"
-                    value={appointmentFormData.weight}
-                    onChange={(e) => handleAppointmentFormChange('weight', e.target.value)}
-                    className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    placeholder="Weight"
-                    min="0"
-                    max="500"
-                    step="0.1"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
-                    Date & Time <span className="text-red-500">*</span>
-                  </label>
-                  <button
-                    type="button"
-                    onClick={fetchAvailableSlots}
-                    disabled={!appointmentFormData.doctorId || loadingSlots}
-                    className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white hover:bg-gray-50 disabled:bg-gray-100 disabled:cursor-not-allowed flex items-center justify-between"
-                  >
-                    <span className="text-gray-700 truncate">
-                      {appointmentFormData.appointmentDate && appointmentFormData.appointmentTime
-                        ? `${new Date(appointmentFormData.appointmentDate).toLocaleDateString()} at ${new Date(`2000-01-01T${appointmentFormData.appointmentTime}`).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-                        : appointmentFormData.doctorId
-                          ? 'Click to view slots'
-                          : 'Select doctor first'}
-                    </span>
-                    <Calendar className="h-3 w-3 text-gray-500 flex-shrink-0" />
-                  </button>
-                  {loadingSlots && (
-                    <p className="text-xs text-gray-500 mt-0.5">Loading...</p>
-                  )}
-                  {appointmentFormData.appointmentDate && appointmentFormData.appointmentTime && (
+  return (
+    <div className="flex h-full min-w-0 w-full flex-col overflow-hidden">
+      {!hideTabs && (
+        <div className="shrink-0 border-b border-slate-200/80 bg-white/90 px-4 py-3">
+          <SegmentTabs
+            tabs={tabs}
+            activeTab={displayTab}
+            onChange={(id) => setActiveTab(id as 'appointments' | 'book' | 'query')}
+          />
+        </div>
+      )}
+
+      <div
+        className={`flex min-h-0 min-w-0 w-full flex-1 overflow-hidden ${
+          isFrontdesk ? '' : 'gap-6 p-4'
+        }`}
+      >
+        {/* Tab Content */}
+        {displayTab === 'appointments' && (
+          <div
+            className={`flex min-h-0 min-w-0 flex-1 flex-col ${
+              isFrontdesk ? 'gap-4 overflow-hidden p-4 sm:p-6' : ''
+            }`}
+          >
+            {isFrontdesk ? (
+              <>
+                <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h2 className="flex items-center gap-2 text-xl font-bold text-slate-100">
+                      <Clock className="h-5 w-5 text-amber-400" />
+                      Appointments
+                    </h2>
+                    <p className="mt-0.5 text-sm text-slate-400">Today, tomorrow, and completed visits</p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {!loadingAppointments && dailyAppointments.length > 0 && (
+                      <label className="flex items-center gap-2 text-xs font-medium text-slate-400">
+                        Sort by
+                        <select
+                          value={appointmentsSortBy}
+                          onChange={(e) =>
+                            setAppointmentsSortBy(e.target.value as 'alphabetical' | 'time')
+                          }
+                          className="form-field min-w-[8rem] py-1.5 text-sm"
+                        >
+                          <option value="time">Time</option>
+                          <option value="alphabetical">Department</option>
+                        </select>
+                      </label>
+                    )}
                     <button
                       type="button"
-                      onClick={() => {
-                        setAppointmentFormData(prev => ({
-                          ...prev,
-                          appointmentDate: '',
-                          appointmentTime: ''
-                        }));
-                        setConflictError('');
-                      }}
-                      className="text-xs text-red-600 hover:text-red-800 mt-1"
+                      onClick={() => fetchDailyAppointments()}
+                      disabled={loadingAppointments}
+                      className="inline-flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-200 transition hover:bg-amber-500/20 disabled:opacity-50"
                     >
-                      Clear
+                      <RefreshCw className={`h-3.5 w-3.5 ${loadingAppointments ? 'animate-spin' : ''}`} />
+                      Refresh
                     </button>
-                  )}
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
-                    Doctor <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={appointmentFormData.doctorId}
-                    onChange={(e) => handleAppointmentFormChange('doctorId', e.target.value)}
-                    className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    disabled={loadingDoctors}
-                  >
-                    <option value="">Select a doctor</option>
-                    {doctors.map((doctor) => (
-                      <option key={doctor.id} value={String(doctor.id)}>
-                        {doctor.name} - {doctor.department_name}
-                      </option>
-                    ))}
-                  </select>
-                  {loadingDoctors && (
-                    <p className="text-xs text-gray-500 mt-0.5">Loading...</p>
-                  )}
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
-                    Department <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={appointmentFormData.departmentId}
-                    onChange={(e) => handleAppointmentFormChange('departmentId', e.target.value)}
-                    className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    disabled={loadingDepartments}
-                  >
-                    <option value="">Select a department</option>
-                    {departments.map((dept) => (
-                      <option key={dept.id} value={String(dept.id)}>
-                        {dept.name}
-                      </option>
-                    ))}
-                  </select>
-                  {loadingDepartments && (
-                    <p className="text-xs text-gray-500 mt-0.5">Loading...</p>
-                  )}
-                </div>
-              </div>
-              {conflictError && (
-                <div className="bg-red-50 border border-red-200 rounded-md p-2">
-                  <p className="text-xs text-red-700">{conflictError}</p>
-                </div>
-              )}
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  Reason (Optional)
-                </label>
-                <textarea
-                  value={appointmentFormData.reason}
-                  onChange={(e) => handleAppointmentFormChange('reason', e.target.value)}
-                  className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
-                  placeholder="Enter appointment reason"
-                  rows={2}
-                />
-              </div>
-              <button
-                onClick={handleAppointmentSubmit}
-                disabled={isSubmittingAppointment || !!conflictError || bookingSuccess}
-                className={`w-full py-2 px-3 rounded-md transition-colors flex items-center justify-center text-xs font-medium mt-2 ${
-                  bookingSuccess 
-                    ? 'bg-green-600 text-white cursor-default' 
-                    : isSubmittingAppointment || conflictError
-                    ? 'bg-gray-400 text-white cursor-not-allowed'
-                    : 'bg-blue-600 text-white hover:bg-blue-700'
-                }`}
-              >
-                {bookingSuccess ? (
-                  <>
-                    <svg className="h-3 w-3 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                    Done!
-                  </>
-                ) : isSubmittingAppointment ? (
-                  <>
-                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white mr-2"></div>
-                    Booking...
-                  </>
-                ) : (
-                  <>
-                    <Calendar className="h-3 w-3 mr-1.5" />
-                    Book Appointment
-                  </>
-                )}
-              </button>
-            </div>
-            </div>
-            </div>
-
-            {/* Column 2: Quick Actions / Today's Summary */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col min-h-0 overflow-hidden">
-              <div className="px-4 pt-4 pb-2 flex-shrink-0">
-                <h2 className="text-sm font-semibold text-gray-900 flex items-center">
-                  <Clock className="h-4 w-4 mr-2 text-amber-600" />
-                  Today&apos;s Summary
-                </h2>
-              </div>
-              <div className="flex-1 overflow-y-auto px-3 pb-3 pt-2">
-                <div className="space-y-2 text-xs text-gray-600">
-                  <p>Today: <span className="font-medium text-gray-900">{dailyAppointments.filter(a => (a.appointmentDateRaw || '').startsWith(new Date().toISOString().split('T')[0]) && a.status !== 'completed' && a.status !== 'cancelled').length}</span> appointments</p>
-                  <p>Tomorrow: <span className="font-medium text-gray-900">{dailyAppointments.filter(a => (a.appointmentDateRaw || '').startsWith(new Date(Date.now() + 86400000).toISOString().split('T')[0])).length}</span> appointments</p>
-                  <div className="pt-3 border-t border-gray-100">
-                    <p className="text-gray-500 text-[11px]">Switch to Appointments tab to view and manage the full schedule.</p>
                   </div>
                 </div>
-              </div>
-            </div>
-
-            {/* Column 3: Quick Tips / Doctors */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col min-h-0 overflow-hidden">
-              <div className="px-4 pt-4 pb-2 flex-shrink-0">
-                <h2 className="text-sm font-semibold text-gray-900 flex items-center">
-                  <UserCircle className="h-4 w-4 mr-2 text-green-600" />
-                  Quick Tips
-                </h2>
-              </div>
-              <div className="flex-1 overflow-y-auto px-3 pb-3 pt-2">
-                <ul className="space-y-2 text-xs text-gray-600 list-disc list-inside">
-                  <li>Select doctor to see available slots</li>
-                  <li>Use Query tab for natural language booking</li>
-                  <li>Check for conflicts before confirming</li>
-                  <li>Patient ID is auto-generated (PAT-YYMMDD-XXXX)</li>
-                </ul>
-                {doctors.length > 0 && (
-                  <div className="pt-3 mt-3 border-t border-gray-100">
-                    <p className="text-xs font-medium text-gray-700 mb-1">{doctors.length} doctors available</p>
-                    <p className="text-[11px] text-gray-500">Select from dropdown in the form</p>
+                <div className="premium-card flex min-h-0 flex-1 flex-col overflow-hidden p-4 sm:p-5">
+                  {loadingAppointments ? (
+                    <div className="flex flex-1 items-center justify-center">
+                      <div className="text-center">
+                        <div className="mx-auto mb-3 h-9 w-9 animate-spin rounded-full border-2 border-amber-400 border-b-transparent" />
+                        <p className="text-sm text-slate-400">Loading schedule…</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <AppointmentsByDayColumns
+                      variant="frontdesk"
+                      appointments={dailyAppointments}
+                      sortBy={appointmentsSortBy}
+                      onEdit={handleEditAppointment}
+                      onStatusChange={handleStatusChange}
+                      updatingStatus={updatingStatus}
+                    />
+                  )}
+                </div>
+              </>
+            ) : (
+              <div className="flex min-w-0 flex-1 flex-col">
+                <div className="flex-1 overflow-y-auto rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+                  <div className="mb-4 flex items-center justify-between">
+                    <h2 className="flex items-center text-sm font-semibold text-gray-900">
+                      <Clock className="mr-2 h-4 w-4 text-blue-600" />
+                      Appointments
+                    </h2>
+                    {!loadingAppointments && dailyAppointments.length > 0 && (
+                      <label className="flex items-center gap-2 text-xs font-medium text-gray-600">
+                        Sort by
+                        <select
+                          value={appointmentsSortBy}
+                          onChange={(e) =>
+                            setAppointmentsSortBy(e.target.value as 'alphabetical' | 'time')
+                          }
+                          className="rounded-md border border-gray-300 px-2 py-1.5 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                        >
+                          <option value="time">Time</option>
+                          <option value="alphabetical">Department</option>
+                        </select>
+                      </label>
+                    )}
                   </div>
-                )}
+                  {loadingAppointments ? (
+                    <div className="flex h-40 items-center justify-center">
+                      <div className="text-center">
+                        <div className="mx-auto mb-2 h-8 w-8 animate-spin rounded-full border-b-2 border-blue-600" />
+                        <p className="text-sm text-gray-600">Loading appointments...</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <AppointmentsByDayColumns
+                      appointments={dailyAppointments}
+                      sortBy={appointmentsSortBy}
+                      onEdit={handleEditAppointment}
+                      onStatusChange={handleStatusChange}
+                      updatingStatus={updatingStatus}
+                    />
+                  )}
+                </div>
               </div>
-            </div>
+            )}
           </div>
         )}
 
-        {activeTab === 'query' && (
+        {displayTab === 'book' && (
+          isFrontdesk ? (
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-hidden p-4 sm:p-6">
+              <div className="shrink-0">
+                <h2 className="flex items-center gap-2 text-xl font-bold text-slate-100">
+                  <Calendar className="h-5 w-5 text-amber-400" />
+                  Book Appointment
+                </h2>
+                <p className="mt-0.5 text-sm text-slate-400">
+                  Register walk-ins and schedule visits for patients
+                </p>
+              </div>
+              <div className="grid min-h-0 flex-1 gap-6 lg:grid-cols-12">
+                <section className="premium-card flex min-h-0 flex-col overflow-hidden lg:col-span-7 xl:col-span-8">
+                  <div className="shrink-0 border-b border-amber-500/20 px-5 py-4">
+                    <h3 className="text-sm font-semibold text-slate-100">Patient & visit details</h3>
+                  </div>
+                  <div className="hide-scrollbar flex-1 overflow-y-auto px-5 py-4">
+                    {renderBookAppointmentFields('frontdesk')}
+                  </div>
+                </section>
+                <aside className="flex min-h-0 flex-col gap-4 lg:col-span-5 xl:col-span-4">
+                  <div className="premium-card shrink-0 p-5">
+                    <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-100">
+                      <Clock className="h-4 w-4 text-amber-400" />
+                      Schedule overview
+                    </h3>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="rounded-xl border border-amber-500/25 bg-amber-500/10 px-3 py-3 text-center">
+                        <p className="text-2xl font-bold text-amber-300">{todayAppointmentCount}</p>
+                        <p className="text-xs text-slate-400">Today</p>
+                      </div>
+                      <div className="rounded-xl border border-slate-600/50 bg-slate-800/40 px-3 py-3 text-center">
+                        <p className="text-2xl font-bold text-slate-100">{tomorrowAppointmentCount}</p>
+                        <p className="text-xs text-slate-400">Tomorrow</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="premium-card flex min-h-0 flex-1 flex-col overflow-hidden">
+                    <div className="shrink-0 border-b border-amber-500/20 px-5 py-3">
+                      <h3 className="text-sm font-semibold text-slate-100">Upcoming today</h3>
+                    </div>
+                    <div className="hide-scrollbar flex-1 overflow-y-auto px-5 py-3">
+                      {todayUpcomingAppointments.length === 0 ? (
+                        <p className="py-6 text-center text-sm text-slate-500">No active appointments today</p>
+                      ) : (
+                        <ul className="space-y-2">
+                          {todayUpcomingAppointments.map((apt) => (
+                            <li
+                              key={apt.id}
+                              className="rounded-lg border border-slate-600/40 bg-slate-900/30 px-3 py-2.5"
+                            >
+                              <p className="truncate text-sm font-medium text-slate-100">{apt.patientName}</p>
+                              <p className="mt-0.5 text-xs text-slate-400">
+                                {apt.appointmentTime} · {apt.doctorName}
+                              </p>
+                              <p className="text-xs text-amber-400/90">{apt.department}</p>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  </div>
+                  {doctors.length > 0 && (
+                    <div className="premium-card max-h-48 shrink-0 overflow-hidden">
+                      <div className="border-b border-amber-500/20 px-5 py-3">
+                        <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-100">
+                          <UserCircle className="h-4 w-4 text-amber-400" />
+                          {doctors.length} doctors on duty
+                        </h3>
+                      </div>
+                      <ul className="hide-scrollbar max-h-32 overflow-y-auto px-5 py-2 text-xs text-slate-400">
+                        {doctors.slice(0, 8).map((d) => (
+                          <li key={d.id} className="border-b border-slate-700/40 py-1.5 last:border-0">
+                            <span className="text-slate-200">{d.name}</span>
+                            <span className="text-slate-500"> — {d.department_name}</span>
+                          </li>
+                        ))}
+                        {doctors.length > 8 && (
+                          <li className="py-1.5 text-slate-500">+{doctors.length - 8} more</li>
+                        )}
+                      </ul>
+                    </div>
+                  )}
+                </aside>
+              </div>
+            </div>
+          ) : (
+            <div className="grid min-w-0 flex-1 grid-cols-1 gap-4 md:grid-cols-3">
+              <div className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+                <div className="flex-shrink-0 px-4 pb-2 pt-4">
+                  <h2 className="flex items-center text-sm font-semibold text-gray-900">
+                    <Calendar className="mr-2 h-4 w-4 text-blue-600" />
+                    Book Appointment
+                  </h2>
+                </div>
+                <div className="hide-scrollbar flex-1 overflow-y-auto px-3 pb-3 pt-2">
+                  {renderBookAppointmentFields('default')}
+                </div>
+              </div>
+              <div className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+                <div className="flex-shrink-0 px-4 pb-2 pt-4">
+                  <h2 className="flex items-center text-sm font-semibold text-gray-900">
+                    <Clock className="mr-2 h-4 w-4 text-amber-600" />
+                    Today&apos;s Summary
+                  </h2>
+                </div>
+                <div className="flex-1 overflow-y-auto px-3 pb-3 pt-2">
+                  <div className="space-y-2 text-xs text-gray-600">
+                    <p>
+                      Today:{' '}
+                      <span className="font-medium text-gray-900">{todayAppointmentCount}</span> appointments
+                    </p>
+                    <p>
+                      Tomorrow:{' '}
+                      <span className="font-medium text-gray-900">{tomorrowAppointmentCount}</span> appointments
+                    </p>
+                    <div className="border-t border-gray-100 pt-3">
+                      <p className="text-[11px] text-gray-500">
+                        Switch to Appointments tab to view and manage the full schedule.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+                <div className="flex-shrink-0 px-4 pb-2 pt-4">
+                  <h2 className="flex items-center text-sm font-semibold text-gray-900">
+                    <UserCircle className="mr-2 h-4 w-4 text-green-600" />
+                    Quick Tips
+                  </h2>
+                </div>
+                <div className="flex-1 overflow-y-auto px-3 pb-3 pt-2">
+                  <ul className="list-inside list-disc space-y-2 text-xs text-gray-600">
+                    <li>Select doctor to see available slots</li>
+                    <li>Use Query tab for natural language booking</li>
+                    <li>Check for conflicts before confirming</li>
+                    <li>Patient ID is auto-generated (PAT-YYMMDD-XXXX)</li>
+                  </ul>
+                  {doctors.length > 0 && (
+                    <div className="mt-3 border-t border-gray-100 pt-3">
+                      <p className="mb-1 text-xs font-medium text-gray-700">{doctors.length} doctors available</p>
+                      <p className="text-[11px] text-gray-500">Select from dropdown in the form</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )
+        )}
+
+        {displayTab === 'query' && (
         <div className="flex-1 min-w-0 flex flex-col min-h-0">
           {/* Results Container */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex-1 overflow-y-auto overflow-x-hidden hide-scrollbar">
@@ -1569,7 +1795,7 @@ const PatientEngagement: React.FC<PatientEngagementProps> = ({ sessionId }) => {
               <button
                 type="submit"
                 disabled={!query.trim() || isLoading}
-                className="absolute right-3 bottom-3 p-1.5 rounded-full bg-orange-500 text-white disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors hover:bg-orange-600"
+                className="portal-accent-button absolute right-3 bottom-3 rounded-full p-1.5 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 <ArrowUp size={20} />
               </button>
@@ -1581,12 +1807,24 @@ const PatientEngagement: React.FC<PatientEngagementProps> = ({ sessionId }) => {
 
       {/* Slot Picker Modal */}
       {showSlotPicker && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div
+            className={`flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl shadow-xl ${
+              isFrontdesk ? 'premium-card border border-amber-500/30' : 'bg-white'
+            }`}
+          >
             {/* Modal Header */}
-            <div className="flex items-center justify-between p-4 border-b border-gray-200">
-              <h2 className="text-lg font-semibold text-gray-900 flex items-center">
-                <Calendar className="h-5 w-5 mr-2 text-blue-600" />
+            <div
+              className={`flex items-center justify-between p-4 ${
+                isFrontdesk ? 'border-b border-amber-500/20' : 'border-b border-gray-200'
+              }`}
+            >
+              <h2
+                className={`flex items-center text-lg font-semibold ${
+                  isFrontdesk ? 'text-slate-100' : 'text-gray-900'
+                }`}
+              >
+                <Calendar className={`mr-2 h-5 w-5 ${isFrontdesk ? 'text-amber-400' : 'text-blue-600'}`} />
                 Select Available Time Slot
               </h2>
               <button
@@ -1767,11 +2005,20 @@ const PatientEngagement: React.FC<PatientEngagementProps> = ({ sessionId }) => {
 interface AppointmentsByDayColumnsProps {
   appointments: DailyAppointment[];
   sortBy: 'alphabetical' | 'time';
+  variant?: 'default' | 'frontdesk';
   onEdit?: (apt: DailyAppointment) => void;
   onStatusChange?: (appointmentId: number, newStatus: string) => void;
   updatingStatus?: number | null;
 }
-const AppointmentsByDayColumns: React.FC<AppointmentsByDayColumnsProps> = ({ appointments, sortBy, onEdit, onStatusChange, updatingStatus }) => {
+const AppointmentsByDayColumns: React.FC<AppointmentsByDayColumnsProps> = ({
+  appointments,
+  sortBy,
+  variant = 'default',
+  onEdit,
+  onStatusChange,
+  updatingStatus,
+}) => {
+  const isFrontdeskCol = variant === 'frontdesk';
   const todayStr = new Date().toISOString().split('T')[0];
   const tomorrowStr = new Date(Date.now() + 86400000).toISOString().split('T')[0];
 
@@ -1840,11 +2087,29 @@ const AppointmentsByDayColumns: React.FC<AppointmentsByDayColumnsProps> = ({ app
     };
 
     return (
-      <div className="flex-1 min-w-0 border border-gray-200 rounded-lg overflow-hidden">
-        <div className="bg-gray-50 px-3 py-2 border-b border-gray-200">
-          <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
+      <div
+        className={`flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl ${
+          isFrontdeskCol
+            ? 'border border-amber-500/25 bg-slate-900/35'
+            : 'flex-1 rounded-lg border border-gray-200'
+        }`}
+      >
+        <div
+          className={`shrink-0 px-4 py-3 ${
+            isFrontdeskCol
+              ? 'border-b border-amber-500/20 bg-amber-500/10'
+              : 'border-b border-gray-200 bg-gray-50 px-3 py-2'
+          }`}
+        >
+          <h3 className={`text-sm font-semibold ${isFrontdeskCol ? 'text-amber-200' : 'text-gray-900'}`}>
+            {title}
+          </h3>
         </div>
-        <div className="p-3 overflow-y-auto max-h-[500px] space-y-4">
+        <div
+          className={`flex-1 space-y-4 overflow-y-auto p-3 sm:p-4 ${
+            isFrontdeskCol ? 'min-h-[10rem]' : 'max-h-[500px]'
+          }`}
+        >
           {departments.length === 0 ? (
             <p className="text-sm text-gray-500 text-center py-4">No appointments</p>
           ) : (
@@ -1938,7 +2203,13 @@ const AppointmentsByDayColumns: React.FC<AppointmentsByDayColumnsProps> = ({ app
   }
 
   return (
-    <div className="grid grid-cols-3 gap-4 min-h-[200px]">
+    <div
+      className={
+        isFrontdeskCol
+          ? 'flex min-h-0 flex-1 flex-col gap-4 lg:flex-row'
+          : 'grid min-h-[200px] grid-cols-3 gap-4'
+      }
+    >
       <DayColumn title="Today" list={todayAppointments} sortBy={sortBy} />
       <DayColumn title="Tomorrow" list={tomorrowAppointments} sortBy={sortBy} />
       <DayColumn title="Completed" list={completedAppointments} sortBy={sortBy} />

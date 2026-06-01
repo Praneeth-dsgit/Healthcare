@@ -6,6 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { Upload, Search, FileText, X, CheckCircle, FileEdit, List, Calendar, User, Download } from 'lucide-react';
 import PrescriptionTemplate from './PrescriptionTemplate';
+import SegmentTabs from '../ui/SegmentTabs';
 import { doctorService } from '../../services/doctorService';
 import { getAuthHeaders, authenticatedFetch } from '../../services/authService';
 import { getApiBaseUrl, getApiRoot } from '../../utils/apiBase';
@@ -182,95 +183,57 @@ const PrescriptionUpload: React.FC<PrescriptionUploadProps> = ({ initialPatientI
     }
   };
 
-  return (
-    <div className="space-y-6">
-      {/* Tabs */}
-      <div className="bg-white rounded-lg shadow">
-        <div className="border-b border-gray-200">
-          <nav className="flex" aria-label="Tabs">
-            <button
-              onClick={() => setActiveTab('template')}
-              className={`
-                flex-1 flex items-center justify-center space-x-2 py-4 px-6 border-b-2 font-medium text-sm transition-colors
-                ${
-                  activeTab === 'template'
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }
-              `}
-            >
-              <FileEdit size={18} />
-              <span>Create Prescription</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('upload')}
-              className={`
-                flex-1 flex items-center justify-center space-x-2 py-4 px-6 border-b-2 font-medium text-sm transition-colors
-                ${
-                  activeTab === 'upload'
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }
-              `}
-            >
-              <Upload size={18} />
-              <span>Upload File</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('list')}
-              className={`
-                flex-1 flex items-center justify-center space-x-2 py-4 px-6 border-b-2 font-medium text-sm transition-colors
-                ${
-                  activeTab === 'list'
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }
-              `}
-            >
-              <List size={18} />
-              <span>My Prescriptions</span>
-            </button>
-          </nav>
-        </div>
-      </div>
+  const prescriptionTabs = [
+    { id: 'template', label: 'Create Prescription', icon: FileEdit },
+    { id: 'upload', label: 'Upload File', icon: Upload },
+    { id: 'list', label: 'My Prescriptions', icon: List },
+  ];
 
-      {/* Tab Content */}
+  return (
+    <div className="space-y-5">
+      <SegmentTabs
+        tabs={prescriptionTabs}
+        activeTab={activeTab}
+        onChange={(id) => setActiveTab(id as 'template' | 'upload' | 'list')}
+        className="w-full max-w-2xl"
+      />
+
       {activeTab === 'template' ? (
         <PrescriptionTemplate 
           onPrescriptionSaved={loadPrescriptions}
           initialPatientId={initialPatientId}
         />
       ) : activeTab === 'list' ? (
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-6">My Prescribed Prescriptions</h2>
+        <div className="space-y-4">
+          <h2 className="text-xl font-semibold text-slate-100">My Prescribed Prescriptions</h2>
           
           {loadingPrescriptions ? (
             <div className="flex items-center justify-center py-12">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+              <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-sky-400" />
             </div>
           ) : prescriptions.length === 0 ? (
-            <div className="text-center py-12">
-              <FileText className="mx-auto text-gray-400" size={48} />
-              <p className="mt-4 text-gray-600">No prescriptions found</p>
-              <p className="text-sm text-gray-500 mt-2">Prescriptions you create will appear here</p>
+            <div className="py-12 text-center">
+              <FileText className="mx-auto text-slate-500" size={48} />
+              <p className="mt-4 text-slate-400">No prescriptions found</p>
+              <p className="mt-2 text-sm text-slate-500">Prescriptions you create will appear here</p>
             </div>
           ) : (
             <div className="space-y-4">
               {prescriptions.map((prescription) => (
                 <div
                   key={prescription.record_id}
-                  className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
+                  className="rounded-xl border border-slate-700/50 bg-slate-900/30 p-4 transition-colors hover:border-sky-500/30"
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
-                      <div className="flex items-center space-x-3 mb-2">
-                        <FileText className="text-blue-600" size={20} />
-                        <h3 className="text-lg font-semibold text-gray-900">{prescription.title}</h3>
+                      <div className="mb-2 flex items-center gap-3">
+                        <FileText className="text-sky-300" size={20} />
+                        <h3 className="text-lg font-semibold text-slate-100">{prescription.title}</h3>
                       </div>
                       
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3 text-sm text-gray-600">
+                      <div className="mt-3 grid grid-cols-1 gap-3 text-sm text-slate-400 md:grid-cols-2">
                         <div className="flex items-center space-x-2">
-                          <User size={16} className="text-gray-400" />
+                          <User size={16} className="text-slate-500" />
                           <span>
                             {prescription.family_member_first_name && prescription.family_member_last_name
                               ? `${prescription.family_member_first_name} ${prescription.family_member_last_name}`
@@ -282,28 +245,29 @@ const PrescriptionUpload: React.FC<PrescriptionUploadProps> = ({ initialPatientI
                           </span>
                         </div>
                         <div className="flex items-center space-x-2">
-                          <span className="text-gray-400">Patient ID:</span>
+                          <span className="text-slate-500">Patient ID:</span>
                           <span className="font-mono text-xs">{prescription.patient_id}</span>
                         </div>
                         <div className="flex items-center space-x-2">
-                          <Calendar size={16} className="text-gray-400" />
+                          <Calendar size={16} className="text-slate-500" />
                           <span>Visit Date: {formatDate(prescription.visit_date)}</span>
                         </div>
                         <div className="flex items-center space-x-2">
-                          <Calendar size={16} className="text-gray-400" />
+                          <Calendar size={16} className="text-slate-500" />
                           <span>Created: {formatDate(prescription.created_at)}</span>
                         </div>
                       </div>
                       
                       {prescription.description && (
-                        <p className="mt-3 text-sm text-gray-700">{prescription.description}</p>
+                        <p className="mt-3 text-sm text-slate-300">{prescription.description}</p>
                       )}
                     </div>
                     
                     {prescription.file_url && (
                       <button
+                        type="button"
                         onClick={() => handleDownload(prescription.file_url!, prescription.title)}
-                        className="ml-4 flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                        className="portal-accent-button ml-4 flex items-center gap-2 rounded-lg px-4 py-2"
                       >
                         <Download size={18} />
                         <span>Download</span>
@@ -316,51 +280,50 @@ const PrescriptionUpload: React.FC<PrescriptionUploadProps> = ({ initialPatientI
           )}
         </div>
       ) : (
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-6">Upload Prescription</h2>
+        <div className="space-y-6">
+          <h2 className="text-xl font-semibold text-slate-100">Upload Prescription</h2>
 
-        {/* Patient ID Search */}
-        <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Patient ID <span className="text-red-500">*</span>
+        <div>
+          <label className="mb-2 block text-sm font-medium text-slate-300">
+            Patient ID <span className="text-red-400">*</span>
           </label>
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-500" size={20} />
             <input
               type="text"
               value={patientId}
               onChange={(e) => setPatientId(e.target.value)}
               placeholder="Enter patient ID (e.g., PAT123456)"
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="form-field w-full py-2 pl-10"
             />
           </div>
         </div>
 
-        {/* File Upload */}
-        <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Prescription File <span className="text-red-500">*</span>
+        <div>
+          <label className="mb-2 block text-sm font-medium text-slate-300">
+            Prescription File <span className="text-red-400">*</span>
           </label>
-          <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-lg hover:border-blue-400 transition-colors">
+          <div className="mt-1 flex justify-center rounded-lg border-2 border-dashed border-slate-600 px-6 pb-6 pt-5 transition-colors hover:border-sky-500/50">
             <div className="space-y-1 text-center">
               {selectedFile ? (
-                <div className="flex items-center justify-center space-x-2">
-                  <FileText className="text-blue-600" size={24} />
-                  <span className="text-sm text-gray-700">{selectedFile.name}</span>
+                <div className="flex items-center justify-center gap-2">
+                  <FileText className="text-sky-300" size={24} />
+                  <span className="text-sm text-slate-300">{selectedFile.name}</span>
                   <button
+                    type="button"
                     onClick={() => setSelectedFile(null)}
-                    className="ml-2 text-red-600 hover:text-red-800"
+                    className="ml-2 text-red-400 hover:text-red-300"
                   >
                     <X size={18} />
                   </button>
                 </div>
               ) : (
                 <>
-                  <Upload className="mx-auto text-gray-400" size={24} />
-                  <div className="flex text-sm text-gray-600">
+                  <Upload className="mx-auto text-slate-500" size={24} />
+                  <div className="flex text-sm text-slate-400">
                     <label
                       htmlFor="prescription-file"
-                      className="relative cursor-pointer bg-white rounded-md font-medium text-blue-600 hover:text-blue-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-blue-500"
+                      className="relative cursor-pointer font-medium text-sky-300 hover:text-sky-200"
                     >
                       <span>Upload a file</span>
                       <input
@@ -374,47 +337,42 @@ const PrescriptionUpload: React.FC<PrescriptionUploadProps> = ({ initialPatientI
                     </label>
                     <p className="pl-1">or drag and drop</p>
                   </div>
-                  <p className="text-xs text-gray-500">PDF or images up to 10MB</p>
+                  <p className="text-xs text-slate-500">PDF or images up to 10MB</p>
                 </>
               )}
             </div>
           </div>
         </div>
 
-        {/* Prescription Notes */}
-        <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Notes (Optional)
-          </label>
+        <div>
+          <label className="mb-2 block text-sm font-medium text-slate-300">Notes (Optional)</label>
           <textarea
             value={prescriptionNotes}
             onChange={(e) => setPrescriptionNotes(e.target.value)}
             placeholder="Add any additional notes about this prescription..."
             rows={4}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+            className="form-field w-full resize-none"
           />
         </div>
 
-        {/* Error Message */}
         {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-sm text-red-800">{error}</p>
+          <div className="rounded-lg border border-red-500/35 bg-red-500/10 p-3">
+            <p className="text-sm text-red-300">{error}</p>
           </div>
         )}
 
-        {/* Success Message */}
         {uploadSuccess && (
-          <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg flex items-center space-x-2">
-            <CheckCircle className="text-green-600" size={20} />
-            <p className="text-sm text-green-800">Prescription uploaded successfully!</p>
+          <div className="flex items-center gap-2 rounded-lg border border-emerald-500/35 bg-emerald-500/10 p-3">
+            <CheckCircle className="text-emerald-400" size={20} />
+            <p className="text-sm text-emerald-300">Prescription uploaded successfully!</p>
           </div>
         )}
 
-        {/* Upload Button */}
         <button
+          type="button"
           onClick={handleUpload}
           disabled={uploading || !patientId.trim() || !selectedFile}
-          className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center justify-center space-x-2"
+          className="portal-accent-button flex w-full items-center justify-center gap-2 rounded-lg py-2.5 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {uploading ? (
             <>

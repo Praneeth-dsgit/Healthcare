@@ -491,16 +491,16 @@ Prescribed by: Dr. ${doctorName || 'N/A'}
 
   return (
     <div className="space-y-6">
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-6">Create Prescription</h2>
+      <div>
+        <h2 className="mb-6 text-xl font-semibold text-slate-100">Create Prescription</h2>
 
         {/* Patient Information */}
         <div className="mb-6">
-          <h3 className="text-lg font-medium text-gray-800 mb-4">Patient Information</h3>
+          <h3 className="mb-4 text-lg font-medium text-slate-200">Patient Information</h3>
           
           {/* Prescription For Toggle */}
           <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">Prescription For</label>
+            <label className="mb-2 block text-sm font-medium text-slate-300">Prescription For</label>
             <div className="flex gap-4">
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
@@ -518,7 +518,7 @@ Prescribed by: Dr. ${doctorName || 'N/A'}
                   }}
                   className="w-4 h-4 text-blue-600 focus:ring-blue-500"
                 />
-                <span className="text-sm text-gray-700">Patient</span>
+                <span className="text-sm text-slate-300">Patient</span>
               </label>
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
@@ -530,7 +530,7 @@ Prescribed by: Dr. ${doctorName || 'N/A'}
                   disabled={!patientId || familyMembers.length === 0}
                   className="w-4 h-4 text-blue-600 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
                 />
-                <span className="text-sm text-gray-700">Family Member</span>
+                <span className="text-sm text-slate-300">Family Member</span>
                 {!patientId && (
                   <span className="text-xs text-gray-500">(Select patient first)</span>
                 )}
@@ -544,7 +544,7 @@ Prescribed by: Dr. ${doctorName || 'N/A'}
                 Patient ID <span className="text-red-500">*</span>
               </label>
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 z-10" size={18} />
+                <Search className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-slate-500" size={18} />
                 <input
                   type="text"
                   value={patientId}
@@ -560,17 +560,17 @@ Prescribed by: Dr. ${doctorName || 'N/A'}
                     }
                   }}
                   placeholder="Search or enter patient ID"
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="form-field w-full py-2 pl-10"
                 />
                 {loadingPatientDetails && (
                   <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                    <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-sky-400"></div>
                   </div>
                 )}
                 
                 {/* Patient Dropdown */}
                 {showPatientDropdown && (patients.length > 0 || loadingPatients) && (
-                  <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                  <div className="premium-card absolute z-50 mt-1 max-h-60 w-full overflow-y-auto rounded-lg">
                     {loadingPatients ? (
                       <div className="p-4 text-center text-gray-500">
                         <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div>
@@ -581,11 +581,11 @@ Prescribed by: Dr. ${doctorName || 'N/A'}
                           key={patient.patient_id}
                           type="button"
                           onClick={() => handlePatientSelect(patient.patient_id)}
-                          className="w-full text-left px-4 py-2 hover:bg-blue-50 transition-colors border-b border-gray-100 last:border-b-0"
+                          className="w-full border-b border-slate-700/50 px-4 py-2 text-left transition-colors last:border-b-0 hover:bg-sky-500/10"
                         >
                           <div className="flex items-center justify-between">
                             <div>
-                              <p className="font-medium text-gray-900">
+                              <p className="font-medium text-slate-100">
                                 {patient.first_name} {patient.last_name}
                               </p>
                               <p className="text-sm text-gray-600">

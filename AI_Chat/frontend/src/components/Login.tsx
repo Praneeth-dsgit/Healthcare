@@ -18,6 +18,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, onNavigateToSignup, redir
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [message, setMessage] = useState('');
+  const [messageType, setMessageType] = useState<'success' | 'error' | ''>('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showUserNotFoundDialog, setShowUserNotFoundDialog] = useState(false);
@@ -31,6 +32,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, onNavigateToSignup, redir
     e.preventDefault();
     setLoading(true);
     setMessage('');
+    setMessageType('');
     setShowUserNotFoundDialog(false);
     
     try {
@@ -48,16 +50,19 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, onNavigateToSignup, redir
         // If JSON parsing fails, create a basic error object
         console.error('Failed to parse response:', jsonErr);
         setMessage('Server error. Please try again.');
+        setMessageType('error');
         setLoading(false);
         return;
       }
       
       if (res.ok) {
         setMessage('Login successful! Redirecting...');
+        setMessageType('success');
         const accessToken = data.accessToken;
         const refreshToken = data.refreshToken;
         if (!accessToken || !refreshToken) {
           setMessage('Invalid login response. Please try again.');
+          setMessageType('error');
           setLoading(false);
           return;
         }
@@ -93,10 +98,12 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, onNavigateToSignup, redir
         setMessage('');
       } else {
         setMessage(data.error || 'Login failed.');
+        setMessageType('error');
       }
     } catch (err) {
       console.error('Login error:', err);
       setMessage('Login failed. Please check your connection and try again.');
+      setMessageType('error');
     }
     setLoading(false);
   };
@@ -121,7 +128,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, onNavigateToSignup, redir
             placeholder="Enter your email"
             value={email}
             onChange={e => setEmail(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="healthcare-input w-full"
             required
           />
         </div>
@@ -137,7 +144,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, onNavigateToSignup, redir
               placeholder="Enter your password"
               onChange={e => setPassword(e.target.value)}
               value={password}
-              className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="healthcare-input w-full pr-10"
               required
             />
             <button
@@ -156,7 +163,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, onNavigateToSignup, redir
         
         <button 
           type="submit" 
-          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+          className="healthcare-button w-full font-medium py-2 px-4 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
           disabled={loading}
         >
           {loading ? 'Signing In...' : 'Sign In'}
@@ -177,53 +184,69 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, onNavigateToSignup, redir
         </div>
         
         {message && (
-          <div className={`mt-3 p-3 rounded-md border ${
-            message.includes('Redirecting') || message.includes('verification')
-              ? 'bg-blue-50 border-blue-200'
-              : 'bg-red-50 border-red-200'
-          }`}>
-            <p className={`text-sm ${
-              message.includes('Redirecting') || message.includes('verification')
-                ? 'text-blue-600'
-                : 'text-red-600'
-            }`}>{message}</p>
+          <div
+            role="alert"
+            className={`mt-3 rounded-md border p-3 ${
+              messageType === 'success'
+                ? 'border-emerald-500/45 bg-emerald-500/15'
+                : 'border-red-500/45 bg-red-500/15'
+            }`}
+          >
+            <p
+              className={`text-sm font-medium ${
+                messageType === 'success' ? 'text-emerald-300' : 'text-red-300'
+              }`}
+            >
+              {message}
+            </p>
           </div>
         )}
       </form>
 
       {/* User Not Found Dialog */}
       {showUserNotFoundDialog && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
-            <div className="flex items-center mb-4">
-              <AlertCircle className="h-6 w-6 text-orange-600 mr-2" />
-              <h3 className="text-lg font-semibold text-gray-900">Account Not Found</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div
+            className="modal-surface w-full max-w-md p-6 animate-fade-in-up"
+            role="dialog"
+            aria-labelledby="account-not-found-title"
+          >
+            <div className="mb-4 flex items-center gap-2">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-500/15 ring-1 ring-amber-500/30">
+                <AlertCircle className="h-5 w-5 text-amber-300" />
+              </div>
+              <h3 id="account-not-found-title" className="text-lg font-semibold text-slate-100">
+                Account Not Found
+              </h3>
             </div>
-            
-            <div className="mb-6">
-              <p className="text-gray-600 mb-4">
-                No account found with <strong>{userNotFoundEmail}</strong>.
+
+            <div className="mb-6 space-y-4">
+              <p className="text-sm text-slate-400">
+                No account found with{' '}
+                <strong className="font-medium text-slate-200">{userNotFoundEmail}</strong>.
               </p>
-              
-              <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
-                <p className="text-sm text-blue-700">
-                  💡 Would you like to create a new account with this email?
+
+              <div className="rounded-lg border border-sky-500/30 bg-sky-500/10 p-3">
+                <p className="text-sm text-sky-200">
+                  Would you like to create a new account with this email?
                 </p>
               </div>
             </div>
-            
+
             <div className="flex flex-col gap-3">
               <button
+                type="button"
                 onClick={handleNavigateToSignup}
-                className="w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-md transition-colors"
+                className="healthcare-button flex w-full items-center justify-center gap-2 rounded-lg py-2.5 font-medium"
               >
                 <UserPlus className="h-4 w-4" />
                 Create New Account
               </button>
-              
+
               <button
+                type="button"
                 onClick={() => setShowUserNotFoundDialog(false)}
-                className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2 px-4 rounded-md transition-colors"
+                className="ghost-button w-full rounded-lg py-2.5 font-semibold"
               >
                 Try Different Email
               </button>

@@ -157,6 +157,27 @@ class DatabaseAgent:
                 return False, "Potential SQL injection detected"
         
         return True, "Valid"
+
+    def _validate_json_contains_args(self, sql_query: str):
+        """Reject JSON_CONTAINS when the search value is not valid JSON."""
+        pattern = re.compile(r'JSON_CONTAINS\s*\(\s*[^,]+\s*,\s*([^)]+)\)', re.IGNORECASE)
+        for match in pattern.finditer(sql_query):
+            raw_arg = match.group(1).strip()
+            if raw_arg.upper() in ('NULL',):
+                continue
+            literal = raw_arg
+            if (literal.startswith("'") and literal.endswith("'")) or (
+                literal.startswith('"') and literal.endswith('"')
+            ):
+                literal = literal[1:-1]
+            try:
+                json.loads(literal)
+            except json.JSONDecodeError:
+                return (
+                    'Invalid JSON in JSON_CONTAINS — use JOIN specialties/facilities with LIKE '
+                    'instead of searching JSON columns with plain text.'
+                )
+        return None
     
     def generate_sql(self, question):
         """Generate SQL using GPT with simple prompt"""
@@ -208,6 +229,18 @@ QUERY GENERATION GUIDELINES:
   3. Include patient identifying information (first_name, last_name, patient_id) for context
 - Always use proper JOINs when data spans multiple tables
 - Check the actual schema above to see which tables and columns are available
+
+AVAILABLE APPOINTMENT SLOTS (CRITICAL):
+- Do NOT use JSON_CONTAINS on doctor_facilities.available_days or available_time_slots for specialty/facility names
+- NEVER pass plain text like cardiology or sol:cardiology as the second argument to JSON_CONTAINS — it must be valid JSON
+- To find doctors by specialty: JOIN doctors d WITH specialties s ON d.specialty_id = s.specialty_id AND use LOWER(s.name) LIKE '%cardiology%'
+- To find doctors at a facility: JOIN doctor_facilities df and facilities f, use LOWER(f.name) LIKE '%facilityname%'
+- Booked times come from appointments (appointment_date DATE, appointment_time TIME) — compare dates with appointment_date, not JSON columns
+- For open slots: list doctors and their facility; booked slots are rows in appointments where status is not cancelled
+
+JSON COLUMNS:
+- operating_hours, available_days, available_time_slots are JSON — only use JSON_CONTAINS with valid JSON literals like '"Monday"' or '"09:00"'
+- Prefer LIKE on specialties.name and facilities.name instead of JSON functions for department/facility search
 
 Generate ONLY a SELECT query for: "{question}"
 
@@ -409,6 +442,10 @@ SQL INSERT Statement(s):"""
             is_valid, message = self.validate_sql(sql_query, allow_insert=allow_insert)
             if not is_valid:
                 return None, f"SQL Validation Error: {message}"
+
+            json_err = self._validate_json_contains_args(sql_query)
+            if json_err:
+                return None, json_err
             
             conn = pymysql.connect(**DB_CONFIG)
             cursor = conn.cursor(pymysql.cursors.DictCursor)
@@ -1463,6 +1500,60 @@ If any information is not found, use null for that field.
             logger.error(f"Error type: {type(e).__name__}")
             logger.error(f"Full traceback: {traceback.format_exc()}")
             return None
+
+    def get_medical_records_for_patient(
+        self,
+        patient_id: str,
+        record_types: Optional[List[str]] = None,
+        limit: int = 25,
+    ) -> List[Dict]:
+        """Fetch medical records for a patient (for staff AI context)."""
+        try:
+            conn = pymysql.connect(**DB_CONFIG)
+            cursor = conn.cursor(pymysql.cursors.DictCursor)
+
+            query = """
+                SELECT
+                    mr.record_id,
+                    mr.patient_id,
+                    mr.family_member_id,
+                    mr.record_type,
+                    mr.title,
+                    mr.description,
+                    mr.visit_date,
+                    mr.created_at,
+                    fm.first_name AS family_member_first_name,
+                    fm.last_name AS family_member_last_name
+                FROM medical_records mr
+                LEFT JOIN family_members fm ON mr.family_member_id = fm.family_member_id
+                WHERE mr.patient_id = %s
+            """
+            params: List = [patient_id]
+
+            if record_types:
+                placeholders = ", ".join(["%s"] * len(record_types))
+                query += f" AND mr.record_type IN ({placeholders})"
+                params.extend(record_types)
+
+            query += " ORDER BY mr.visit_date DESC, mr.created_at DESC LIMIT %s"
+            params.append(limit)
+
+            cursor.execute(query, params)
+            rows = cursor.fetchall()
+            cursor.close()
+            conn.close()
+
+            for row in rows:
+                for key in ("visit_date", "created_at"):
+                    if row.get(key) and hasattr(row[key], "isoformat"):
+                        row[key] = row[key].isoformat()
+                if row.get("description") and len(row["description"]) > 1200:
+                    row["description"] = row["description"][:1200] + "…"
+
+            return rows
+        except Exception as e:
+            logger.error(f"Error fetching medical records for patient {patient_id}: {e}")
+            return []
     
     def extract_patient_identifier_from_query(self, query: str) -> Optional[str]:
         """Extract patient name or ID from a natural language query using regex first, then AI"""

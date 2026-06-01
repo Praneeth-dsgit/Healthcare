@@ -33,6 +33,10 @@ def chat_stream():
         
         user_message = chat_request.message
         patient_info = chat_request.patient_info
+        if patient_info is not None and hasattr(patient_info, 'model_dump'):
+            patient_info = patient_info.model_dump()
+        elif patient_info is not None and hasattr(patient_info, 'dict'):
+            patient_info = patient_info.dict()
         file_context = chat_request.file_context
         file_findings = chat_request.file_findings
         previous_ai_message = chat_request.previous_ai_message
@@ -42,44 +46,30 @@ def chat_stream():
         
         logger.info(f"Processing message: '{user_message}' with capability: {capability}, session: {session_id}, user: {user_email}")
 
-        # Check if query mentions a specific patient and fetch patient data from database
-        fetched_patient_data = None
-        if not patient_info:  # Only fetch if patient_info not already provided
+        capability_str = capability.value if hasattr(capability, 'value') else str(capability)
+        from services.patient_context_service import build_patient_info_from_db
+
+        if chat_request.patient_id:
+            logger.info(f"Loading patient context from database: {chat_request.patient_id}")
+            loaded = build_patient_info_from_db(chat_request.patient_id, capability_str)
+            if loaded:
+                patient_info = loaded
+            else:
+                logger.warning(f"No patient found for patient_id: {chat_request.patient_id}")
+        elif not patient_info:
             from db_read_agent import DatabaseAgent
             db_agent = DatabaseAgent()
-            
-            # Extract patient identifier from query
             patient_identifier = db_agent.extract_patient_identifier_from_query(user_message)
-            
             if patient_identifier:
                 logger.info(f"Detected patient identifier in query: '{patient_identifier}'")
-                # Fetch comprehensive patient data
-                fetched_patient_data = db_agent.get_patient_by_identifier(patient_identifier)
-                
-                if fetched_patient_data:
-                    logger.info(f"Successfully fetched patient data for: {patient_identifier}")
-                    logger.info(f"Fetched patient data keys: {list(fetched_patient_data.keys())}")
-                    # Convert database patient data to patient_info format
-                    patient_info = {
-                        'age': fetched_patient_data.get('age', 0),
-                        'gender': fetched_patient_data.get('gender', ''),
-                        'weight': float(fetched_patient_data.get('weight_kg', 0)) if fetched_patient_data.get('weight_kg') else 0,
-                        'height': float(fetched_patient_data.get('height_cm', 0)) if fetched_patient_data.get('height_cm') else 0,
-                        'bloodPressure': '',  # Not in basic patient table
-                        'allergies': '',  # Would need separate query
-                        'medications': '',  # Would need separate query
-                        'medicalHistory': '',  # Would need separate query
-                        'patientName': f"{fetched_patient_data.get('first_name', '')} {fetched_patient_data.get('last_name', '')}".strip(),
-                        'patientId': fetched_patient_data.get('patient_id') or fetched_patient_data.get('id'),
-                        'phone': fetched_patient_data.get('phone', ''),
-                        'email': fetched_patient_data.get('email', ''),
-                        'dob': str(fetched_patient_data.get('dob', '')) if fetched_patient_data.get('dob') else '',
-                        'bloodType': fetched_patient_data.get('blood_type', ''),
-                        'bmi': float(fetched_patient_data.get('bmi', 0)) if fetched_patient_data.get('bmi') else None,
-                        'recentAppointments': fetched_patient_data.get('recent_appointments', [])
-                    }
-                    logger.info(f"Converted patient data for prompt inclusion. Patient info keys: {list(patient_info.keys())}")
-                    logger.info(f"Patient info summary: Name={patient_info.get('patientName')}, Age={patient_info.get('age')}, Gender={patient_info.get('gender')}")
+                loaded = build_patient_info_from_db(patient_identifier, capability_str)
+                if loaded:
+                    patient_info = loaded
+                    logger.info(
+                        "Loaded patient %s with %s medical record(s)",
+                        patient_identifier,
+                        len(loaded.get('medicalRecords', [])),
+                    )
                 else:
                     logger.warning(f"Could not find patient with identifier: '{patient_identifier}'")
 

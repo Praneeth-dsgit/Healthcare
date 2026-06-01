@@ -9,6 +9,7 @@ import { Scan, Calendar, Clock, MapPin, User, Check, X, ArrowLeft } from 'lucide
 import { radiologyService, RadiologyBookingData } from '../../services/radiologyService';
 import { facilityService, Facility } from '../../services/facilityService';
 import { patientService, FamilyMember } from '../../services/patientService';
+import { PortalPageShell, PortalPageHero } from '../patient/portalPageLayout';
 
 const SCAN_TYPES = [
   { value: 'mri', label: 'MRI' },
@@ -76,7 +77,7 @@ const RadiologyBooking: React.FC = () => {
       };
       
       console.log('Submitting radiology booking:', bookingData);
-      console.log('Patient ID from localStorage:', localStorage.getItem('patient_id'));
+      console.log('Patient ID from session:', sessionStorage.getItem('patient_id'));
       
       const result = await radiologyService.bookRadiology(bookingData);
       console.log('Booking result:', result);
@@ -99,8 +100,8 @@ const RadiologyBooking: React.FC = () => {
 
   if (success) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
-        <div className="bg-white rounded-lg shadow-lg p-8 text-center max-w-md">
+      <div className="flex min-h-[50vh] items-center justify-center p-6">
+        <div className="content-panel max-w-md p-8 text-center">
           <div className="bg-green-100 rounded-full p-4 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
             <Check className="h-8 w-8 text-green-600" />
           </div>
@@ -112,23 +113,26 @@ const RadiologyBooking: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-4xl mx-auto">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-4">
+    <PortalPageShell className="max-w-4xl">
+        <PortalPageHero
+          eyebrow="Imaging"
+          title="Book Radiology Scan"
+          subtitle={`Step ${step} of 2`}
+          icon={<Scan />}
+          actions={
             <button
+              type="button"
               onClick={() => navigate('/portal/radiology')}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              className="ghost-button inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-bold"
             >
-              <ArrowLeft className="h-5 w-5 text-gray-600" />
+              <ArrowLeft className="h-4 w-4" />
+              Back
             </button>
-            <h1 className="text-3xl font-bold text-gray-900">Book Radiology Scan</h1>
-          </div>
-        </div>
+          }
+        />
 
-        {/* Step 1: Select Scan Type & Facility */}
         {step === 1 && (
-          <div className="bg-white rounded-lg shadow-md hover:shadow-lg p-6 space-y-6 transition-all duration-300">
+          <div className="content-panel space-y-5 p-5 sm:p-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Scan Type</label>
               <select
@@ -177,15 +181,17 @@ const RadiologyBooking: React.FC = () => {
 
         {/* Step 2: Date, Time & Details */}
         {step === 2 && selectedFacility && (
-          <div className="bg-white rounded-lg shadow-md hover:shadow-lg p-6 transition-all duration-300">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold">Select Date & Time</h2>
+          <div className="content-panel p-6 transition-all duration-300">
+            <div className="mb-4 flex items-center gap-3">
               <button
+                type="button"
                 onClick={() => setStep(1)}
-                className="text-blue-600 hover:text-blue-700 hover:underline transition-all duration-200"
+                className="rounded-lg p-2 text-slate-600 transition-colors hover:bg-slate-100 hover:text-blue-700"
+                aria-label="Go back"
               >
-                ← Back
+                <ArrowLeft className="h-5 w-5" />
               </button>
+              <h2 className="text-xl font-semibold text-gray-900">Select Date & Time</h2>
             </div>
             <div className="space-y-4">
               <div>
@@ -276,8 +282,7 @@ const RadiologyBooking: React.FC = () => {
             </div>
           </div>
         )}
-      </div>
-    </div>
+    </PortalPageShell>
   );
 };
 

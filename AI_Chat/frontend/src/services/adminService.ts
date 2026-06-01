@@ -30,7 +30,28 @@ export interface Specialty {
   description?: string;
 }
 
-export interface CreateUserData {
+export interface DoctorProfileData {
+  qualification?: string;
+  experience_years?: number;
+  consultation_fee?: number;
+  bio?: string;
+  facility_id?: number;
+  is_available?: boolean;
+}
+
+export interface AdminFacility {
+  facility_id: number;
+  name: string;
+  city?: string;
+  type?: string;
+}
+
+export interface DoctorProfile extends DoctorProfileData {
+  doctor_id: number;
+  facility_name?: string;
+}
+
+export interface CreateUserData extends DoctorProfileData {
   email: string;
   password: string;
   role: 'doctor' | 'radiology' | 'lab_technician' | 'non_medical_staff' | 'admin';
@@ -38,13 +59,17 @@ export interface CreateUserData {
   last_name?: string;
   phone?: string;
   specialty_id?: number;
+  doctor_id?: number;
 }
 
-export interface UpdateUserData {
+export interface UpdateUserData extends DoctorProfileData {
   email?: string;
   password?: string;
   role?: string;
   specialty_id?: number;
+  first_name?: string;
+  last_name?: string;
+  phone?: string;
 }
 
 export interface UnassignedStaff {
@@ -110,7 +135,24 @@ class AdminService {
     }
   }
 
-  async updateUser(userId: number, userData: UpdateUserData): Promise<{ success: boolean; message?: string; error?: string }> {
+  async getUserDoctor(
+    userId: number
+  ): Promise<{ success: boolean; profile?: DoctorProfile; error?: string }> {
+    try {
+      const response = await authenticatedFetch(`${API_BASE}/api/admin/users/${userId}/doctor`, {
+        method: 'GET',
+        headers: getAuthHeaders(),
+      });
+      return await response.json();
+    } catch {
+      return { success: false, error: 'Network error' };
+    }
+  }
+
+  async updateUser(
+    userId: number,
+    userData: UpdateUserData
+  ): Promise<{ success: boolean; message?: string; doctor_id?: number; error?: string }> {
     try {
       const response = await authenticatedFetch(`${API_BASE}/api/admin/users/${userId}`, {
         method: 'PUT',
@@ -182,6 +224,23 @@ class AdminService {
     }
   }
 
+  async repairMissingDoctorProfiles(): Promise<{
+    success: boolean;
+    message?: string;
+    repaired?: { email: string; doctor_id: number }[];
+    error?: string;
+  }> {
+    try {
+      const response = await authenticatedFetch(`${API_BASE}/api/admin/users/repair-missing-doctors`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+      });
+      return await response.json();
+    } catch {
+      return { success: false, error: 'Network error' };
+    }
+  }
+
   async assignRoleToStaff(assignData: AssignRoleData): Promise<{ success: boolean; message?: string; error?: string }> {
     try {
       const response = await authenticatedFetch(`${API_BASE}/api/admin/users`, {
@@ -193,6 +252,46 @@ class AdminService {
       const data = await response.json();
       return data;
     } catch (error) {
+      return { success: false, error: 'Network error' };
+    }
+  }
+
+  async listFacilities(): Promise<{ success: boolean; facilities?: AdminFacility[]; error?: string }> {
+    try {
+      const response = await authenticatedFetch(`${API_BASE}/api/admin/facilities`, {
+        method: 'GET',
+        headers: getAuthHeaders(),
+      });
+      return await response.json();
+    } catch {
+      return { success: false, error: 'Network error' };
+    }
+  }
+
+  async getDoctorProfile(doctorId: number): Promise<{ success: boolean; profile?: DoctorProfile; error?: string }> {
+    try {
+      const response = await authenticatedFetch(`${API_BASE}/api/admin/doctors/${doctorId}`, {
+        method: 'GET',
+        headers: getAuthHeaders(),
+      });
+      return await response.json();
+    } catch {
+      return { success: false, error: 'Network error' };
+    }
+  }
+
+  async updateDoctorProfile(
+    doctorId: number,
+    profile: DoctorProfileData
+  ): Promise<{ success: boolean; message?: string; error?: string }> {
+    try {
+      const response = await authenticatedFetch(`${API_BASE}/api/admin/doctors/${doctorId}`, {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(profile),
+      });
+      return await response.json();
+    } catch {
       return { success: false, error: 'Network error' };
     }
   }

@@ -243,8 +243,8 @@ const Header: React.FC<HeaderProps> = ({
                       <div className="flex min-w-0 items-center gap-4">
                         <div className="hidden h-11 w-px flex-shrink-0 bg-slate-200 lg:block" />
                         <div className="min-w-0">
-                          <h1 className="truncate text-xl font-extrabold text-slate-950">{capabilityInfo.name}</h1>
-                          <p className="mt-0.5 truncate text-sm font-medium text-slate-500">{capabilityInfo.subtitle}</p>
+                          <h1 className="truncate text-xl font-extrabold text-slate-100">{capabilityInfo.name}</h1>
+                          <p className="mt-0.5 truncate text-sm font-medium text-slate-400">{capabilityInfo.subtitle}</p>
                         </div>
                       </div>
                     ) : (
@@ -265,16 +265,16 @@ const Header: React.FC<HeaderProps> = ({
                         </button>
                         
                         {showFaqDropdown && (
-                          <div className="premium-card absolute left-0 z-50 mt-2 max-h-96 w-80 overflow-y-auto rounded-xl">
-                            <div className="flex items-center justify-between border-b border-slate-100 p-3">
+                          <div className="faq-dropdown-panel absolute left-0 z-50 mt-2 max-h-96 w-80 overflow-y-auto rounded-xl">
+                            <div className="flex items-center justify-between border-b border-slate-600 p-3">
                               <div>
-                                <h3 className="text-sm font-bold text-slate-900">{getCapabilityLabel(selectedCapability)}</h3>
-                                <p className="mt-1 text-xs text-slate-500">Click any question to add it to your chat</p>
+                                <h3 className="text-sm font-bold text-slate-100">{getCapabilityLabel(selectedCapability)}</h3>
+                                <p className="mt-1 text-xs text-slate-400">Click any question to add it to your chat</p>
                               </div>
                               <button
                                 onClick={() => selectedCapability && currentSessionId && fetchDynamicFaqs(selectedCapability, currentSessionId)}
                                 disabled={isLoadingFaqs}
-                                className="rounded-lg p-1 text-slate-400 transition-colors hover:bg-blue-50 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
+                                className="rounded-lg p-1 text-slate-500 transition-colors hover:bg-sky-500/10 hover:text-sky-300 disabled:cursor-not-allowed disabled:opacity-50"
                                 title="Refresh FAQs"
                               >
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -293,9 +293,9 @@ const Header: React.FC<HeaderProps> = ({
                                       setShowFaqDropdown(false);
                                       onSelectPrompt(prompt);
                                     }}
-                                    className="flex w-full items-start rounded-lg px-3 py-2 text-left text-sm text-slate-700 transition-colors hover:bg-blue-50"
+                                    className="flex w-full items-start rounded-lg px-3 py-2 text-left text-sm text-slate-300 transition-colors hover:bg-sky-500/10 hover:text-slate-100"
                                   >
-                                    <PlusCircle size={14} className="mr-2 mt-0.5 flex-shrink-0 text-blue-500" />
+                                    <PlusCircle size={14} className="mr-2 mt-0.5 flex-shrink-0 text-sky-400" />
                                     <span>{prompt}</span>
                                   </button>
                                 ))
@@ -335,20 +335,20 @@ const Header: React.FC<HeaderProps> = ({
                       <svg className="ml-2 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
                     </button>
                     {showDropdown && (
-                      <div className="premium-card absolute left-0 z-50 mt-2 max-h-[20rem] w-72 overflow-y-auto rounded-xl">
+                      <div className="dropdown-menu premium-card absolute left-0 z-50 mt-2 max-h-[20rem] w-72 overflow-y-auto rounded-xl py-1">
                         {sessions.map((session) => (
-                          <div key={session.id} className={`flex cursor-pointer items-center justify-between px-3 py-2.5 hover:bg-blue-50 ${currentSessionId === session.id ? 'bg-blue-50' : ''}`}
+                          <div key={session.id} className={`flex cursor-pointer items-center justify-between px-3 py-2.5 hover:bg-slate-800/80 ${currentSessionId === session.id ? 'bg-sky-500/15' : ''}`}
                             onClick={() => handleSessionSwitch(session.id)}
                           >
                             <div className="flex flex-col flex-1 min-w-0">
-                              <span className="truncate text-sm font-semibold text-slate-800">{getSessionTopic(session)}</span>
+                              <span className="truncate text-sm font-semibold text-slate-100">{getSessionTopic(session)}</span>
                               {getSessionCapability && (
-                                <span className="text-xs text-slate-500">{getSessionCapability(session.id)}</span>
+                                <span className="text-xs text-slate-400">{getSessionCapability(session.id)}</span>
                               )}
                             </div>
                             {sessions.length > 1 && (
                               <button
-                                className="ml-2 flex-shrink-0 rounded-lg p-1 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                                className="ml-2 shrink-0 rounded-lg p-1 text-slate-400 hover:bg-red-500/15 hover:text-red-300"
                                 onClick={e => { e.stopPropagation(); handleDeleteSession(session.id); }}
                                 title="Delete session"
                               >
@@ -380,45 +380,48 @@ const Header: React.FC<HeaderProps> = ({
                       className="ghost-button flex h-10 w-10 items-center justify-center rounded-xl"
                       title="More options"
                     >
-                      <svg className="w-4 h-4 text-gray-600" fill="currentColor" viewBox="0 0 20 20">
+                      <svg className="h-4 w-4 text-slate-300" fill="currentColor" viewBox="0 0 20 20">
                         <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
                       </svg>
                     </button>
                     
                     {showMoreOptionsDropdown && (
-                      <div className="premium-card absolute right-0 z-50 mt-2 w-48 overflow-hidden rounded-xl">
+                      <div className="dropdown-menu premium-card absolute right-0 z-50 mt-2 w-48 overflow-hidden rounded-xl py-1">
                         <button
+                          type="button"
                           onClick={() => {
                             setShowMoreOptionsDropdown(false);
                             setShowAboutModal(true);
                           }}
-                          className="flex w-full items-center px-4 py-2.5 text-sm text-slate-700 transition-colors hover:bg-blue-50"
+                          className="flex w-full items-center px-4 py-2.5 text-sm text-slate-200 transition-colors hover:bg-slate-800/80"
                         >
-                          <svg className="w-4 h-4 mr-2 text-gray-400" fill="none" stroke="blue" viewBox="0 0 24 24">
+                          <svg className="mr-2 h-4 w-4 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                           </svg>
                           About
                         </button>
                         <button
+                          type="button"
                           onClick={() => {
                             setShowMoreOptionsDropdown(false);
                             setShowPrivacyModal(true);
                           }}
-                          className="flex w-full items-center px-4 py-2.5 text-sm text-slate-700 transition-colors hover:bg-blue-50"
+                          className="flex w-full items-center px-4 py-2.5 text-sm text-slate-200 transition-colors hover:bg-slate-800/80"
                         >
-                          <svg className="w-4 h-4 mr-2 text-gray-400" fill="none" stroke="red" viewBox="0 0 24 24">
+                          <svg className="mr-2 h-4 w-4 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                           </svg>
                           Privacy
                         </button>
                         <button
+                          type="button"
                           onClick={() => {
                             setShowMoreOptionsDropdown(false);
                             setShowHelpModal(true);
                           }}
-                          className="flex w-full items-center px-4 py-2.5 text-sm text-slate-700 transition-colors hover:bg-blue-50"
+                          className="flex w-full items-center px-4 py-2.5 text-sm text-slate-200 transition-colors hover:bg-slate-800/80"
                         >
-                          <svg className="w-4 h-4 mr-2 text-gray-400" fill="none" stroke="green" viewBox="0 0 24 24">
+                          <svg className="mr-2 h-4 w-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                           </svg>
                           Help
@@ -431,22 +434,22 @@ const Header: React.FC<HeaderProps> = ({
                   <div ref={profileDropdownRef}>
                     <button
                       onClick={() => setShowProfileDropdown(!showProfileDropdown)}
-                      className={`flex items-center gap-2 rounded-xl transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                      className={`flex items-center gap-2 rounded-xl transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--portal-accent)] focus:ring-offset-2 focus:ring-offset-slate-900 ${
                         userDisplayName
-                          ? 'space-x-3 border border-slate-200 bg-white/70 px-3 py-2 hover:bg-blue-50'
+                          ? 'space-x-3 border border-slate-600/80 bg-slate-800/60 px-3 py-2 hover:bg-slate-700/70'
                           : 'ghost-button h-10 w-10 justify-center'
                       }`}
                       title={isAuthenticated ? "Profile" : "Login / Sign Up"}
                     >
-                      <div className={`flex flex-shrink-0 items-center justify-center rounded-full ${userDisplayName ? 'h-10 w-10 bg-gradient-to-br from-blue-100 to-teal-100' : 'h-8 w-8 bg-slate-100'}`}>
-                        <User size={userDisplayName ? 24 : 18} className={userDisplayName ? 'text-blue-600' : 'text-gray-600'} />
+                      <div className={`flex shrink-0 items-center justify-center rounded-full ${userDisplayName ? 'h-10 w-10 border border-sky-500/30 bg-sky-500/15' : 'h-8 w-8 bg-slate-800'}`}>
+                        <User size={userDisplayName ? 24 : 18} className={userDisplayName ? 'text-sky-300' : 'text-slate-400'} />
                       </div>
                       {userDisplayName && (
-                        <div className="text-left hidden sm:block">
-                          <p className="text-sm font-bold text-slate-900">
+                        <div className="hidden text-left sm:block">
+                          <p className="text-sm font-bold text-slate-100">
                             {loadingUser ? 'Loading...' : userDisplayName}
                           </p>
-                          <p className="text-xs text-slate-500">
+                          <p className="text-xs text-slate-400">
                             {loadingUser ? '' : (userSubtitle || 'Healthcare Professional')}
                           </p>
                         </div>
@@ -455,33 +458,35 @@ const Header: React.FC<HeaderProps> = ({
                     </button>
                     
                     {showProfileDropdown && (
-                      <div className="premium-card absolute right-0 z-50 mt-2 w-56 overflow-hidden rounded-xl">
+                      <div className="dropdown-menu premium-card absolute right-0 z-50 mt-2 w-56 overflow-hidden rounded-xl py-1">
                         {isAuthenticated ? (
                           <>
-                            <div className="border-b border-slate-100 px-4 py-3">
-                              <p className="text-sm font-bold text-slate-800">
+                            <div className="border-b border-slate-700/50 px-4 py-3">
+                              <p className="text-sm font-bold text-slate-100">
                                 {userDisplayName || 'Logged In'}
                               </p>
-                              <p className="text-xs text-slate-500">
+                              <p className="text-xs text-slate-400">
                                 {userSubtitle || 'Healthcare Professional'}
                               </p>
                             </div>
                             <button
+                              type="button"
                               onClick={() => {
                                 setShowProfileDropdown(false);
                                 setShowUsageStats(true);
                               }}
-                              className="flex w-full items-center px-4 py-2.5 text-sm text-slate-700 transition-colors hover:bg-blue-50"
+                              className="flex w-full items-center px-4 py-2.5 text-sm text-slate-200 transition-colors hover:bg-slate-800/80"
                             >
-                              <BarChart3 size={16} className="mr-2" />
+                              <BarChart3 size={16} className="mr-2 text-sky-400" />
                               Usage Statistics
                             </button>
                             <button
+                              type="button"
                               onClick={() => {
                                 setShowProfileDropdown(false);
                                 onLogout && onLogout();
                               }}
-                              className="flex w-full items-center px-4 py-2.5 text-sm text-slate-700 transition-colors hover:bg-red-50 hover:text-red-700"
+                              className="flex w-full items-center px-4 py-2.5 text-sm text-slate-200 transition-colors hover:bg-red-500/15 hover:text-red-300"
                             >
                               <LogOut size={16} className="mr-2" />
                               Logout
@@ -489,28 +494,30 @@ const Header: React.FC<HeaderProps> = ({
                           </>
                         ) : (
                           <>
-                            <div className="border-b border-slate-100 px-4 py-3">
-                              <p className="text-sm font-bold text-slate-800">Access Your Account</p>
-                              <p className="text-xs text-slate-500">Sign in or create an account</p>
+                            <div className="border-b border-slate-700/50 px-4 py-3">
+                              <p className="text-sm font-bold text-slate-100">Access Your Account</p>
+                              <p className="text-xs text-slate-400">Sign in or create an account</p>
                             </div>
                             <button
+                              type="button"
                               onClick={() => {
                                 setShowProfileDropdown(false);
                                 onNavigateToLogin && onNavigateToLogin();
                               }}
-                              className="flex w-full items-center px-4 py-2.5 text-sm text-slate-700 transition-colors hover:bg-blue-50"
+                              className="flex w-full items-center px-4 py-2.5 text-sm text-slate-200 transition-colors hover:bg-slate-800/80"
                             >
-                              <LogIn size={16} className="mr-2" />
+                              <LogIn size={16} className="mr-2 text-sky-400" />
                               Login
                             </button>
                             <button
+                              type="button"
                               onClick={() => {
                                 setShowProfileDropdown(false);
                                 onNavigateToSignup && onNavigateToSignup();
                               }}
-                              className="flex w-full items-center px-4 py-2.5 text-sm text-slate-700 transition-colors hover:bg-blue-50"
+                              className="flex w-full items-center px-4 py-2.5 text-sm text-slate-200 transition-colors hover:bg-slate-800/80"
                             >
-                              <UserPlus size={16} className="mr-2" />
+                              <UserPlus size={16} className="mr-2 text-sky-400" />
                               Sign Up
                             </button>
                           </>

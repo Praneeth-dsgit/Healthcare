@@ -7,6 +7,8 @@ export interface PatientInfo {
   allergies?: string;
   medications?: string;
   medicalHistory?: string;
+  patientId?: string;
+  patientName?: string;
 }
 
 export interface Message {

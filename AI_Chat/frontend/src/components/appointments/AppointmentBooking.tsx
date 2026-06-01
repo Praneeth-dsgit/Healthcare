@@ -9,6 +9,7 @@ import { Search, MapPin, Check, Calendar, ChevronLeft, ChevronRight, X, ArrowLef
 import { appointmentService, AppointmentBookingData } from '../../services/appointmentService';
 import { doctorService, Doctor } from '../../services/doctorService';
 import { patientService, FamilyMember } from '../../services/patientService';
+import { PortalPageShell, PortalPageHero } from '../patient/portalPageLayout';
 
 const AppointmentBooking: React.FC = () => {
   const location = useLocation();
@@ -267,8 +268,8 @@ const AppointmentBooking: React.FC = () => {
 
   if (success) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
-        <div className="bg-white rounded-lg shadow-lg p-8 text-center max-w-md">
+      <div className="flex min-h-[50vh] items-center justify-center p-6">
+        <div className="content-panel max-w-md p-8 text-center">
           <div className="bg-green-100 rounded-full p-4 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
             <Check className="h-8 w-8 text-green-600" />
           </div>
@@ -279,52 +280,64 @@ const AppointmentBooking: React.FC = () => {
     );
   }
 
-  return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-4xl mx-auto">
-        <div className="flex items-center gap-4 mb-6">
-          <button
-            onClick={() => navigate('/portal/appointments')}
-            className="p-2 rounded-lg text-gray-600 hover:text-gray-900 hover:bg-gray-100 hover:shadow-md hover:scale-105 transition-all duration-200"
-            title="Back to My Appointments"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </button>
-          <h1 className="text-3xl font-bold text-gray-900">Book Appointment</h1>
-        </div>
+  const stepLabels = ['Select doctor', 'Date & time', 'Confirm'];
+  const stepShortLabels = ['Doctor', 'Date & time', 'Confirm'];
 
-        {/* Progress Steps */}
-        <div className="bg-white rounded-lg shadow-md hover:shadow-lg p-6 mb-6 transition-all duration-300">
-          <div className="flex items-start">
-            {[1, 2, 3].map((s) => (
-              <React.Fragment key={s}>
-                <div className="flex flex-col items-center flex-1">
-                  <div className={`flex items-center justify-center w-10 h-10 rounded-full ${
-                    step >= s ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600'
-                  }`}>
-                    {step > s ? <Check className="h-5 w-5" /> : s}
+  return (
+    <PortalPageShell className="max-w-4xl">
+        <PortalPageHero
+          eyebrow={
+            <button
+              type="button"
+              onClick={() => navigate('/portal/appointments')}
+              className="ghost-button -ml-1 inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-bold uppercase tracking-wide text-sky-300 transition-colors hover:text-sky-200"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />
+              Back to appointments
+            </button>
+          }
+          title="Book Appointment"
+          subtitle={`Step ${step} of 3 — ${stepLabels[step - 1]}`}
+          icon={<Calendar />}
+          actions={
+            <div
+              className="flex w-full min-w-0 items-start gap-1 sm:min-w-[12rem] sm:gap-2 lg:min-w-[16rem] lg:max-w-xs"
+              aria-label={`Booking progress: step ${step} of 3`}
+            >
+              {[1, 2, 3].map((s) => (
+                <React.Fragment key={s}>
+                  <div className="flex min-w-0 flex-1 flex-col items-center">
+                    <div
+                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold sm:h-9 sm:w-9 ${
+                        step >= s ? 'bg-sky-500 text-white ring-2 ring-sky-400/30' : 'bg-slate-800 text-slate-500'
+                      }`}
+                    >
+                      {step > s ? <Check className="h-4 w-4" /> : s}
+                    </div>
+                    <span
+                      className={`mt-1 hidden text-center text-[10px] font-semibold leading-tight sm:block ${
+                        step >= s ? 'text-sky-300' : 'text-slate-500'
+                      }`}
+                    >
+                      {stepShortLabels[s - 1]}
+                    </span>
                   </div>
-                  <span className={`mt-2 text-xs text-center ${
-                    step >= s ? 'text-blue-600 font-medium' : 'text-gray-500'
-                  }`}>
-                    {s === 1 && 'Select Doctor'}
-                    {s === 2 && 'Date & Time'}
-                    {s === 3 && 'Confirm'}
-                  </span>
-                </div>
-                {s < 3 && (
-                  <div className={`flex-1 h-1 mx-2 mt-5 ${
-                    step > s ? 'bg-blue-600' : 'bg-gray-200'
-                  }`} />
-                )}
-              </React.Fragment>
-            ))}
-          </div>
-        </div>
+                  {s < 3 && (
+                    <div
+                      className={`mt-4 h-0.5 min-w-[0.75rem] flex-1 sm:mt-[1.125rem] ${
+                        step > s ? 'bg-sky-500' : 'bg-slate-700'
+                      }`}
+                    />
+                  )}
+                </React.Fragment>
+              ))}
+            </div>
+          }
+        />
 
         {/* Step 1: Select Doctor */}
         {step === 1 && (
-          <div className="bg-white rounded-lg shadow-md hover:shadow-lg p-6 transition-all duration-300">
+          <div className="content-panel hover:shadow-lg p-6 transition-all duration-300">
             <h2 className="text-xl font-semibold mb-4">Select Doctor</h2>
             <div className="mb-4 flex gap-4">
               <div className="flex-1">
@@ -396,7 +409,7 @@ const AppointmentBooking: React.FC = () => {
 
         {/* Step 2: Date & Time */}
         {step === 2 && selectedDoctor && (
-          <div className="bg-white rounded-lg shadow-md hover:shadow-lg p-6 transition-all duration-300">
+          <div className="content-panel hover:shadow-lg p-6 transition-all duration-300">
             <div className="flex items-start gap-3 mb-4">
               <button
                 type="button"
@@ -490,7 +503,7 @@ const AppointmentBooking: React.FC = () => {
 
         {/* Step 3: Confirm */}
         {step === 3 && selectedDoctor && (
-          <div className="bg-white rounded-lg shadow-md hover:shadow-lg p-6 transition-all duration-300">
+          <div className="content-panel hover:shadow-lg p-6 transition-all duration-300">
             <div className="flex items-start gap-3 mb-4">
               <button
                 type="button"
@@ -716,8 +729,7 @@ const AppointmentBooking: React.FC = () => {
             </div>
           </div>
         )}
-      </div>
-    </div>
+    </PortalPageShell>
   );
 };
 

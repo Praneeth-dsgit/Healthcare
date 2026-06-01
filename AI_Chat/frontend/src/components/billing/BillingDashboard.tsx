@@ -6,6 +6,13 @@
 import React, { useState, useEffect } from 'react';
 import { CreditCard, Download, Calendar, CheckCircle, Clock, XCircle, DollarSign } from 'lucide-react';
 import { billingService, Billing, Payment, PaymentData } from '../../services/billingService';
+import {
+  PortalPageShell,
+  PortalPageHero,
+  PortalLoading,
+  PortalStatCard,
+  portalInputClass,
+} from '../patient/portalPageLayout';
 
 const BillingDashboard: React.FC = () => {
   const [bills, setBills] = useState<Billing[]>([]);
@@ -106,127 +113,103 @@ const BillingDashboard: React.FC = () => {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    );
+    return <PortalLoading message="Loading bills…" />;
   }
 
-  return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-6xl mx-auto">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-3xl font-bold text-gray-900 flex items-center">
-            <CreditCard className="h-8 w-8 mr-3 text-blue-600" />
-            Billing & Payments
-          </h1>
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg hover:border-blue-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200"
-          >
-            <option value="">All Status</option>
-            <option value="pending">Pending</option>
-            <option value="partial">Partial</option>
-            <option value="paid">Paid</option>
-            <option value="cancelled">Cancelled</option>
-          </select>
-        </div>
+  const pendingCount = bills.filter((b) => b.status === 'pending' || b.status === 'partial').length;
+  const totalAmount = bills.reduce((sum, b) => sum + b.final_amount, 0);
 
-        {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <div className="bg-white rounded-lg shadow-md hover:shadow-lg p-6 transition-all duration-300 hover:scale-[1.02]">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Total Bills</p>
-                <p className="text-2xl font-bold text-gray-900">{bills.length}</p>
-              </div>
-              <CreditCard className="h-8 w-8 text-blue-600" />
-            </div>
-          </div>
-          <div className="bg-white rounded-lg shadow-md hover:shadow-lg p-6 transition-all duration-300 hover:scale-[1.02]">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Pending</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {bills.filter(b => b.status === 'pending').length}
-                </p>
-              </div>
-              <Clock className="h-8 w-8 text-yellow-600" />
-            </div>
-          </div>
-          <div className="bg-white rounded-lg shadow-md hover:shadow-lg p-6 transition-all duration-300 hover:scale-[1.02]">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Total Amount</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  ₹{bills.reduce((sum, b) => sum + b.final_amount, 0).toLocaleString()}
-                </p>
-              </div>
-              <DollarSign className="h-8 w-8 text-green-600" />
-            </div>
-          </div>
+  return (
+    <PortalPageShell>
+        <PortalPageHero
+          eyebrow="Payments"
+          title="Billing & Payments"
+          subtitle="View invoices, track payment status, and download receipts."
+          icon={<CreditCard />}
+          actions={
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              className={`${portalInputClass} w-full min-w-[10rem] sm:w-44`}
+            >
+              <option value="">All status</option>
+              <option value="pending">Pending</option>
+              <option value="partial">Partial</option>
+              <option value="paid">Paid</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+          }
+        />
+
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <PortalStatCard label="Total bills" value={bills.length} icon={<CreditCard className="h-8 w-8" />} accent="sky" />
+          <PortalStatCard label="Pending / partial" value={pendingCount} icon={<Clock className="h-8 w-8" />} accent="amber" />
+          <PortalStatCard
+            label="Total amount"
+            value={`₹${totalAmount.toLocaleString()}`}
+            icon={<DollarSign className="h-8 w-8" />}
+            accent="emerald"
+          />
         </div>
 
         {/* Bills List */}
         {bills.length === 0 ? (
-          <div className="bg-white rounded-lg shadow-md hover:shadow-lg p-12 text-center transition-all duration-300">
-            <CreditCard className="h-16 w-16 mx-auto mb-4 text-gray-400" />
-            <p className="text-gray-600">No bills found</p>
+          <div className="premium-card p-12 text-center">
+            <CreditCard className="mx-auto mb-4 h-12 w-12 text-slate-600" />
+            <p className="text-slate-400">No bills found</p>
           </div>
         ) : (
           <div className="space-y-4">
             {bills.map((bill) => (
-              <div key={bill.billing_id} className="bg-white rounded-lg shadow-md hover:shadow-lg p-6 transition-all duration-300 hover:scale-[1.01]">
-                <div className="flex items-start justify-between">
+              <div key={bill.billing_id} className="premium-card p-5 sm:p-6">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <h3 className="text-lg font-semibold text-gray-900">
-                        Bill #{bill.billing_id}
-                      </h3>
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium flex items-center gap-1 ${getStatusColor(bill.status)}`}>
+                    <div className="mb-2 flex flex-wrap items-center gap-3">
+                      <h3 className="text-lg font-bold text-slate-100">Bill #{bill.billing_id}</h3>
+                      <span className={`flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ${getStatusColor(bill.status)}`}>
                         {getStatusIcon(bill.status)}
                         {bill.status.toUpperCase()}
                       </span>
                     </div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 text-sm">
+                    <div className="mt-3 grid grid-cols-2 gap-4 text-sm md:grid-cols-4">
                       <div>
-                        <p className="text-gray-600">Total Amount</p>
-                        <p className="font-semibold text-gray-900">₹{bill.total_amount.toLocaleString()}</p>
+                        <p className="text-slate-500">Total</p>
+                        <p className="font-semibold text-slate-200">₹{bill.total_amount.toLocaleString()}</p>
                       </div>
                       <div>
-                        <p className="text-gray-600">Discount</p>
-                        <p className="font-semibold text-gray-900">₹{bill.discount_amount.toLocaleString()}</p>
+                        <p className="text-slate-500">Discount</p>
+                        <p className="font-semibold text-slate-200">₹{bill.discount_amount.toLocaleString()}</p>
                       </div>
                       <div>
-                        <p className="text-gray-600">Tax</p>
-                        <p className="font-semibold text-gray-900">₹{bill.tax_amount.toLocaleString()}</p>
+                        <p className="text-slate-500">Tax</p>
+                        <p className="font-semibold text-slate-200">₹{bill.tax_amount.toLocaleString()}</p>
                       </div>
                       <div>
-                        <p className="text-gray-600">Final Amount</p>
-                        <p className="font-semibold text-blue-600">₹{bill.final_amount.toLocaleString()}</p>
+                        <p className="text-slate-500">Final</p>
+                        <p className="font-semibold text-teal-300">₹{bill.final_amount.toLocaleString()}</p>
                       </div>
                     </div>
                     {bill.due_date && (
-                      <p className="text-sm text-gray-500 mt-2 flex items-center">
-                        <Calendar className="h-4 w-4 mr-1" />
-                        Due Date: {new Date(bill.due_date).toLocaleDateString()}
+                      <p className="mt-2 flex items-center text-sm text-slate-500">
+                        <Calendar className="mr-1 h-4 w-4" />
+                        Due: {new Date(bill.due_date).toLocaleDateString()}
                       </p>
                     )}
                   </div>
-                  <div className="flex gap-2 ml-4">
+                  <div className="flex shrink-0 gap-2">
                     <button
+                      type="button"
                       onClick={() => handleDownloadInvoice(bill.billing_id)}
-                      className="bg-gray-100 hover:bg-gray-200 hover:shadow-md hover:scale-105 text-gray-700 px-4 py-2 rounded-lg flex items-center transition-all duration-200"
+                      className="ghost-button flex items-center rounded-lg px-4 py-2 text-sm font-bold"
                     >
-                      <Download className="h-4 w-4 mr-2" />
+                      <Download className="mr-2 h-4 w-4" />
                       Invoice
                     </button>
                     {bill.status !== 'paid' && (
                       <button
+                        type="button"
                         onClick={() => handleMakePayment(bill)}
-                        className="bg-blue-600 hover:bg-blue-700 hover:shadow-lg hover:scale-105 text-white px-4 py-2 rounded-lg transition-all duration-200"
+                        className="portal-accent-button rounded-lg px-4 py-2 text-sm font-bold"
                       >
                         Pay Now
                       </button>
@@ -238,22 +221,21 @@ const BillingDashboard: React.FC = () => {
           </div>
         )}
 
-        {/* Payment Modal */}
         {showPaymentModal && selectedBill && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg shadow-xl hover:shadow-2xl max-w-md w-full p-6 transition-all duration-300">
-              <h2 className="text-xl font-semibold mb-4">Make Payment</h2>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+            <div className="modal-surface w-full max-w-md p-6">
+              <h2 className="mb-4 text-lg font-bold text-slate-100">Make Payment</h2>
               <div className="space-y-4">
                 <div>
-                  <p className="text-sm text-gray-600">Amount to Pay</p>
-                  <p className="text-2xl font-bold text-gray-900">₹{paymentData.amount.toLocaleString()}</p>
+                  <p className="text-sm text-slate-500">Amount to pay</p>
+                  <p className="text-2xl font-bold text-teal-300">₹{paymentData.amount.toLocaleString()}</p>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Payment Method</label>
+                  <label className="form-label mb-1.5 block">Payment method</label>
                   <select
                     value={paymentData.payment_method}
-                    onChange={(e) => setPaymentData({ ...paymentData, payment_method: e.target.value as any })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg hover:border-blue-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200"
+                    onChange={(e) => setPaymentData({ ...paymentData, payment_method: e.target.value as PaymentData['payment_method'] })}
+                    className={portalInputClass}
                   >
                     <option value="upi">UPI</option>
                     <option value="card">Card</option>
@@ -263,26 +245,28 @@ const BillingDashboard: React.FC = () => {
                 </div>
                 {paymentData.payment_method === 'card' && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Transaction ID</label>
+                    <label className="form-label mb-1.5 block">Transaction ID</label>
                     <input
                       type="text"
                       value={paymentData.transaction_id || ''}
                       onChange={(e) => setPaymentData({ ...paymentData, transaction_id: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg hover:border-blue-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200"
+                      className={portalInputClass}
                       placeholder="Enter transaction ID"
                     />
                   </div>
                 )}
                 <div className="flex gap-3">
                   <button
+                    type="button"
                     onClick={handlePaymentSubmit}
-                    className="flex-1 bg-blue-600 hover:bg-blue-700 hover:shadow-lg hover:scale-105 text-white py-2 rounded-lg transition-all duration-200"
+                    className="portal-accent-button flex-1 rounded-lg py-2.5 text-sm font-bold"
                   >
                     Pay ₹{paymentData.amount.toLocaleString()}
                   </button>
                   <button
+                    type="button"
                     onClick={() => setShowPaymentModal(false)}
-                    className="flex-1 bg-gray-200 hover:bg-gray-300 hover:shadow-md hover:scale-105 text-gray-700 py-2 rounded-lg transition-all duration-200"
+                    className="ghost-button flex-1 rounded-lg py-2.5 text-sm font-bold"
                   >
                     Cancel
                   </button>
@@ -291,8 +275,7 @@ const BillingDashboard: React.FC = () => {
             </div>
           </div>
         )}
-      </div>
-    </div>
+    </PortalPageShell>
   );
 };
 

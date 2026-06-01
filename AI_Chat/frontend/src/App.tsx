@@ -7,6 +7,7 @@ import { type Capability } from './services/roleService';
 import { clearAuth } from './services/authService';
 import PatientInfoForm from './components/PatientInfoForm';
 import PatientEngagement from './components/PatientEngagement';
+import FrontDeskPortal from './components/FrontDeskPortal';
 import VoiceInput from './components/VoiceInput';
 import { Message, PatientInfo } from './types';
 import {
@@ -36,7 +37,10 @@ import GeneralPractitionerDashboard from './components/general/GeneralPractition
 import FloatingChatBot from './components/general/FloatingChatBot';
 import AdminDashboard from './components/admin/AdminDashboard';
 import FaqDropdown from './components/FaqDropdown';
+import StaffChatLayout from './components/chat/StaffChatLayout';
+import type { LinkedPatientState } from './components/chat/StaffPatientPanel.types';
 import { roleService, type UserRole, type Capability as RoleCapability } from './services/roleService';
+import type { PortalId } from './theme/portalThemes';
 
 function shouldResetContext(input: string): boolean {
   const trimmed = input.trim().toLowerCase();
@@ -82,50 +86,50 @@ const AuthLayout: FC<{ children: React.ReactNode; navigate: any; capabilityName?
         return {
           title: 'General Practitioner Dashboard',
           subtitle: 'Sign in to access your medical practice dashboard',
-          color: 'text-blue-600',
-          bgColor: 'bg-blue-50'
+          color: 'text-sky-300',
+          bgColor: 'bg-sky-500/15'
         };
       case 'radiology':
         return {
           title: 'Radiology Assistant',
           subtitle: 'Sign in to access radiology imaging tools',
-          color: 'text-purple-600',
-          bgColor: 'bg-purple-50'
+          color: 'text-indigo-300',
+          bgColor: 'bg-indigo-500/15'
         };
       case 'lab':
         return {
           title: 'Lab Technician Portal',
           subtitle: 'Sign in to access lab report management',
-          color: 'text-green-600',
-          bgColor: 'bg-green-50'
+          color: 'text-emerald-300',
+          bgColor: 'bg-emerald-500/15'
         };
       case 'engagement':
         return {
           title: 'Frontdesk',
           subtitle: 'Sign in to manage patient communications',
-          color: 'text-orange-600',
-          bgColor: 'bg-orange-50'
+          color: 'text-amber-300',
+          bgColor: 'bg-amber-500/15'
         };
       case 'admin':
         return {
           title: 'Admin Dashboard',
           subtitle: 'Sign in to manage users and access controls',
-          color: 'text-purple-600',
-          bgColor: 'bg-purple-50'
+          color: 'text-violet-300',
+          bgColor: 'bg-violet-500/15'
         };
       case 'signup':
         return {
           title: 'Create Account',
           subtitle: 'Sign up for Acufore Health',
-          color: 'text-blue-600',
-          bgColor: 'bg-blue-50'
+          color: 'text-sky-300',
+          bgColor: 'bg-sky-500/15'
         };
       default:
         return {
           title: 'Welcome',
           subtitle: 'Sign in to your account',
-          color: 'text-blue-600',
-          bgColor: 'bg-blue-50'
+          color: 'text-sky-300',
+          bgColor: 'bg-sky-500/15'
         };
     }
   };
@@ -133,53 +137,51 @@ const AuthLayout: FC<{ children: React.ReactNode; navigate: any; capabilityName?
   const info = getCapabilityInfo(capabilityName);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 relative overflow-hidden">
-      {/* Full-screen background healthcare illustration */}
+    <div className="app-page relative min-h-screen overflow-hidden">
       <div className="absolute inset-0 pointer-events-none z-0" aria-hidden>
         <img
           src="/healthcare-illustration.jpg"
           alt=""
-          className="absolute inset-0 w-100% h-90% object-cover opacity-50"
+          className="absolute inset-0 h-full w-full object-cover opacity-20"
         />
+        <div className="absolute inset-0 bg-gradient-to-br from-slate-950/90 via-slate-900/85 to-indigo-950/90" />
       </div>
       <AuthHeader />
       <div className="relative z-10 flex items-center justify-center py-12 px-4">
         {showFeatures ? (
-          <div className="w-full max-w-5xl flex flex-col md:flex-row bg-white/10 backdrop-blur-sm rounded-xl shadow-lg border border-white/20 animate-fade-in overflow-hidden min-h-[32rem]">
-            {/* Left: Branding + features - 60% width; different bg for login vs signup */}
-            <div className={`md:w-[60%] p-10 border-b md:border-b-0 md:border-r border-gray-100 min-h-[28rem] md:min-h-0 flex flex-col justify-center bg-gradient-to-br ${capabilityName === 'signup' ? 'from-indigo-200 to-red-300' : 'from-gray-200 to-indigo-300'}`}>
+          <div className="modal-surface w-full max-w-5xl flex flex-col md:flex-row animate-fade-in overflow-hidden min-h-[32rem]">
+            <div className={`md:w-[60%] p-10 border-b md:border-b-0 md:border-r border-slate-700/50 min-h-[28rem] md:min-h-0 flex flex-col justify-center bg-gradient-to-br ${capabilityName === 'signup' ? 'from-indigo-950/90 via-violet-950/80 to-rose-950/70' : 'from-slate-900/95 via-indigo-950/85 to-cyan-950/75'}`}>
               <div className="mb-6 text-center">
-                <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent">Acufore Health</h1>
-                <p className="text-gray-500 text-sm mt-1">Healthcare Management</p>
+                <h1 className="text-4xl font-bold brand-gradient-text">Acufore Health</h1>
+                <p className="text-slate-400 text-sm mt-1">Healthcare Management</p>
               </div>
               <ul className="space-y-4">
                 {TOP_FEATURES.map((item, i) => {
                   const Icon = item.icon;
                   return (
                     <li key={i} className="flex items-start gap-3">
-                      <span className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
-                        <Icon className="w-4 h-4 text-blue-600" />
+                      <span className="flex-shrink-0 w-8 h-8 rounded-full bg-sky-500/20 border border-sky-500/30 flex items-center justify-center">
+                        <Icon className="w-4 h-4 text-sky-300" />
                       </span>
-                      <span className="text-sm text-gray-700 pt-0.5">{item.text}</span>
+                      <span className="text-sm text-slate-300 pt-0.5">{item.text}</span>
                     </li>
                   );
                 })}
               </ul>
             </div>
-            {/* Right: Login form - 40% width */}
-            <div className="md:w-[40%] p-10 flex flex-col justify-center">
+            <div className="md:w-[40%] p-10 flex flex-col justify-center bg-slate-900/40">
               <div className={`mb-6 ${!capabilityName || capabilityName === 'signup' ? 'text-center' : ''}`}>
                 <h1 className={`font-bold ${info.color} ${!capabilityName || capabilityName === 'signup' ? 'text-4xl' : 'text-2xl'}`}>{info.title}</h1>
-                {info.subtitle ? <p className="text-gray-500 text-sm mt-1">{info.subtitle}</p> : null}
+                {info.subtitle ? <p className="text-slate-400 text-sm mt-1">{info.subtitle}</p> : null}
               </div>
               {children}
             </div>
           </div>
         ) : (
-          <div className="w-full max-w-md p-8 bg-white rounded-xl shadow-lg border border-gray-100 animate-fade-in">
-            <div className={`mb-6 text-center`}>
+          <div className="modal-surface w-full max-w-md p-8 animate-fade-in">
+            <div className="mb-6 text-center">
               <h1 className={`font-bold ${info.color} ${!capabilityName || capabilityName === 'signup' ? 'text-4xl' : 'text-2xl'}`}>{info.title}</h1>
-              {info.subtitle ? <p className="text-gray-500 text-sm mt-1">{info.subtitle}</p> : null}
+              {info.subtitle ? <p className="text-slate-400 text-sm mt-1">{info.subtitle}</p> : null}
             </div>
             {children}
           </div>
@@ -284,7 +286,28 @@ const App: FC = () => {
     medications: '',
     medicalHistory: ''
   });
+  const [linkedPatient, setLinkedPatient] = useState<LinkedPatientState | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const buildChatStreamBody = (payload: {
+    message: string;
+    patientInfo?: PatientInfo | null;
+    fileContext?: unknown;
+    fileFindings?: string | null;
+    previousAiMessage?: string | null;
+    resetMessage?: string | null;
+    capability?: Capability | string | null;
+  }) => ({
+    message: payload.message,
+    userEmail: sessionStorage.getItem('userEmail') || 'anonymous',
+    patient_id: linkedPatient?.patientId ?? undefined,
+    patientInfo: linkedPatient ? undefined : payload.patientInfo ?? undefined,
+    fileContext: payload.fileContext ?? null,
+    fileFindings: payload.fileFindings ?? null,
+    previousAiMessage: payload.previousAiMessage ?? null,
+    resetMessage: payload.resetMessage ?? null,
+    capability: payload.capability || selectedCapability || 'general',
+  });
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [sessions, setSessions] = useState<any[]>([]);
   const [currentSessionId, setCurrentSessionIdState] = useState<string | null>(null);
@@ -412,7 +435,7 @@ const App: FC = () => {
       case 'general':
         return { name: 'General Medical Assistant', color: 'text-blue-600', bgColor: 'bg-blue-50', subtitle: 'Manage appointments, prescriptions, and patient care' };
       case 'radiology':
-        return { name: 'Radiology Medical Assistant', color: 'text-purple-600', bgColor: 'bg-purple-50', subtitle: 'Interpret imaging and assist with radiology workflows' };
+        return { name: 'Radiology Medical Assistant', color: 'text-indigo-600', bgColor: 'bg-indigo-50', subtitle: 'Interpret imaging and assist with radiology workflows' };
       case 'lab':
         return { name: 'Lab Medical Assistant', color: 'text-green-600', bgColor: 'bg-green-50', subtitle: 'Interpret lab results and assist with laboratory workflows' };
       case 'engagement':
@@ -668,16 +691,17 @@ const App: FC = () => {
         signal: controller.signal,
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          message: userMessage.content,
-          userEmail: userEmail, // Add user email for session tracking
-          patientInfo: info,
-          fileContext: resetContext ? null : lastUploadedFile,
-          fileFindings: resetContext ? null : lastFileFindings,
-          previousAiMessage: isFollowUp ? lastAiMessage : null,
-          resetMessage,
-          capability: selectedCapability || 'general',
-        }),
+        body: JSON.stringify(
+          buildChatStreamBody({
+            message: userMessage.content,
+            patientInfo: info,
+            fileContext: resetContext ? null : lastUploadedFile,
+            fileFindings: resetContext ? null : lastFileFindings,
+            previousAiMessage: isFollowUp ? lastAiMessage : null,
+            resetMessage,
+            capability: selectedCapability || 'general',
+          })
+        ),
       });
 
       const reader = response.body?.getReader();
@@ -818,16 +842,17 @@ const App: FC = () => {
             headers: {
               'Content-Type': 'application/json',
             },
-            body: JSON.stringify({
-              message: editedUserMessage.content,
-              userEmail: userEmail,
-              patientInfo: editedUserMessage.patientInfo,
-              fileContext: resetContext ? null : lastUploadedFile,
-              fileFindings: resetContext ? null : lastFileFindings,
-              previousAiMessage: isFollowUp ? lastAiMessage : null,
-              resetMessage,
-              capability: selectedCapability || 'general',
-            }),
+            body: JSON.stringify(
+              buildChatStreamBody({
+                message: editedUserMessage.content,
+                patientInfo: editedUserMessage.patientInfo,
+                fileContext: resetContext ? null : lastUploadedFile,
+                fileFindings: resetContext ? null : lastFileFindings,
+                previousAiMessage: isFollowUp ? lastAiMessage : null,
+                resetMessage,
+                capability: selectedCapability || 'general',
+              })
+            ),
           });
           if (!response.ok) throw new Error('Failed to get response from server');
           const reader = response.body?.getReader();
@@ -925,16 +950,17 @@ const App: FC = () => {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          message: userMessage.content,
-          userEmail: userEmail,
-          patientInfo: patientInfo,
-          fileContext: resetContext ? null : lastUploadedFile,
-          fileFindings: resetContext ? null : lastFileFindings,
-          previousAiMessage: isFollowUp ? lastAiMessage : null,
-          resetMessage,
-          capability: selectedCapability || 'general',
-        }),
+        body: JSON.stringify(
+          buildChatStreamBody({
+            message: userMessage.content,
+            patientInfo: linkedPatient?.patientInfo ?? patientInfo,
+            fileContext: resetContext ? null : lastUploadedFile,
+            fileFindings: resetContext ? null : lastFileFindings,
+            previousAiMessage: isFollowUp ? lastAiMessage : null,
+            resetMessage,
+            capability: selectedCapability || 'general',
+          })
+        ),
       });
 
       if (!response.ok) throw new Error('Failed to get response from server');
@@ -1319,6 +1345,116 @@ const App: FC = () => {
     });
   }, [sessions, location.pathname]);
 
+  const handleStaffLogout = () => {
+    clearUserData();
+    roleService.clearCache();
+    clearAuth();
+    setSessions([]);
+    setMessages([]);
+    setCurrentSessionIdState(null);
+    setSelectedCapability(null);
+    setShowDisclaimer(true);
+    setUserRole(null);
+    navigate('/login');
+  };
+
+  const renderStaffChatPortal = (
+    portal: PortalId,
+    capability: Capability,
+    config: {
+      welcomeMessage: string;
+      dragDropMessage: string;
+      uploadLabel: string;
+      uploadModalLabel: string;
+      uploadAccept: 'pdf' | 'image';
+    }
+  ) => (
+    <div className="app-shell flex h-screen flex-col overflow-hidden" data-portal={portal}>
+      <Header
+        sessions={sessions}
+        currentSessionId={currentSessionId}
+        showDropdown={showDropdown}
+        setShowDropdown={setShowDropdown}
+        dropdownRef={dropdownRef}
+        getSessionTopic={getSessionTopic}
+        getSessionCapability={getSessionCapability}
+        handleSessionSwitch={handleSessionSwitch}
+        handleDeleteSession={handleDeleteSession}
+        handleNewSession={handleNewSession}
+        capabilityInfo={getCapabilityInfo(selectedCapability)}
+        isAuthenticated={isAuthenticated}
+        onNavigateToLogin={() => navigate('/login')}
+        onNavigateToSignup={() => navigate('/signup')}
+        onLogout={handleStaffLogout}
+        selectedCapability={selectedCapability}
+        onSelectPrompt={handleQuickPrompt}
+        hideSessionControls={true}
+      />
+      {showDisclaimer && <DisclaimerModal onClose={handleDisclaimerClose} />}
+      <StaffChatLayout
+        portal={portal}
+        capability={capability}
+        capabilityInfo={getCapabilityInfo(selectedCapability)}
+        sessions={sessionsForCurrentRoute}
+        currentSessionId={currentSessionId}
+        messages={messages}
+        input={input}
+        setInput={setInput}
+        isLoading={isLoading}
+        uploading={uploading}
+        analyzing={analyzing}
+        uploadProgress={uploadProgress}
+        showFileTypeModal={showFileTypeModal}
+        setShowFileTypeModal={setShowFileTypeModal}
+        pendingFileType={pendingFileType}
+        setPendingFileType={setPendingFileType}
+        isDragActive={isDragActive}
+        isVoiceRecording={isVoiceRecording}
+        placeholderText={placeholderText}
+        previewFile={previewFile}
+        setPreviewFile={setPreviewFile}
+        zoom={zoom}
+        isPanning={isPanning}
+        panOffset={panOffset}
+        messagesEndRef={messagesEndRef}
+        inputRef={inputRef}
+        getSessionTopic={getSessionTopic}
+        getSessionCapability={getSessionCapability}
+        handleNewSession={handleNewSession}
+        handleSessionSwitch={handleSessionSwitch}
+        handleDeleteSession={handleDeleteSession}
+        handleSubmit={handleSubmit}
+        handleStopGeneration={handleStopGeneration}
+        handleQuickPrompt={handleQuickPrompt}
+        handleFileTypeSelect={handleFileTypeSelect}
+        handleFileUpload={handleFileUpload}
+        handlePreviewClick={handlePreviewClick}
+        handleDragOver={handleDragOver}
+        handleDragLeave={handleDragLeave}
+        handleDrop={handleDrop}
+        handleVoiceTextGenerated={handleVoiceTextGenerated}
+        handleZoomIn={handleZoomIn}
+        handleZoomOut={handleZoomOut}
+        handleResetZoom={handleResetZoom}
+        handleMouseDown={handleMouseDown}
+        handleMouseMove={handleMouseMove}
+        handleMouseUp={handleMouseUp}
+        handleWheel={handleWheel}
+        setEditingMessageId={setEditingMessageId}
+        welcomeMessage={config.welcomeMessage}
+        dragDropMessage={config.dragDropMessage}
+        uploadLabel={config.uploadLabel}
+        uploadModalLabel={config.uploadModalLabel}
+        uploadAccept={config.uploadAccept}
+        linkedPatient={linkedPatient}
+        onLinkedPatientChange={setLinkedPatient}
+      />
+      <footer className="border-t border-slate-200 px-4 py-1 text-center text-sm text-amber-600">
+        <p>© 2025 Healthcare Chatbot. Assistance For Professional Medical Advice.</p>
+      </footer>
+    </div>
+  );
+
   return (
     <Routes>
       {/* Default route - always redirect to login page first */}
@@ -1442,383 +1578,13 @@ const App: FC = () => {
       <Route path="/app/radiology" element={
         <ProtectedRoute>
           <RoleBasedRoute capability="radiology" fallbackPath="/app/engagement" isAuthenticated={isAuthenticated}>
-            <div className="flex flex-col h-screen overflow-hidden bg-gray-50">
-          <Header
-            sessions={sessions}
-            currentSessionId={currentSessionId}
-            showDropdown={showDropdown}
-            setShowDropdown={setShowDropdown}
-            dropdownRef={dropdownRef}
-            getSessionTopic={getSessionTopic}
-            getSessionCapability={getSessionCapability}
-            handleSessionSwitch={handleSessionSwitch}
-            handleDeleteSession={handleDeleteSession}
-            handleNewSession={handleNewSession}
-            capabilityInfo={getCapabilityInfo(selectedCapability)}
-            isAuthenticated={isAuthenticated}
-            onNavigateToLogin={() => navigate('/login')}
-            onNavigateToSignup={() => navigate('/signup')}
-            onLogout={() => {
-              // Clear all user-specific data
-              clearUserData();
-              roleService.clearCache();
-              clearAuth();
-              
-              // Reset application state
-              setSessions([]);
-              setMessages([]);
-              setCurrentSessionIdState(null);
-              setSelectedCapability(null);
-              setShowDisclaimer(true);
-              setUserRole(null);
-              
-              navigate('/login');
-            }}
-            selectedCapability={selectedCapability}
-            onSelectPrompt={handleQuickPrompt}
-            hideSessionControls={true}
-          />
-          {showDisclaimer && (
-            <DisclaimerModal onClose={handleDisclaimerClose} />
-          )}
-          <main className="flex-1 flex px-0 py-3 overflow-hidden w-full">
-            <div className="flex gap-2 flex-1 min-h-0 min-w-0 w-full">
-              {/* Left Sidebar - New Chat + Chat History (radiology: no Patient Info) */}
-              <div className="w-64 flex-shrink-0 flex flex-col bg-white rounded-lg shadow-md overflow-hidden">
-                <div className="p-3 border-b border-gray-200">
-                  <button
-                    type="button"
-                    onClick={handleNewSession}
-                    className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-green-500 text-white hover:bg-green-600 transition-colors"
-                  >
-                    <PlusCircle size={18} />
-                    New Chat
-                  </button>
-                </div>
-                <div className="flex-1 overflow-y-auto hide-scrollbar flex flex-col min-h-0">
-                  <h2 className="text-sm font-medium text-gray-700 px-3 py-2 border-b border-gray-100">Chat History</h2>
-                  <div className="flex-1 p-2">
-                    {sessionsForCurrentRoute.map((session) => (
-                      <div
-                        key={session.id}
-                        className={`flex items-center justify-between gap-2 px-3 py-2 rounded-lg cursor-pointer hover:bg-blue-50 ${currentSessionId === session.id ? 'bg-blue-100' : ''}`}
-                        onClick={() => handleSessionSwitch(session.id)}
-                      >
-                        <div className="flex flex-col flex-1 min-w-0">
-                          <span className="truncate text-sm font-medium text-gray-900">{getSessionTopic(session)}</span>
-                          {getSessionCapability && (
-                            <span className="text-xs text-gray-500 truncate">{getSessionCapability(session.id)}</span>
-                          )}
-                        </div>
-                        {sessionsForCurrentRoute.length > 1 && (
-                          <button
-                            type="button"
-                            className="p-1 text-gray-400 hover:text-red-600 flex-shrink-0"
-                            onClick={(e) => { e.stopPropagation(); handleDeleteSession(session.id); }}
-                            title="Delete session"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Right Column - Chat */}
-              <div className="flex flex-col overflow-hidden flex-1">
-                <div className="bg-white rounded-lg shadow-md flex flex-col h-full relative performance-optimized">
-                    <div className="flex-1 overflow-y-auto p-4 space-y-4 hide-scrollbar chat-container smooth-scroll">
-                      {messages.length === 0 && !showFileTypeModal ? (
-                        <div className="flex flex-col items-center justify-center h-full text-center text-gray-500 space-y-4">
-                          <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-700 rounded-full flex items-center justify-center shadow-lg animate-professional-pulse">
-                            <Heart size={30} className="text-white animate-heartbeat" />
-                          </div>
-                          <div>
-                            <div className={`inline-block px-3 py-1 rounded-full text-sm font-medium mb-3 ${getCapabilityInfo(selectedCapability).bgColor} ${getCapabilityInfo(selectedCapability).color}`}>
-                              {getCapabilityInfo(selectedCapability).name}
-                            </div>
-                            <p className="text-lg font-medium">Welcome to Your AI Medical Assistant</p>
-                            <p className="max-w-md mx-auto mt-2">
-                              {selectedCapability === 'radiology' 
-                                ? 'Upload medical images or ask about radiological findings, imaging techniques, and interpretation.'
-                                : selectedCapability === 'lab'
-                                ? 'Upload lab reports or ask about laboratory results, test interpretations, and clinical correlation.'
-                                : 'Ask me questions about health conditions, symptoms, treatments, or general health advice.'
-                              }
-                            </p>
-                          </div>
-                          <div className="flex items-center space-x-2 text-amber-600 animate-pulse">
-                            <AlertCircle size={16} />
-                            <span className="text-sm">For healthcare professionals only.</span>
-                          </div>
-                        </div>
-                      ) : (
-                        messages.map((message) => (
-                          <ChatMessage
-                            key={message.id}
-                            message={message}
-                            onPreviewClick={handlePreviewClick}
-                            onEdit={id => {
-                              setEditingMessageId(id);
-                              const msg = messages.find(m => m.id === id);
-                              if (msg) setInput(msg.content);
-                              if (inputRef.current) inputRef.current.focus();
-                            }}
-                            showUploadProgress={uploading && messages.length > 0 && messages[messages.length - 1].id === message.id && message.role === 'user' && !!(message as any).fileUrl}
-                            uploadProgress={uploadProgress}
-                            analyzing={analyzing && messages.length > 0 && messages[messages.length - 1].id === message.id && message.role === 'user'}
-                          />
-                        ))
-                      )}
-                      {(isLoading || analyzing) && (
-                        <div className="flex items-start space-x-3">
-                          <div className="flex-shrink-0 bg-gradient-to-br from-blue-500 to-blue-700 rounded-full p-3 shadow-lg">
-                            <Stethoscope size={24} className="text-white" />
-                          </div>
-                          <div className="p-4 bg-white rounded-lg rounded-tl-none max-w-[85%] border border-gray-100 shadow-md">
-                            <LoadingDots />
-                          </div>
-                        </div>
-                      )}
-                      <div ref={messagesEndRef} />
-                    </div>
-
-                  {/* Fixed Input - Only show for non-engagement capabilities */}
-                  {(selectedCapability as Capability) !== 'engagement' && (
-                    <div className="sticky bottom-0 bg-white p-0.5 border-t border-gray-200 "
-                      onDragOver={handleDragOver}
-                      onDragLeave={handleDragLeave}
-                      onDrop={handleDrop}
-                    >
-                      {/* Drag & Drop Overlay */}
-                      {isDragActive && selectedCapability && (
-                        <div className="absolute inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-blue-50 to-blue-100 bg-opacity-90 rounded-lg border-2 border-blue-500 border-dashed pointer-events-none shadow-lg">
-                          <div className="text-blue-700 text-lg font-semibold flex flex-col items-center">
-                            <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-700 rounded-full flex items-center justify-center shadow-lg mb-4 animate-professional-pulse">
-                              <Upload size={32} className="text-white" />
-                            </div>
-                            <p className="text-center">
-                              {selectedCapability === 'general' && "Drop your prescription/document (PDF) here"}
-                              {selectedCapability === 'lab' && "Drop your lab report (PDF) here"}
-                              {selectedCapability === 'radiology' && "Drop your medical image here"}
-                            </p>
-                          </div>
-                        </div>
-                      )}
-                      {/* File Type Selection Modal */}
-                      {showFileTypeModal && (
-                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30">
-                          <div className="bg-white rounded-lg shadow-lg p-6 w-80 flex flex-col items-center">
-                            <h3 className="text-lg font-semibold mb-4">Select file type to upload</h3>
-                            {!pendingFileType && <>
-                              {/* General Medical - Show prescription upload */}
-                              {selectedCapability === 'general' && (
-                                <button
-                                  className="w-full flex items-center gap-2 px-4 py-2 mb-3 rounded bg-blue-100 hover:bg-blue-200 text-blue-700 font-medium"
-                                  onClick={() => handleFileTypeSelect('pdf')}
-                                >
-                                  <FileText size={20} /> Prescription/Document (PDF)
-                                </button>
-                              )}
-                              
-                              {/* Lab Mode - Show lab report upload */}
-                              {selectedCapability === 'lab' && (
-                                <button
-                                  className="w-full flex items-center gap-2 px-4 py-2 mb-3 rounded bg-green-100 hover:bg-green-200 text-green-700 font-medium"
-                                  onClick={() => handleFileTypeSelect('pdf')}
-                                >
-                                  <FileText size={20} /> Lab Report (PDF)
-                                </button>
-                              )}
-                              
-                              {/* Radiology Mode - Show image upload */}
-                              {selectedCapability === 'radiology' && (
-                                <button
-                                  className="w-full flex items-center gap-2 px-4 py-2 mb-3 rounded bg-purple-100 hover:bg-purple-200 text-purple-700 font-medium"
-                                  onClick={() => handleFileTypeSelect('image')}
-                                >
-                                  <ImageIcon size={20} /> Medical Image (JPG/PNG/DICOM)
-                                </button>
-                              )}
-                              
-                              {/* If no capability selected or unrecognized capability */}
-                              {!selectedCapability && (
-                                <div className="text-center text-gray-500 mb-4">
-                                  <p className="text-sm">Please select an assistant capability first</p>
-                                </div>
-                              )}
-                              
-                              <button
-                                className="mt-4 text-sm text-gray-500 hover:underline"
-                                onClick={() => setShowFileTypeModal(false)}
-                              >Cancel</button>
-                            </>}
-                            {pendingFileType && (
-                              <>
-                                <input
-                                  id="file-upload-input"
-                                  type="file"
-                                  accept={pendingFileType === 'pdf' ? '.pdf' : 'image/*'}
-                                  className="block w-full text-sm text-gray-700 mb-4"
-                                  onChange={handleFileUpload}
-                                  disabled={isLoading || uploading || analyzing}
-                                  autoFocus
-                                  multiple
-                                />
-                                <button
-                                  className="mt-2 text-sm text-gray-500 hover:underline"
-                                  onClick={() => setPendingFileType(null)}
-                                >Back</button>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                      <form onSubmit={handleSubmit} className="relative flex items-center">
-                        {/* Upload Button */}
-                        <label 
-                          className="flex items-center cursor-pointer mr-2" 
-                          title={
-                            selectedCapability === 'general' ? "Upload Prescription/Document" :
-                            selectedCapability === 'radiology' ? "Upload Medical Image" :
-                            selectedCapability === 'lab' ? "Upload Lab Report" :
-                            "Select capability first"
-                          } 
-                          onClick={e => { 
-                            e.preventDefault(); 
-                            if (selectedCapability) {
-                              setShowFileTypeModal(true); 
-                            }
-                          }}
-                        >
-                          <span className={`p-2 rounded-full ${
-                            uploading ? 'bg-gray-300' : 
-                            !selectedCapability ? 'bg-gray-200 cursor-not-allowed' :
-                            'bg-primary-100 hover:bg-primary-200'
-                          } transition-colors`}>
-                            <Upload size={20} className={`${!selectedCapability ? 'text-gray-400' : 'text-primary-600'}`} />
-                          </span>
-                        </label>
-
-                        {/* Voice Input Button */}
-                        <div className="mr-2">
-                          <VoiceInput
-                            onTextGenerated={handleVoiceTextGenerated}
-                            disabled={uploading || analyzing || !selectedCapability || isVoiceRecording}
-                          />
-                        </div>
-
-                        <textarea
-                          ref={inputRef}
-                          value={input}
-                          onChange={(e) => setInput(e.target.value)}
-                          placeholder={placeholderText}
-                          className={`w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none hide-scrollbar ${selectedCapability === 'radiology' || selectedCapability === 'lab' ? 'pr-24' : 'pr-12'}`}
-                          rows={1}
-                          disabled={uploading || analyzing || !selectedCapability}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' && !e.shiftKey) {
-                              e.preventDefault();
-                              handleSubmit(e);
-                            }
-                          }}
-                        />
-                        {(selectedCapability === 'radiology' || selectedCapability === 'lab') && (
-                          <div className="absolute right-12 top-1/2 transform -translate-y-1/2">
-                            <FaqDropdown
-                              capability={selectedCapability}
-                              sessionId={currentSessionId}
-                              onSelectPrompt={handleQuickPrompt}
-                              disabled={uploading || analyzing || !selectedCapability}
-                            />
-                          </div>
-                        )}
-                        {(isLoading || analyzing) ? (
-                          <button
-                            type="button"
-                            onClick={handleStopGeneration}
-                            className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1.5 rounded-full bg-red-500 text-white hover:bg-red-600 transition-colors"
-                            title="Stop generation"
-                          >
-                            <Square size={20} />
-                          </button>
-                        ) : (
-                          <button
-                            type="submit"
-                            disabled={!input.trim() || uploading || analyzing}
-                            className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1.5 rounded-full bg-primary-500 text-white disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors hover:bg-primary-600"
-                          >
-                            <ArrowUp size={20} />
-                          </button>
-                        )}
-                      </form>
-                    </div>
-                  )}
-                </div>
-            </div>
-            </div>
-          </main>
-
-          {/* File Preview Modal */}
-          {previewFile && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-70">
-              <div className="relative bg-white rounded-lg shadow-lg p-4 max-w-2xl w-full flex flex-col items-center">
-                <button
-                  className="absolute top-2 right-2 p-1 rounded-full bg-gray-200 hover:bg-gray-300"
-                  onClick={() => setPreviewFile(null)}
-                  title="Close"
-                >
-                  <X size={22} />
-                </button>
-                {previewFile.type.startsWith('image/') && (
-                  <div className="flex items-center mb-2 gap-2">
-                    <button onClick={handleZoomOut} className="p-1 rounded bg-gray-200 hover:bg-gray-300" title="Zoom out">-</button>
-                    <span className="text-sm font-medium">{Math.round(zoom * 100)}%</span>
-                    <button onClick={handleZoomIn} className="p-1 rounded bg-gray-200 hover:bg-gray-300" title="Zoom in">+</button>
-                    <button onClick={handleResetZoom} className="p-1 rounded bg-gray-200 hover:bg-gray-300" title="Reset zoom">Reset</button>
-                  </div>
-                )}
-                {previewFile.type.startsWith('image/') ? (
-                  <div
-                    className="overflow-hidden flex items-center justify-center w-full h-[70vh] bg-gray-50 rounded"
-                    style={{ cursor: isPanning ? 'grabbing' : zoom > 1 ? 'grab' : 'default' }}
-                    onMouseDown={handleMouseDown}
-                    onMouseMove={handleMouseMove}
-                    onMouseUp={handleMouseUp}
-                    onMouseLeave={handleMouseUp}
-                    onWheel={handleWheel}
-                  >
-                    <img
-                      src={previewFile.url}
-                      alt={previewFile.name}
-                      style={{
-                        transform: `scale(${zoom}) translate(${panOffset.x / zoom}px, ${panOffset.y / zoom}px)`,
-                        transition: isPanning ? 'none' : 'transform 0.2s',
-                        maxHeight: '70vh',
-                        maxWidth: '100%',
-                        userSelect: 'none',
-                        pointerEvents: 'all',
-                      }}
-                      draggable={false}
-                    />
-                  </div>
-                ) : previewFile.type === 'application/pdf' ? (
-                  <div className="flex flex-col items-center">
-                    <FileText size={48} className="text-primary-400 mb-2" />
-                    <span className="mb-2 font-medium text-gray-700">{previewFile.name}</span>
-                    <a href={previewFile.url} download={previewFile.name} className="text-primary-600 underline">Download PDF</a>
-                  </div>
-                ) : null}
-              </div>
-            </div>
-          )}
-
-          <footer className="py-1 px-4 text-center text-sm text-amber-600 border-t border-gray-200">
-            <p>© 2025 Healthcare Chatbot. {selectedCapability === 'engagement' ? 'Frontdesk' : 'Assistance For Professional Medical Advice.'}</p>
-          </footer>
-        </div>
+            {renderStaffChatPortal('radiology', 'radiology', {
+              welcomeMessage: 'Upload medical images or ask about radiological findings, imaging techniques, and interpretation.',
+              dragDropMessage: 'Drop your medical image here',
+              uploadLabel: 'Upload Medical Image',
+              uploadModalLabel: 'Medical Image (JPG/PNG/DICOM)',
+              uploadAccept: 'image',
+            })}
           </RoleBasedRoute>
         </ProtectedRoute>
       } />
@@ -1826,460 +1592,23 @@ const App: FC = () => {
       <Route path="/app/lab" element={
         <ProtectedRoute>
           <RoleBasedRoute capability="lab" fallbackPath="/app/engagement" isAuthenticated={isAuthenticated}>
-            <div className="flex flex-col h-screen overflow-hidden bg-gray-50">
-          <Header
-            sessions={sessions}
-            currentSessionId={currentSessionId}
-            showDropdown={showDropdown}
-            setShowDropdown={setShowDropdown}
-            dropdownRef={dropdownRef}
-            getSessionTopic={getSessionTopic}
-            getSessionCapability={getSessionCapability}
-            handleSessionSwitch={handleSessionSwitch}
-            handleDeleteSession={handleDeleteSession}
-            handleNewSession={handleNewSession}
-            capabilityInfo={getCapabilityInfo(selectedCapability)}
-            isAuthenticated={isAuthenticated}
-            onNavigateToLogin={() => navigate('/login')}
-            onNavigateToSignup={() => navigate('/signup')}
-            onLogout={() => {
-              clearUserData();
-              roleService.clearCache();
-              clearAuth();
-              setSessions([]);
-              setMessages([]);
-              setCurrentSessionIdState(null);
-              setSelectedCapability(null);
-              setShowDisclaimer(true);
-              setUserRole(null);
-              navigate('/login');
-            }}
-            selectedCapability={selectedCapability}
-            onSelectPrompt={handleQuickPrompt}
-            hideSessionControls={true}
-          />
-          {showDisclaimer && (
-            <DisclaimerModal onClose={handleDisclaimerClose} />
-          )}
-          <main className="flex-1 flex px-0 py-3 overflow-hidden w-full">
-            <div className="flex gap-2 flex-1 min-h-0 min-w-0 w-full">
-              {/* Left Sidebar - New Chat + Chat History (lab: no Patient Info) */}
-              <div className="w-64 flex-shrink-0 flex flex-col bg-white rounded-lg shadow-md overflow-hidden">
-                <div className="p-3 border-b border-gray-200">
-                  <button
-                    type="button"
-                    onClick={handleNewSession}
-                    className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-green-500 text-white hover:bg-green-600 transition-colors"
-                  >
-                    <PlusCircle size={18} />
-                    New Chat
-                  </button>
-                </div>
-                <div className="flex-1 overflow-y-auto hide-scrollbar flex flex-col min-h-0">
-                  <h2 className="text-sm font-medium text-gray-700 px-3 py-2 border-b border-gray-100">Chat History</h2>
-                  <div className="flex-1 p-2">
-                    {sessionsForCurrentRoute.map((session) => (
-                      <div
-                        key={session.id}
-                        className={`flex items-center justify-between gap-2 px-3 py-2 rounded-lg cursor-pointer hover:bg-blue-50 ${currentSessionId === session.id ? 'bg-blue-100' : ''}`}
-                        onClick={() => handleSessionSwitch(session.id)}
-                      >
-                        <div className="flex flex-col flex-1 min-w-0">
-                          <span className="truncate text-sm font-medium text-gray-900">{getSessionTopic(session)}</span>
-                          {getSessionCapability && (
-                            <span className="text-xs text-gray-500 truncate">{getSessionCapability(session.id)}</span>
-                          )}
-                        </div>
-                        {sessionsForCurrentRoute.length > 1 && (
-                          <button
-                            type="button"
-                            className="p-1 text-gray-400 hover:text-red-600 flex-shrink-0"
-                            onClick={(e) => { e.stopPropagation(); handleDeleteSession(session.id); }}
-                            title="Delete session"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Right Column - Chat */}
-              <div className="flex flex-col overflow-hidden flex-1">
-                <div className="bg-white rounded-lg shadow-md flex flex-col h-full relative performance-optimized">
-                    <div className="flex-1 overflow-y-auto p-4 space-y-4 hide-scrollbar chat-container smooth-scroll">
-                      {messages.length === 0 && !showFileTypeModal ? (
-                        <div className="flex flex-col items-center justify-center h-full text-center text-gray-500 space-y-4">
-                          <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-700 rounded-full flex items-center justify-center shadow-lg animate-professional-pulse">
-                            <Heart size={30} className="text-white animate-heartbeat" />
-                          </div>
-                          <div>
-                            <div className={`inline-block px-3 py-1 rounded-full text-sm font-medium mb-3 ${getCapabilityInfo(selectedCapability).bgColor} ${getCapabilityInfo(selectedCapability).color}`}>
-                              {getCapabilityInfo(selectedCapability).name}
-                            </div>
-                            <p className="text-lg font-medium">Welcome to Your AI Medical Assistant</p>
-                            <p className="max-w-md mx-auto mt-2">
-                              {selectedCapability === 'radiology' 
-                                ? 'Upload medical images or ask about radiological findings, imaging techniques, and interpretation.'
-                                : selectedCapability === 'lab'
-                                ? 'Upload lab reports or ask about laboratory results, test interpretations, and clinical correlation.'
-                                : 'Ask me questions about health conditions, symptoms, treatments, or general health advice.'
-                              }
-                            </p>
-                          </div>
-                          <div className="flex items-center space-x-2 text-amber-600 animate-pulse">
-                            <AlertCircle size={16} />
-                            <span className="text-sm">For healthcare professionals only.</span>
-                          </div>
-                        </div>
-                      ) : (
-                        messages.map((message) => (
-                          <ChatMessage
-                            key={message.id}
-                            message={message}
-                            onPreviewClick={handlePreviewClick}
-                            onEdit={id => {
-                              setEditingMessageId(id);
-                              const msg = messages.find(m => m.id === id);
-                              if (msg) setInput(msg.content);
-                              if (inputRef.current) inputRef.current.focus();
-                            }}
-                            showUploadProgress={uploading && messages.length > 0 && messages[messages.length - 1].id === message.id && message.role === 'user' && !!(message as any).fileUrl}
-                            uploadProgress={uploadProgress}
-                            analyzing={analyzing && messages.length > 0 && messages[messages.length - 1].id === message.id && message.role === 'user'}
-                          />
-                        ))
-                      )}
-                      {(isLoading || analyzing) && (
-                        <div className="flex items-start space-x-3">
-                          <div className="flex-shrink-0 bg-gradient-to-br from-blue-500 to-blue-700 rounded-full p-3 shadow-lg">
-                            <Stethoscope size={24} className="text-white" />
-                          </div>
-                          <div className="p-4 bg-white rounded-lg rounded-tl-none max-w-[85%] border border-gray-100 shadow-md">
-                            <LoadingDots />
-                          </div>
-                        </div>
-                      )}
-                      <div ref={messagesEndRef} />
-                    </div>
-
-                  {(selectedCapability as Capability) !== 'engagement' && (
-                    <div className="sticky bottom-0 bg-white p-0.5 border-t border-gray-200 "
-                      onDragOver={handleDragOver}
-                      onDragLeave={handleDragLeave}
-                      onDrop={handleDrop}
-                    >
-                      {isDragActive && selectedCapability && (
-                        <div className="absolute inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-blue-50 to-blue-100 bg-opacity-90 rounded-lg border-2 border-blue-500 border-dashed pointer-events-none shadow-lg">
-                          <div className="text-blue-700 text-lg font-semibold flex flex-col items-center">
-                            <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-700 rounded-full flex items-center justify-center shadow-lg mb-4 animate-professional-pulse">
-                              <Upload size={32} className="text-white" />
-                            </div>
-                            <p className="text-center">
-                              {selectedCapability === 'general' && "Drop your prescription/document (PDF) here"}
-                              {selectedCapability === 'lab' && "Drop your lab report (PDF) here"}
-                              {selectedCapability === 'radiology' && "Drop your medical image here"}
-                            </p>
-                          </div>
-                        </div>
-                      )}
-                      {showFileTypeModal && (
-                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30">
-                          <div className="bg-white rounded-lg shadow-lg p-6 w-80 flex flex-col items-center">
-                            <h3 className="text-lg font-semibold mb-4">Select file type to upload</h3>
-                            {!pendingFileType && <>
-                              {selectedCapability === 'general' && (
-                                <button
-                                  className="w-full flex items-center gap-2 px-4 py-2 mb-3 rounded bg-blue-100 hover:bg-blue-200 text-blue-700 font-medium"
-                                  onClick={() => handleFileTypeSelect('pdf')}
-                                >
-                                  <FileText size={20} /> Prescription/Document (PDF)
-                                </button>
-                              )}
-                              {selectedCapability === 'lab' && (
-                                <button
-                                  className="w-full flex items-center gap-2 px-4 py-2 mb-3 rounded bg-green-100 hover:bg-green-200 text-green-700 font-medium"
-                                  onClick={() => handleFileTypeSelect('pdf')}
-                                >
-                                  <FileText size={20} /> Lab Report (PDF)
-                                </button>
-                              )}
-                              {selectedCapability === 'radiology' && (
-                                <button
-                                  className="w-full flex items-center gap-2 px-4 py-2 mb-3 rounded bg-purple-100 hover:bg-purple-200 text-purple-700 font-medium"
-                                  onClick={() => handleFileTypeSelect('image')}
-                                >
-                                  <ImageIcon size={20} /> Medical Image (JPG/PNG/DICOM)
-                                </button>
-                              )}
-                              {!selectedCapability && (
-                                <div className="text-center text-gray-500 mb-4">
-                                  <p className="text-sm">Please select an assistant capability first</p>
-                                </div>
-                              )}
-                              <button
-                                className="mt-4 text-sm text-gray-500 hover:underline"
-                                onClick={() => setShowFileTypeModal(false)}
-                              >Cancel</button>
-                            </>}
-                            {pendingFileType && (
-                              <>
-                                <input
-                                  id="file-upload-input"
-                                  type="file"
-                                  accept={pendingFileType === 'pdf' ? '.pdf' : 'image/*'}
-                                  className="block w-full text-sm text-gray-700 mb-4"
-                                  onChange={handleFileUpload}
-                                  disabled={isLoading || uploading || analyzing}
-                                  autoFocus
-                                  multiple
-                                />
-                                <button
-                                  className="mt-2 text-sm text-gray-500 hover:underline"
-                                  onClick={() => setPendingFileType(null)}
-                                >Back</button>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                      <form onSubmit={handleSubmit} className="relative flex items-center">
-                        <label 
-                          className="flex items-center cursor-pointer mr-2" 
-                          title={
-                            selectedCapability === 'general' ? "Upload Prescription/Document" :
-                            selectedCapability === 'radiology' ? "Upload Medical Image" :
-                            selectedCapability === 'lab' ? "Upload Lab Report" :
-                            "Select capability first"
-                          } 
-                          onClick={e => { 
-                            e.preventDefault(); 
-                            if (selectedCapability) {
-                              setShowFileTypeModal(true); 
-                            }
-                          }}
-                        >
-                          <span className={`p-2 rounded-full ${
-                            uploading ? 'bg-gray-300' : 
-                            !selectedCapability ? 'bg-gray-200 cursor-not-allowed' :
-                            'bg-primary-100 hover:bg-primary-200'
-                          } transition-colors`}>
-                            <Upload size={20} className={`${!selectedCapability ? 'text-gray-400' : 'text-primary-600'}`} />
-                          </span>
-                        </label>
-
-                        <div className="mr-2">
-                          <VoiceInput
-                            onTextGenerated={handleVoiceTextGenerated}
-                            disabled={uploading || analyzing || !selectedCapability || isVoiceRecording}
-                          />
-                        </div>
-
-                        <textarea
-                          ref={inputRef}
-                          value={input}
-                          onChange={(e) => setInput(e.target.value)}
-                          placeholder={placeholderText}
-                          className={`w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none hide-scrollbar ${selectedCapability === 'radiology' || selectedCapability === 'lab' ? 'pr-24' : 'pr-12'}`}
-                          rows={1}
-                          disabled={uploading || analyzing || !selectedCapability}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' && !e.shiftKey) {
-                              e.preventDefault();
-                              handleSubmit(e);
-                            }
-                          }}
-                        />
-                        {(selectedCapability === 'radiology' || selectedCapability === 'lab') && (
-                          <div className="absolute right-12 top-1/2 transform -translate-y-1/2">
-                            <FaqDropdown
-                              capability={selectedCapability}
-                              sessionId={currentSessionId}
-                              onSelectPrompt={handleQuickPrompt}
-                              disabled={uploading || analyzing || !selectedCapability}
-                            />
-                          </div>
-                        )}
-                        {(isLoading || analyzing) ? (
-                          <button
-                            type="button"
-                            onClick={handleStopGeneration}
-                            className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1.5 rounded-full bg-red-500 text-white hover:bg-red-600 transition-colors"
-                            title="Stop generation"
-                          >
-                            <Square size={20} />
-                          </button>
-                        ) : (
-                          <button
-                            type="submit"
-                            disabled={!input.trim() || uploading || analyzing}
-                            className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1.5 rounded-full bg-primary-500 text-white disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors hover:bg-primary-600"
-                          >
-                            <ArrowUp size={20} />
-                          </button>
-                        )}
-                      </form>
-                    </div>
-                  )}
-                  </div>
-              </div>
-            </div>
-          </main>
-
-          {previewFile && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-70">
-              <div className="relative bg-white rounded-lg shadow-lg p-4 max-w-2xl w-full flex flex-col items-center">
-                <button
-                  className="absolute top-2 right-2 p-1 rounded-full bg-gray-200 hover:bg-gray-300"
-                  onClick={() => setPreviewFile(null)}
-                  title="Close"
-                >
-                  <X size={22} />
-                </button>
-                {previewFile.type.startsWith('image/') && (
-                  <div className="flex items-center mb-2 gap-2">
-                    <button onClick={handleZoomOut} className="p-1 rounded bg-gray-200 hover:bg-gray-300" title="Zoom out">-</button>
-                    <span className="text-sm font-medium">{Math.round(zoom * 100)}%</span>
-                    <button onClick={handleZoomIn} className="p-1 rounded bg-gray-200 hover:bg-gray-300" title="Zoom in">+</button>
-                    <button onClick={handleResetZoom} className="p-1 rounded bg-gray-200 hover:bg-gray-300" title="Reset zoom">Reset</button>
-                  </div>
-                )}
-                {previewFile.type.startsWith('image/') ? (
-                  <div
-                    className="overflow-hidden flex items-center justify-center w-full h-[70vh] bg-gray-50 rounded"
-                    style={{ cursor: isPanning ? 'grabbing' : zoom > 1 ? 'grab' : 'default' }}
-                    onMouseDown={handleMouseDown}
-                    onMouseMove={handleMouseMove}
-                    onMouseUp={handleMouseUp}
-                    onMouseLeave={handleMouseUp}
-                    onWheel={handleWheel}
-                  >
-                    <img
-                      src={previewFile.url}
-                      alt={previewFile.name}
-                      style={{
-                        transform: `scale(${zoom}) translate(${panOffset.x / zoom}px, ${panOffset.y / zoom}px)`,
-                        transition: isPanning ? 'none' : 'transform 0.2s',
-                        maxHeight: '70vh',
-                        maxWidth: '100%',
-                        userSelect: 'none',
-                        pointerEvents: 'all',
-                      }}
-                      draggable={false}
-                    />
-                  </div>
-                ) : previewFile.type === 'application/pdf' ? (
-                  <div className="flex flex-col items-center">
-                    <FileText size={48} className="text-primary-400 mb-2" />
-                    <span className="mb-2 font-medium text-gray-700">{previewFile.name}</span>
-                    <a href={previewFile.url} download={previewFile.name} className="text-primary-600 underline">Download PDF</a>
-                  </div>
-                ) : null}
-              </div>
-            </div>
-          )}
-
-          <footer className="py-1 px-4 text-center text-sm text-amber-600 border-t border-gray-200">
-            <p>© 2025 Healthcare Chatbot. {selectedCapability === 'engagement' ? 'Frontdesk' : 'Assistance For Professional Medical Advice.'}</p>
-          </footer>
-        </div>
+            {renderStaffChatPortal('lab', 'lab', {
+              welcomeMessage: 'Upload lab reports or ask about laboratory results, test interpretations, and clinical correlation.',
+              dragDropMessage: 'Drop your lab report (PDF) here',
+              uploadLabel: 'Upload Lab Report',
+              uploadModalLabel: 'Lab Report (PDF)',
+              uploadAccept: 'pdf',
+            })}
           </RoleBasedRoute>
         </ProtectedRoute>
       } />
+
       {/* Patient Engagement route */}
       <Route path="/app/engagement" element={
         <ProtectedRoute>
           <RoleBasedRoute capability="engagement" fallbackPath="/app/radiology" isAuthenticated={isAuthenticated}>
-            <div className="flex flex-col h-screen overflow-hidden bg-gray-50">
-          <Header
-            sessions={sessions}
-            currentSessionId={currentSessionId}
-            showDropdown={showDropdown}
-            setShowDropdown={setShowDropdown}
-            dropdownRef={dropdownRef}
-            getSessionTopic={getSessionTopic}
-            getSessionCapability={getSessionCapability}
-            handleSessionSwitch={handleSessionSwitch}
-            handleDeleteSession={handleDeleteSession}
-            handleNewSession={handleNewSession}
-            capabilityInfo={getCapabilityInfo(selectedCapability)}
-            isAuthenticated={isAuthenticated}
-            onNavigateToLogin={() => navigate('/login')}
-            onNavigateToSignup={() => navigate('/signup')}
-            onLogout={() => {
-              clearUserData();
-              roleService.clearCache();
-              clearAuth();
-              setSessions([]);
-              setMessages([]);
-              setCurrentSessionIdState(null);
-              setSelectedCapability(null);
-              setShowDisclaimer(true);
-              setUserRole(null);
-              navigate('/login');
-            }}
-            selectedCapability={selectedCapability}
-            onSelectPrompt={handleQuickPrompt}
-            hideSessionControls={true}
-          />
-          {showDisclaimer && (
-            <DisclaimerModal onClose={handleDisclaimerClose} />
-          )}
-          <main className="flex-1 flex px-0 py-3 overflow-hidden w-full">
-            <div className="flex flex-col overflow-hidden flex-1 min-w-0 w-full">
-              {selectedCapability === 'engagement' ? (
-                <PatientEngagement sessionId={currentSessionId} />
-              ) : (
-                <div className="bg-white rounded-lg shadow-md flex flex-col h-full relative performance-optimized">
-                  <div className="flex-1 overflow-y-auto p-4 space-y-4 hide-scrollbar chat-container smooth-scroll">
-                    {messages.length === 0 && !showFileTypeModal ? (
-                      <div className="flex flex-col items-center justify-center h-full text-center text-gray-500 space-y-4">
-                        <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-700 rounded-full flex items-center justify-center shadow-lg animate-professional-pulse">
-                          <Heart size={30} className="text-white animate-heartbeat" />
-                        </div>
-                        <div>
-                          <div className={`inline-block px-3 py-1 rounded-full text-sm font-medium mb-3 ${getCapabilityInfo(selectedCapability).bgColor} ${getCapabilityInfo(selectedCapability).color}`}>
-                            {getCapabilityInfo(selectedCapability).name}
-                          </div>
-                          <p className="text-lg font-medium">Welcome to Your AI Medical Assistant</p>
-                          <p className="max-w-md mx-auto mt-2">
-                            Ask me questions about health conditions, symptoms, treatments, or general health advice.
-                          </p>
-                        </div>
-                      </div>
-                    ) : (
-                      messages.map((message) => (
-                        <ChatMessage key={message.id} message={message} onPreviewClick={handlePreviewClick} onEdit={id => {
-                          setEditingMessageId(id);
-                          const msg = messages.find(m => m.id === id);
-                          if (msg) setInput(msg.content);
-                          if (inputRef.current) inputRef.current.focus();
-                        }} />
-                      ))
-                    )}
-                    {(isLoading || analyzing) && (
-                      <div className="flex items-start space-x-3">
-                        <div className="flex-shrink-0 bg-gradient-to-br from-blue-500 to-blue-700 rounded-full p-3 shadow-lg">
-                          <Stethoscope size={24} className="text-white" />
-                        </div>
-                        <div className="p-4 bg-white rounded-lg rounded-tl-none max-w-[85%] border border-gray-100 shadow-md">
-                          <LoadingDots />
-                        </div>
-                      </div>
-                    )}
-                    <div ref={messagesEndRef} />
-                  </div>
-                </div>
-              )}
-            </div>
-          </main>
-
-          <footer className="py-1 px-4 text-center text-sm text-amber-600 border-t border-gray-200">
-            <p>© 2025 Healthcare Chatbot. {selectedCapability === 'engagement' ? 'Frontdesk' : 'Assistance For Professional Medical Advice.'}</p>
-          </footer>
-        </div>
+            {showDisclaimer && <DisclaimerModal onClose={handleDisclaimerClose} />}
+            <FrontDeskPortal sessionId={currentSessionId} onLogout={handleStaffLogout} />
           </RoleBasedRoute>
         </ProtectedRoute>
       } />

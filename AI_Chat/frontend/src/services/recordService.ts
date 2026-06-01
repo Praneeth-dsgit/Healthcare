@@ -27,6 +27,64 @@ export interface MedicalRecord {
 }
 
 class RecordService {
+  /** Patients with at least one medical record in the database (staff directory). */
+  async listPatientsWithRecords(params?: {
+    capability?: 'lab' | 'radiology' | 'general';
+    search?: string;
+  }): Promise<{
+    success: boolean;
+    patients?: Array<{
+      patient_id: string;
+      first_name: string;
+      last_name: string;
+      date_of_birth?: string;
+      gender?: string;
+      record_count: number;
+      latest_record_date?: string;
+    }>;
+    count?: number;
+    error?: string;
+  }> {
+    try {
+      const queryParams = new URLSearchParams();
+      if (params?.capability) queryParams.append('capability', params.capability);
+      if (params?.search) queryParams.append('search', params.search);
+      const qs = queryParams.toString();
+      const url = `${API_BASE}/patient/patients-with-records${qs ? `?${qs}` : ''}`;
+      const response = await authenticatedFetch(url, {
+        method: 'GET',
+        headers: getAuthHeaders(),
+      });
+      return await response.json();
+    } catch {
+      return { success: false, error: 'Network error' };
+    }
+  }
+
+  /** Staff (lab/radiology/doctor): records for a specific patient from the database */
+  async getRecordsForPatient(
+    patientId: string,
+    params?: { type?: string; capability?: 'lab' | 'radiology' | 'general'; limit?: number }
+  ): Promise<{ success: boolean; records?: MedicalRecord[]; count?: number; error?: string }> {
+    try {
+      const queryParams = new URLSearchParams();
+      if (params?.type) queryParams.append('type', params.type);
+      if (params?.capability) queryParams.append('capability', params.capability);
+      if (params?.limit) queryParams.append('limit', String(params.limit));
+
+      const qs = queryParams.toString();
+      const url = `${API_BASE}/patient/${encodeURIComponent(patientId)}/medical-records${qs ? `?${qs}` : ''}`;
+      const response = await authenticatedFetch(url, {
+        method: 'GET',
+        headers: getAuthHeaders(),
+      });
+      const data = await response.json();
+      return data;
+    } catch {
+      return { success: false, error: 'Network error' };
+    }
+  }
+
   async getRecords(params?: {
     type?: string;
     start_date?: string;

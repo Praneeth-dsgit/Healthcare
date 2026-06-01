@@ -9,6 +9,11 @@ import { Bell, Check, CheckCheck, Calendar, Clock, ExternalLink, Trash2, X, User
 import { notificationService, Notification } from '../../services/notificationService';
 import { appointmentService, Appointment } from '../../services/appointmentService';
 import { getAppointmentStatusColor, getAppointmentStatusContainer } from '../../utils/appointmentStatusColors';
+import {
+  PortalPageShell,
+  PortalPageHero,
+  PortalLoading,
+} from './portalPageLayout';
 
 const Notifications: React.FC = () => {
   const navigate = useNavigate();
@@ -167,139 +172,141 @@ const Notifications: React.FC = () => {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading notifications...</p>
-        </div>
-      </div>
-    );
+    return <PortalLoading message="Loading notifications…" />;
   }
 
   return (
-    <div className="max-w-4xl mx-auto p-6">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
-            <Bell className="w-6 h-6 text-blue-600" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Notifications</h1>
-            <p className="text-sm text-gray-600">
-              {unreadCount > 0
-                ? `${unreadCount} unread notification${unreadCount > 1 ? 's' : ''}`
-                : 'All caught up!'}
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          {unreadCount > 0 && (
-            <button
-              onClick={handleMarkAllAsRead}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              <CheckCheck className="w-4 h-4" />
-              Mark all as read
-            </button>
-          )}
-          {notifications.length > 0 && (
-            <button
-              onClick={handleClearAll}
-              className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-            >
-              <Trash2 className="w-4 h-4" />
-              Clear All
-            </button>
-          )}
-        </div>
-      </div>
+    <PortalPageShell>
+      <PortalPageHero
+        eyebrow="Updates"
+        title="Notifications"
+        subtitle={
+          unreadCount > 0
+            ? `${unreadCount} unread notification${unreadCount > 1 ? 's' : ''}`
+            : 'You are all caught up.'
+        }
+        icon={<Bell />}
+        badges={
+          <span className="rounded-full bg-slate-800/80 px-3 py-1 text-sm font-semibold text-slate-300">
+            {notifications.length} total
+          </span>
+        }
+        actions={
+          <>
+            {unreadCount > 0 && (
+              <button
+                type="button"
+                onClick={handleMarkAllAsRead}
+                className="ghost-button inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-bold"
+              >
+                <CheckCheck className="h-4 w-4" />
+                Mark all read
+              </button>
+            )}
+            {notifications.length > 0 && (
+              <button
+                type="button"
+                onClick={handleClearAll}
+                className="inline-flex items-center gap-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-4 py-2.5 text-sm font-bold text-rose-300 hover:bg-rose-500/20"
+              >
+                <Trash2 className="h-4 w-4" />
+                Clear all
+              </button>
+            )}
+          </>
+        }
+      />
 
       {/* Notifications List */}
       {notifications.length === 0 ? (
-        <div className="text-center py-12">
-          <Bell className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">No notifications</h3>
-          <p className="text-gray-600">You're all caught up! No new notifications.</p>
+        <div className="premium-card py-12 text-center">
+          <Bell className="mx-auto mb-4 h-16 w-16 text-slate-600" />
+          <h3 className="mb-2 text-lg font-semibold text-slate-100">No notifications</h3>
+          <p className="text-slate-400">You&apos;re all caught up! No new notifications.</p>
         </div>
       ) : (
         <div className="space-y-3">
           {notifications.map((notification) => (
             <div
               key={notification.notification_id}
+              role={isAppointmentNotification(notification) ? 'button' : undefined}
+              tabIndex={isAppointmentNotification(notification) ? 0 : undefined}
               onClick={() => handleNotificationClick(notification)}
-              className={`bg-white rounded-lg border-2 p-4 transition-all ${
+              onKeyDown={(e) => {
+                if (isAppointmentNotification(notification) && (e.key === 'Enter' || e.key === ' ')) {
+                  e.preventDefault();
+                  handleNotificationClick(notification);
+                }
+              }}
+              className={`premium-card p-4 transition-all ${
                 isAppointmentNotification(notification)
-                  ? 'cursor-pointer hover:shadow-lg hover:scale-[1.02]'
-                  : 'hover:shadow-md'
+                  ? 'cursor-pointer hover:border-teal-500/35 hover:shadow-lg'
+                  : ''
               } ${
                 notification.is_read
-                  ? 'border-gray-200 opacity-75'
-                  : 'border-blue-200 bg-blue-50'
+                  ? 'opacity-80'
+                  : 'ring-1 ring-sky-500/30'
               }`}
             >
               <div className="flex items-start gap-4">
-                {/* Icon */}
                 <div
-                  className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
                     notification.is_read
-                      ? 'bg-gray-100 text-gray-600'
-                      : 'bg-blue-100 text-blue-600'
+                      ? 'bg-slate-800/80 text-slate-400'
+                      : 'bg-sky-500/15 text-sky-300 ring-1 ring-sky-500/25'
                   }`}
                 >
                   {getNotificationIcon(notification.notification_type)}
                 </div>
 
-                {/* Content */}
-                <div className="flex-1 min-w-0">
+                <div className="min-w-0 flex-1">
                   <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
+                    <div className="flex-1 min-w-0">
+                      <div className="mb-1 flex items-center gap-2">
                         <h3
                           className={`font-semibold ${
-                            notification.is_read ? 'text-gray-700' : 'text-gray-900'
+                            notification.is_read ? 'text-slate-300' : 'text-slate-100'
                           }`}
                         >
                           {notification.title}
                         </h3>
                         {!notification.is_read && (
-                          <span className="w-2 h-2 bg-blue-600 rounded-full"></span>
+                          <span className="h-2 w-2 shrink-0 rounded-full bg-sky-400" aria-hidden />
                         )}
                       </div>
                       <p
-                        className={`text-sm mb-2 ${
-                          notification.is_read ? 'text-gray-600' : 'text-gray-700'
+                        className={`mb-2 text-sm leading-relaxed ${
+                          notification.is_read ? 'text-slate-500' : 'text-slate-300'
                         }`}
                       >
                         {notification.message}
                       </p>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2 text-xs text-gray-500">
-                          <Clock className="w-3 h-3" />
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 text-xs text-slate-500">
+                          <Clock className="h-3 w-3 shrink-0" />
                           <span>{formatDate(notification.created_at)}</span>
                         </div>
                         {isAppointmentNotification(notification) && (
-                          <div className="flex items-center gap-1 text-xs text-blue-600 font-medium">
+                          <div className="flex shrink-0 items-center gap-1 text-xs font-medium text-sky-300">
                             <span>View Details</span>
-                            <ExternalLink className="w-3 h-3" />
+                            <ExternalLink className="h-3 w-3" />
                           </div>
                         )}
                       </div>
                     </div>
 
-                    {/* Actions */}
-                    <div className="flex items-center gap-2">
+                    <div className="flex shrink-0 items-center gap-2">
                       {!notification.is_read && (
                         <button
+                          type="button"
                           onClick={(e) => {
                             e.stopPropagation();
                             handleMarkAsRead(notification.notification_id);
                           }}
-                          className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-sky-500/10 hover:text-sky-300"
                           title="Mark as read"
                         >
-                          <Check className="w-4 h-4" />
+                          <Check className="h-4 w-4" />
                         </button>
                       )}
                     </div>
@@ -445,7 +452,7 @@ const Notifications: React.FC = () => {
           </div>
         </div>
       )}
-    </div>
+    </PortalPageShell>
   );
 };
 

@@ -44,7 +44,12 @@ def create_admin_user(email: str, password: str):
                 user_id = existing_user[0]
                 # Update existing user to admin
                 db.session.execute(
-                    db.text("UPDATE users SET role = 'admin', password_hash = :password_hash WHERE id = :user_id"),
+                    db.text("""
+                        UPDATE users
+                        SET role = 'admin', password_hash = :password_hash,
+                            is_verified = TRUE, otp = NULL, otp_expiry = NULL, updated_at = NOW()
+                        WHERE id = :user_id
+                    """),
                     {"password_hash": generate_password_hash(password), "user_id": user_id}
                 )
                 db.session.commit()

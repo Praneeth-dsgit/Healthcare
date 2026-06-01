@@ -13,7 +13,11 @@ interface EditAppointmentModalProps {
   onSave: (updates: Partial<Appointment>) => void;
 }
 
-const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({ appointment, onClose, onSave }) => {
+const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({
+  appointment,
+  onClose,
+  onSave,
+}) => {
   const [appointmentDate, setAppointmentDate] = useState('');
   const [appointmentTime, setAppointmentTime] = useState('');
   const [appointmentType, setAppointmentType] = useState(appointment.appointment_type || 'consultation');
@@ -22,16 +26,14 @@ const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({ appointment
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    // Format date for input (YYYY-MM-DD)
     if (appointment.appointment_date) {
       const date = new Date(appointment.appointment_date);
       setAppointmentDate(date.toISOString().split('T')[0]);
     }
-    
-    // Format time for input (HH:MM)
+
     if (appointment.appointment_time) {
-      const timeStr = appointment.appointment_time.includes('T') 
-        ? appointment.appointment_time.split('T')[1] 
+      const timeStr = appointment.appointment_time.includes('T')
+        ? appointment.appointment_time.split('T')[1]
         : appointment.appointment_time;
       setAppointmentTime(timeStr.substring(0, 5));
     }
@@ -40,95 +42,87 @@ const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({ appointment
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
-    
+
     const updates: Partial<Appointment> = {};
     if (appointmentDate) updates.appointment_date = appointmentDate;
     if (appointmentTime) updates.appointment_time = appointmentTime;
-    if (appointmentType) updates.appointment_type = appointmentType as any;
+    if (appointmentType) updates.appointment_type = appointmentType as Appointment['appointment_type'];
     if (reason !== undefined) updates.reason = reason;
     if (notes !== undefined) updates.notes = notes;
-    
+
     onSave(updates);
     setSaving(false);
   };
 
+  const patientLabel =
+    appointment.family_member_first_name && appointment.family_member_last_name
+      ? `${appointment.family_member_first_name} ${appointment.family_member_last_name}`
+      : appointment.patient_first_name && appointment.patient_last_name
+        ? `${appointment.patient_first_name} ${appointment.patient_last_name}`
+        : appointment.patient_email
+          ? appointment.patient_email.split('@')[0]
+          : 'Patient';
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
-          <h2 className="text-xl font-semibold text-gray-900">Edit Appointment</h2>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+      <div className="modal-surface max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl">
+        <div className="flex items-center justify-between border-b border-slate-700/60 p-6">
+          <h2 className="text-xl font-semibold text-slate-100">Edit Appointment</h2>
           <button
+            type="button"
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
+            className="text-slate-400 transition-colors hover:text-slate-200"
           >
             <X size={24} />
           </button>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
-          {/* Patient Info (Read-only) */}
-          <div className="bg-gray-50 p-4 rounded-lg">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Patient
-            </label>
-            <div className="flex items-center space-x-2 text-gray-900">
-              <User size={16} />
-              <span>
-                {appointment.family_member_first_name && appointment.family_member_last_name
-                  ? `${appointment.family_member_first_name} ${appointment.family_member_last_name}`
-                  : appointment.patient_first_name && appointment.patient_last_name
-                  ? `${appointment.patient_first_name} ${appointment.patient_last_name}`
-                  : appointment.patient_email
-                  ? appointment.patient_email.split('@')[0]
-                  : 'Patient'}
-              </span>
+        <form onSubmit={handleSubmit} className="space-y-6 p-6">
+          <div className="rounded-lg border border-slate-700/50 bg-slate-900/40 p-4">
+            <label className="mb-2 block text-sm font-medium text-slate-400">Patient</label>
+            <div className="flex items-center gap-2 text-slate-100">
+              <User size={16} className="text-slate-500" />
+              <span>{patientLabel}</span>
               {appointment.patient_id && (
-                <span className="text-xs text-gray-500">({appointment.patient_id})</span>
+                <span className="text-xs text-slate-500">({appointment.patient_id})</span>
               )}
             </div>
           </div>
 
-          {/* Appointment Date */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              <Calendar className="inline mr-2" size={16} />
+            <label className="mb-2 block text-sm font-medium text-slate-300">
+              <Calendar className="mr-2 inline" size={16} />
               Appointment Date
             </label>
             <input
               type="date"
               value={appointmentDate}
               onChange={(e) => setAppointmentDate(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="form-field w-full"
               required
             />
           </div>
 
-          {/* Appointment Time */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              <Clock className="inline mr-2" size={16} />
+            <label className="mb-2 block text-sm font-medium text-slate-300">
+              <Clock className="mr-2 inline" size={16} />
               Appointment Time
             </label>
             <input
               type="time"
               value={appointmentTime}
               onChange={(e) => setAppointmentTime(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="form-field w-full"
               required
             />
           </div>
 
-          {/* Appointment Type */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Appointment Type
-            </label>
+            <label className="mb-2 block text-sm font-medium text-slate-300">Appointment Type</label>
             <select
               value={appointmentType}
               onChange={(e) => setAppointmentType(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="form-field w-full"
             >
               <option value="consultation">Consultation</option>
               <option value="follow_up">Follow Up</option>
@@ -137,24 +131,20 @@ const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({ appointment
             </select>
           </div>
 
-          {/* Reason */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Reason for Visit
-            </label>
+            <label className="mb-2 block text-sm font-medium text-slate-300">Reason for Visit</label>
             <input
               type="text"
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               placeholder="Enter reason for visit..."
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="form-field w-full"
             />
           </div>
 
-          {/* Notes */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              <FileText className="inline mr-2" size={16} />
+            <label className="mb-2 block text-sm font-medium text-slate-300">
+              <FileText className="mr-2 inline" size={16} />
               Notes
             </label>
             <textarea
@@ -162,27 +152,22 @@ const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({ appointment
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Add any additional notes..."
               rows={4}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+              className="form-field w-full resize-none"
             />
           </div>
 
-          {/* Action Buttons */}
-          <div className="flex items-center justify-end space-x-3 pt-4 border-t border-gray-200">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-            >
+          <div className="flex items-center justify-end gap-3 border-t border-slate-700/60 pt-4">
+            <button type="button" onClick={onClose} className="ghost-button rounded-lg px-4 py-2">
               Cancel
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center space-x-2"
+              className="portal-accent-button flex items-center gap-2 rounded-lg px-4 py-2 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {saving ? (
                 <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-slate-900" />
                   <span>Saving...</span>
                 </>
               ) : (
@@ -197,4 +182,3 @@ const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({ appointment
 };
 
 export default EditAppointmentModal;
-

@@ -8,7 +8,22 @@ import { useNavigate } from 'react-router-dom';
 import { Calendar, Clock, User, MapPin, Plus, X, Edit2, Filter, ChevronLeft, ChevronRight, Check } from 'lucide-react';
 import { appointmentService, Appointment } from '../../services/appointmentService';
 import { patientService, FamilyMember } from '../../services/patientService';
-import { getAppointmentStatusColor, getAppointmentStatusContainer } from '../../utils/appointmentStatusColors';
+function appointmentStatusPillClass(status: string): string {
+  const pills: Record<string, string> = {
+    scheduled: 'bg-sky-500/15 text-sky-300',
+    confirmed: 'bg-sky-500/15 text-sky-300',
+    pending: 'bg-amber-500/15 text-amber-300',
+    completed: 'bg-emerald-500/15 text-emerald-300',
+    cancelled: 'bg-red-500/15 text-red-300',
+    no_show: 'bg-red-500/15 text-red-300',
+  };
+  return pills[status] ?? 'bg-slate-500/15 text-slate-400';
+}
+import {
+  PortalPageShell,
+  PortalPageHero,
+  PortalLoading,
+} from '../patient/portalPageLayout';
 
 const AppointmentList: React.FC = () => {
   const navigate = useNavigate();
@@ -290,40 +305,47 @@ const AppointmentList: React.FC = () => {
   });
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    );
+    return <PortalLoading message="Loading appointments…" />;
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-6xl mx-auto">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-3xl font-bold text-gray-900">My Appointments</h1>
-          <button
-            onClick={() => navigate('/portal/appointments/book')}
-            className="bg-blue-600 hover:bg-blue-700 hover:shadow-lg hover:scale-105 text-white px-6 py-2 rounded-lg flex items-center transition-all duration-200"
-          >
-            <Plus className="h-5 w-5 mr-2" />
-            Book Appointment
-          </button>
-        </div>
+    <PortalPageShell>
+        <PortalPageHero
+          eyebrow="Scheduling"
+          title="My Appointments"
+          subtitle="View upcoming visits, past history, and manage bookings."
+          icon={<Calendar />}
+          badges={
+            <span className="rounded-full bg-sky-500/15 px-3 py-1 text-sm font-semibold text-sky-200">
+              {filteredAppointments.length} shown
+            </span>
+          }
+          actions={
+            <button
+              type="button"
+              onClick={() => navigate('/portal/appointments/book')}
+              className="portal-accent-button inline-flex items-center gap-2 rounded-lg px-5 py-2.5 text-sm font-bold"
+            >
+              <Plus className="h-4 w-4" />
+              Book Appointment
+            </button>
+          }
+        />
 
         {/* Filter Tabs */}
-        <div className="bg-white rounded-lg shadow-md hover:shadow-lg mb-6 transition-all duration-300">
-          <div className="flex border-b border-gray-200 relative">
+        <div className="content-panel mb-6 p-2 transition-all duration-300">
+          <div className="flex gap-2">
             <button
+              type="button"
               onClick={() => {
                 setFilter('upcoming');
                 setSelectedMonth('all');
                 setShowMonthFilter(false);
               }}
-              className={`flex-1 px-6 py-3 text-sm font-medium flex items-center justify-between ${
+              className={`flex flex-1 items-center justify-between rounded-lg px-4 py-3 text-sm font-semibold transition-colors ${
                 filter === 'upcoming'
-                  ? 'text-blue-600 border-b-2 border-blue-600'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                  ? 'bg-sky-500/20 text-sky-200 ring-1 ring-sky-500/40'
+                  : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'
               }`}
             >
               <span>
@@ -382,15 +404,16 @@ const AppointmentList: React.FC = () => {
               )}
             </button>
             <button
+              type="button"
               onClick={() => {
                 setFilter('past');
                 setSelectedMonth('all');
                 setShowMonthFilter(false);
               }}
-              className={`flex-1 px-6 py-3 text-sm font-medium flex items-center justify-between ${
+              className={`flex flex-1 items-center justify-between rounded-lg px-4 py-3 text-sm font-semibold transition-colors ${
                 filter === 'past'
-                  ? 'text-blue-600 border-b-2 border-blue-600'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                  ? 'bg-sky-500/20 text-sky-200 ring-1 ring-sky-500/40'
+                  : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'
               }`}
             >
               <span>
@@ -452,9 +475,9 @@ const AppointmentList: React.FC = () => {
 
         {/* Appointments List */}
         {filteredAppointments.length === 0 ? (
-          <div className="bg-white rounded-lg shadow-md hover:shadow-lg p-12 text-center transition-all duration-300">
-            <Calendar className="h-16 w-16 mx-auto mb-4 text-gray-400" />
-            <p className="text-gray-600 mb-4">
+          <div className="premium-card p-12 text-center transition-all duration-300">
+            <Calendar className="mx-auto mb-4 h-16 w-16 text-slate-500" />
+            <p className="mb-4 text-slate-400">
               {filter === 'upcoming' ? 'No upcoming appointments' : 'No past appointments'}
             </p>
             {filter === 'upcoming' && (
@@ -467,88 +490,98 @@ const AppointmentList: React.FC = () => {
             )}
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
             {filteredAppointments.map((apt) => {
               const bookedFor = getBookedFor(apt);
               const doctorName = getDoctorName(apt);
               const appointmentDateTime = new Date(`${apt.appointment_date}T${apt.appointment_time}`);
               const isUpcoming = filter === 'upcoming' && apt.status !== 'completed' && apt.status !== 'cancelled';
+              const statusLabel =
+                (apt.status as string) === 'confirmed' ? 'Scheduled' : apt.status;
 
               return (
-                <div key={apt.appointment_id} className={`rounded-lg shadow-md hover:shadow-lg p-6 border transition-all duration-300 hover:scale-[1.01] ${getAppointmentStatusContainer(apt.status)}`}>
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-4 mb-3">
-                        <div className="flex items-center text-gray-600">
-                          <Calendar className="h-5 w-5 mr-2" />
-                          <span className="font-medium">
-                            {appointmentDateTime.toLocaleDateString('en-US', { 
-                              weekday: 'long', 
-                              year: 'numeric', 
-                              month: 'long', 
-                              day: 'numeric' 
+                <article
+                  key={apt.appointment_id}
+                  className="premium-card flex h-full flex-col p-5 transition-all hover:ring-1 hover:ring-teal-500/30"
+                >
+                  <div className="flex flex-1 flex-col">
+                    <div className="mb-4 flex items-start justify-between gap-2">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-teal-500/15">
+                          <Calendar className="h-6 w-6 text-teal-300" />
+                        </div>
+                        <div className="min-w-0">
+                          <h3 className="font-bold text-slate-100">
+                            {appointmentDateTime.toLocaleDateString('en-US', {
+                              weekday: 'short',
+                              month: 'short',
+                              day: 'numeric',
                             })}
-                          </span>
+                          </h3>
+                          <p className="text-sm text-slate-400">
+                            {appointmentDateTime.toLocaleTimeString('en-US', {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </p>
                         </div>
-                        <div className="flex items-center text-gray-600">
-                          <Clock className="h-5 w-5 mr-2" />
-                          <span>{appointmentDateTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span>
-                        </div>
-                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${getAppointmentStatusColor(apt.status)}`}>
-                          {(apt.status as string) === 'confirmed' ? 'Scheduled' : apt.status}
-                        </span>
                       </div>
-
-                      <div className="space-y-2">
-                        <div className="flex items-center text-gray-700">
-                          <User className="h-4 w-4 mr-2 text-gray-500" />
-                          <span className="font-medium">Doctor:</span>
-                          <span className="ml-2">{doctorName}</span>
-                        </div>
-                        <div className="flex items-center text-gray-700">
-                          <User className="h-4 w-4 mr-2 text-gray-500" />
-                          <span className="font-medium">For:</span>
-                          <span className="ml-2">{bookedFor}</span>
-                        </div>
-                        {apt.facility_name && (
-                          <div className="flex items-center text-gray-700">
-                            <MapPin className="h-4 w-4 mr-2 text-gray-500" />
-                            <span>{apt.facility_name}</span>
-                          </div>
-                        )}
-                        {apt.reason && (
-                          <div className="mt-2 text-sm text-gray-600">
-                            <span className="font-medium">Reason:</span> {apt.reason}
-                          </div>
-                        )}
-                        {apt.appointment_type && (
-                          <div className="text-xs text-gray-500 capitalize">
-                            Type: {apt.appointment_type.replace('_', ' ')}
-                          </div>
-                        )}
-                      </div>
+                      <span
+                        className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold capitalize ${appointmentStatusPillClass(apt.status)}`}
+                      >
+                        {statusLabel}
+                      </span>
                     </div>
 
-                    {isUpcoming && (
-                    <div className="flex gap-2 ml-4">
-                          <button
-                          onClick={() => handleRescheduleClick(apt)}
-                          className="p-2 text-blue-600 hover:bg-blue-50 hover:shadow-md hover:scale-110 rounded-lg transition-all duration-200"
-                            title="Reschedule"
-                          >
-                            <Edit2 className="h-5 w-5" />
-                          </button>
-                          <button
-                          onClick={() => handleCancel(apt)}
-                          className="p-2 text-red-600 hover:bg-red-50 hover:shadow-md hover:scale-110 rounded-lg transition-all duration-200"
-                            title="Cancel"
-                          >
-                            <X className="h-5 w-5" />
-                          </button>
+                    <div className="mb-4 space-y-2 text-sm text-slate-400">
+                      <div className="flex items-center gap-2">
+                        <User className="h-4 w-4 shrink-0 text-slate-500" />
+                        <span>{doctorName}</span>
                       </div>
+                      <div className="flex items-center gap-2">
+                        <User className="h-4 w-4 shrink-0 text-slate-500" />
+                        <span>For: {bookedFor}</span>
+                      </div>
+                      {apt.facility_name && (
+                        <div className="flex items-center gap-2">
+                          <MapPin className="h-4 w-4 shrink-0 text-slate-500" />
+                          <span className="truncate">{apt.facility_name}</span>
+                        </div>
                       )}
+                      {apt.appointment_type && (
+                        <div className="flex items-center gap-2 capitalize">
+                          <Clock className="h-4 w-4 shrink-0 text-slate-500" />
+                          <span>{apt.appointment_type.replace('_', ' ')}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {apt.reason && (
+                      <p className="mb-4 line-clamp-2 text-sm text-slate-500">{apt.reason}</p>
+                    )}
                   </div>
-                </div>
+
+                  {isUpcoming && (
+                    <div className="mt-auto flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleRescheduleClick(apt)}
+                        className="portal-accent-button flex flex-1 items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-bold"
+                      >
+                        <Edit2 className="h-4 w-4" />
+                        Reschedule
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleCancel(apt)}
+                        className="ghost-button flex flex-1 items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-bold text-red-300 hover:text-red-200"
+                      >
+                        <X className="h-4 w-4" />
+                        Cancel
+                      </button>
+                    </div>
+                  )}
+                </article>
               );
             })}
           </div>
@@ -772,8 +805,7 @@ const AppointmentList: React.FC = () => {
             </div>
           </div>
         )}
-      </div>
-    </div>
+    </PortalPageShell>
   );
 };
 

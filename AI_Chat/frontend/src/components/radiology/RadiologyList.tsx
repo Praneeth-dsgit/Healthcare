@@ -8,6 +8,11 @@ import { useNavigate } from 'react-router-dom';
 import { Scan, Calendar, Clock, MapPin, User, Plus, X, Download, FileText, Edit2, Filter } from 'lucide-react';
 import { radiologyService, RadiologyBooking } from '../../services/radiologyService';
 import { patientService, FamilyMember } from '../../services/patientService';
+import {
+  PortalPageShell,
+  PortalPageHero,
+  PortalLoading,
+} from '../patient/portalPageLayout';
 
 const SCAN_TYPE_LABELS: Record<string, string> = {
   mri: 'MRI',
@@ -19,11 +24,11 @@ const SCAN_TYPE_LABELS: Record<string, string> = {
   other: 'Other',
 };
 
-const STATUS_COLORS: Record<string, string> = {
-  scheduled: 'bg-blue-100 text-blue-800',
-  completed: 'bg-green-100 text-green-800',
-  cancelled: 'bg-red-100 text-red-800',
-  no_show: 'bg-gray-100 text-gray-800',
+const STATUS_PILL_CLASS: Record<string, string> = {
+  scheduled: 'bg-violet-500/15 text-violet-300',
+  completed: 'bg-emerald-500/15 text-emerald-300',
+  cancelled: 'bg-red-500/15 text-red-300',
+  no_show: 'bg-slate-500/15 text-slate-400',
 };
 
 const RadiologyList: React.FC = () => {
@@ -236,40 +241,42 @@ const RadiologyList: React.FC = () => {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    );
+    return <PortalLoading message="Loading radiology bookings…" />;
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-6xl mx-auto">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-3xl font-bold text-gray-900">My Radiology Bookings</h1>
-          <button
-            onClick={() => navigate('/portal/radiology/book')}
-            className="bg-blue-600 hover:bg-blue-700 hover:shadow-lg hover:scale-105 text-white px-6 py-2 rounded-lg flex items-center transition-all duration-200"
-          >
-            <Plus className="h-5 w-5 mr-2" />
-            Book Scan
-          </button>
-        </div>
+    <PortalPageShell>
+        <PortalPageHero
+          eyebrow="Imaging"
+          title="My Radiology Bookings"
+          subtitle="Schedule and track CT, MRI, X-ray, and other scans."
+          icon={<Scan />}
+          actions={
+            <button
+              type="button"
+              onClick={() => navigate('/portal/radiology/book')}
+              className="portal-accent-button inline-flex items-center gap-2 rounded-lg px-5 py-2.5 text-sm font-bold"
+            >
+              <Plus className="h-4 w-4" />
+              Book Scan
+            </button>
+          }
+        />
 
         {/* Filter Tabs */}
-        <div className="bg-white rounded-lg shadow-md hover:shadow-lg mb-6 transition-all duration-300">
-          <div className="flex border-b border-gray-200 relative">
+        <div className="content-panel mb-6 p-2 transition-all duration-300">
+          <div className="flex gap-2">
             <button
+              type="button"
               onClick={() => {
                 setFilter('upcoming');
                 setSelectedMonth('all');
                 setShowMonthFilter(false);
               }}
-              className={`flex-1 px-6 py-3 text-sm font-medium flex items-center justify-between ${
+              className={`flex flex-1 items-center justify-between rounded-lg px-4 py-3 text-sm font-semibold transition-colors ${
                 filter === 'upcoming'
-                  ? 'text-blue-600 border-b-2 border-blue-600'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                  ? 'bg-violet-500/20 text-violet-200 ring-1 ring-violet-500/40'
+                  : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'
               }`}
             >
               <span>
@@ -327,15 +334,16 @@ const RadiologyList: React.FC = () => {
               )}
             </button>
             <button
+              type="button"
               onClick={() => {
                 setFilter('past');
                 setSelectedMonth('all');
                 setShowMonthFilter(false);
               }}
-              className={`flex-1 px-6 py-3 text-sm font-medium flex items-center justify-between ${
+              className={`flex flex-1 items-center justify-between rounded-lg px-4 py-3 text-sm font-semibold transition-colors ${
                 filter === 'past'
-                  ? 'text-blue-600 border-b-2 border-blue-600'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                  ? 'bg-violet-500/20 text-violet-200 ring-1 ring-violet-500/40'
+                  : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'
               }`}
             >
               <span>
@@ -414,115 +422,109 @@ const RadiologyList: React.FC = () => {
             </button>
           </div>
         ) : (
-          <div className="space-y-4">
-            {filteredBookings.map((booking) => (
-              <div key={booking.booking_id} className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg hover:scale-[1.01] transition-all duration-300">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className="p-2 bg-blue-100 rounded-lg">
-                        <Scan className="h-5 w-5 text-blue-600" />
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+            {filteredBookings.map((booking) => {
+              const scanTitle = SCAN_TYPE_LABELS[booking.scan_type] || booking.scan_type;
+              const isUpcoming = filter === 'upcoming' && booking.status === 'scheduled';
+
+              return (
+                <article
+                  key={booking.booking_id}
+                  className="premium-card flex h-full flex-col p-5 transition-all hover:ring-1 hover:ring-teal-500/30"
+                >
+                  <div className="flex flex-1 flex-col">
+                    <div className="mb-4 flex items-start justify-between gap-2">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-teal-500/15">
+                          <Scan className="h-6 w-6 text-teal-300" />
+                        </div>
+                        <div className="min-w-0">
+                          <h3 className="truncate font-bold text-slate-100">{scanTitle}</h3>
+                          <p className="text-sm text-slate-400">
+                            {booking.body_part ? `Body part: ${booking.body_part}` : formatDate(booking.appointment_date)}
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <h3 className="text-lg font-semibold text-gray-900">
-                          {SCAN_TYPE_LABELS[booking.scan_type] || booking.scan_type}
-                        </h3>
-                        {booking.body_part && (
-                          <p className="text-sm text-gray-600">Body Part: {booking.body_part}</p>
-                        )}
-                      </div>
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${STATUS_COLORS[booking.status] || STATUS_COLORS.scheduled}`}>
-                        {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
+                      <span
+                        className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold capitalize ${STATUS_PILL_CLASS[booking.status] || STATUS_PILL_CLASS.scheduled}`}
+                      >
+                        {booking.status.replace('_', ' ')}
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                      <div className="flex items-center text-gray-600">
-                        <Calendar className="h-4 w-4 mr-2" />
+                    <div className="mb-4 space-y-2 text-sm text-slate-400">
+                      <div className="flex items-center gap-2">
+                        <Calendar className="h-4 w-4 shrink-0 text-slate-500" />
                         <span>{formatDate(booking.appointment_date)}</span>
                       </div>
-                      <div className="flex items-center text-gray-600">
-                        <Clock className="h-4 w-4 mr-2" />
+                      <div className="flex items-center gap-2">
+                        <Clock className="h-4 w-4 shrink-0 text-slate-500" />
                         <span>{formatTime(booking.appointment_time)}</span>
                       </div>
-                      <div className="flex items-center text-gray-600">
-                        <MapPin className="h-4 w-4 mr-2" />
-                        <span>{booking.facility_name || `Facility ID: ${booking.facility_id}`}</span>
+                      <div className="flex items-center gap-2">
+                        <MapPin className="h-4 w-4 shrink-0 text-slate-500" />
+                        <span className="truncate">
+                          {booking.facility_name || `Facility ID: ${booking.facility_id}`}
+                        </span>
                       </div>
-                      <div className="flex items-center text-gray-600">
-                        <User className="h-4 w-4 mr-2" />
+                      <div className="flex items-center gap-2">
+                        <User className="h-4 w-4 shrink-0 text-slate-500" />
                         <span>For: {getBookedFor(booking)}</span>
                       </div>
                       {booking.referring_doctor_id && (
-                        <div className="flex items-center text-gray-600">
-                          <span className="mr-2">👨‍⚕️</span>
-                          <span>Referred by: {getDoctorName(booking)}</span>
+                        <div className="flex items-center gap-2">
+                          <User className="h-4 w-4 shrink-0 text-slate-500" />
+                          <span className="truncate">Referred by: {getDoctorName(booking)}</span>
                         </div>
                       )}
                     </div>
 
                     {booking.reason && (
-                      <div className="mt-3 p-3 bg-gray-50 rounded-lg">
-                        <p className="text-sm text-gray-700">
-                          <span className="font-medium">Reason: </span>
-                          {booking.reason}
-                        </p>
-                      </div>
-                    )}
-
-                    {booking.report_available && booking.report_url && (
-                      <div className="mt-3">
-                        <a
-                          href={booking.report_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center text-blue-600 hover:text-blue-700 text-sm font-medium"
-                        >
-                          <Download className="h-4 w-4 mr-1" />
-                          Download Report
-                        </a>
-                      </div>
+                      <p className="mb-4 line-clamp-2 text-sm text-slate-500">{booking.reason}</p>
                     )}
                   </div>
 
-                  {filter === 'upcoming' && booking.status === 'scheduled' && (
-                  <div className="flex flex-col gap-2 ml-4">
+                  {booking.report_available && booking.report_url ? (
+                    <a
+                      href={booking.report_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="portal-accent-button mt-auto flex w-full items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-bold"
+                    >
+                      <Download className="h-4 w-4" />
+                      Download Report
+                    </a>
+                  ) : isUpcoming ? (
+                    <div className="mt-auto flex gap-2">
                       <button
-                        onClick={() => {
-                          // TODO: Implement edit/update functionality
-                          alert('Edit/Update functionality coming soon');
-                        }}
-                        className="px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 hover:shadow-md hover:scale-105 rounded-lg border border-blue-200 hover:border-blue-300 transition-all duration-200 flex items-center"
-                        title="Edit/Update"
+                        type="button"
+                        onClick={() => alert('Edit/Update functionality coming soon')}
+                        className="portal-accent-button flex flex-1 items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-bold"
                       >
-                        <Edit2 className="h-4 w-4 mr-1" />
+                        <Edit2 className="h-4 w-4" />
                         Edit
                       </button>
                       <button
+                        type="button"
                         onClick={() => handleCancel(booking.booking_id)}
-                        className="px-4 py-2 text-sm text-red-600 hover:bg-red-50 hover:shadow-md hover:scale-105 rounded-lg border border-red-200 hover:border-red-300 transition-all duration-200 flex items-center"
-                        title="Cancel"
+                        className="ghost-button flex flex-1 items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-bold text-red-300 hover:text-red-200"
                       >
-                        <X className="h-4 w-4 mr-1" />
+                        <X className="h-4 w-4" />
                         Cancel
                       </button>
                     </div>
-                    )}
-                  {filter === 'past' && booking.report_available && !booking.report_url && (
-                    <div className="flex flex-col gap-2 ml-4">
-                      <div className="px-4 py-2 text-sm text-green-600 bg-green-50 rounded-lg border border-green-200 flex items-center">
-                        <FileText className="h-4 w-4 mr-1" />
-                        Report Available
-                      </div>
-                      </div>
-                    )}
-                </div>
-              </div>
-            ))}
+                  ) : filter === 'past' && booking.report_available && !booking.report_url ? (
+                    <div className="mt-auto flex w-full items-center justify-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 py-2.5 text-sm font-bold text-emerald-300">
+                      <FileText className="h-4 w-4" />
+                      Report Available
+                    </div>
+                  ) : null}
+                </article>
+              );
+            })}
           </div>
         )}
-      </div>
-    </div>
+    </PortalPageShell>
   );
 };
 

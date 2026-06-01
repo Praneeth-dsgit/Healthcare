@@ -14,6 +14,49 @@ logger = logging.getLogger(__name__)
 # Create blueprint
 patients_bp = Blueprint('patients', __name__, url_prefix='/api/patient')
 
+CLINICAL_STAFF_ROLES = frozenset({
+    'doctor',
+    'radiology',
+    'lab_technician',
+    'lab',
+    'admin',
+    'non_medical_staff',
+})
+
+
+def _get_user_role(email: str | None) -> str | None:
+    if not email:
+        return None
+    row = db.session.execute(
+        db.text("SELECT role FROM users WHERE email = :email LIMIT 1"),
+        {"email": email},
+    ).fetchone()
+    return row[0] if row else None
+
+
+def _is_clinical_staff_user() -> bool:
+    """True for doctors, radiology, lab staff, admin, etc."""
+    role = _get_user_role(g.user_email)
+    if role in CLINICAL_STAFF_ROLES:
+        return True
+    if g.user_email:
+        doctor_row = db.session.execute(
+            db.text(
+                "SELECT doctor_id FROM doctors WHERE email = :email AND is_active = TRUE LIMIT 1"
+            ),
+            {"email": g.user_email},
+        ).fetchone()
+        if doctor_row:
+            return True
+    return False
+
+
+def _can_access_patient_records(requested_patient_id: str) -> bool:
+    """Patients may read their own records; clinical staff may read any patient."""
+    if g.patient_id and g.patient_id == requested_patient_id:
+        return True
+    return _is_clinical_staff_user()
+
 @patients_bp.route('/list', methods=['GET'])
 @require_jwt
 def list_patients():
@@ -482,6 +525,165 @@ def delete_family_member(member_id):
             'success': False,
             'error': f'Failed to delete family member: {str(e)}'
         }), 500
+
+@patients_bp.route('/patients-with-records', methods=['GET'])
+@require_jwt
+def list_patients_with_medical_records():
+    """Patients who have at least one medical record (for lab/radiology staff sidebar)."""
+    try:
+        if not _is_clinical_staff_user():
+            return jsonify({
+                'success': False,
+                'error': 'Not authorized to view patient record directory',
+            }), 403
+
+        capability = request.args.get('capability')
+        search = (request.args.get('search') or '').strip()
+
+        type_filter = None
+        if capability == 'lab':
+            type_filter = ['lab_report', 'visit_summary', 'discharge_summary', 'prescription', 'other']
+        elif capability == 'radiology':
+            type_filter = ['radiology_report', 'visit_summary', 'discharge_summary', 'other']
+
+        query = """
+            SELECT
+                p.patient_id,
+                p.first_name,
+                p.last_name,
+                p.date_of_birth,
+                p.gender,
+                COUNT(mr.record_id) AS record_count,
+                MAX(mr.visit_date) AS latest_record_date
+            FROM medical_records mr
+            INNER JOIN patients p ON mr.patient_id = p.patient_id
+            WHERE p.is_active = TRUE
+        """
+        params: dict = {}
+
+        if type_filter:
+            placeholders = ", ".join(f":t{i}" for i in range(len(type_filter)))
+            query += f" AND mr.record_type IN ({placeholders})"
+            for i, t in enumerate(type_filter):
+                params[f"t{i}"] = t
+
+        if search:
+            query += (
+                " AND (p.patient_id LIKE :search OR p.first_name LIKE :search"
+                " OR p.last_name LIKE :search OR p.email LIKE :search)"
+            )
+            params['search'] = f'%{search}%'
+
+        query += """
+            GROUP BY p.patient_id, p.first_name, p.last_name, p.date_of_birth, p.gender
+            ORDER BY latest_record_date DESC, p.last_name, p.first_name
+            LIMIT 200
+        """
+
+        result = db.session.execute(db.text(query), params).fetchall()
+        patients = []
+        for row in result:
+            item = dict(row._mapping) if hasattr(row, '_mapping') else dict(zip(row.keys(), row))
+            if item.get('latest_record_date') and hasattr(item['latest_record_date'], 'isoformat'):
+                item['latest_record_date'] = item['latest_record_date'].isoformat()
+            if item.get('date_of_birth') and hasattr(item['date_of_birth'], 'isoformat'):
+                item['date_of_birth'] = item['date_of_birth'].isoformat()
+            patients.append(item)
+
+        return jsonify({
+            'success': True,
+            'patients': patients,
+            'count': len(patients),
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error listing patients with records: {e}")
+        logger.error(traceback.format_exc())
+        return jsonify({
+            'success': False,
+            'error': f'Failed to list patients: {str(e)}',
+        }), 500
+
+
+@patients_bp.route('/<patient_id>/medical-records', methods=['GET'])
+@require_jwt
+def get_medical_records_for_patient(patient_id):
+    """Get medical records for a specific patient (clinical staff / radiology / lab)."""
+    try:
+        if not _can_access_patient_records(patient_id):
+            return jsonify({
+                'success': False,
+                'error': 'Not authorized to view this patient\'s records',
+            }), 403
+
+        record_type = request.args.get('type')
+        capability = request.args.get('capability')
+        limit = min(int(request.args.get('limit', 50)), 100)
+
+        type_filter = None
+        if record_type:
+            type_filter = [record_type]
+        elif capability == 'lab':
+            type_filter = ['lab_report', 'visit_summary', 'discharge_summary', 'other']
+        elif capability == 'radiology':
+            type_filter = ['radiology_report', 'visit_summary', 'discharge_summary', 'other']
+
+        query = """
+            SELECT
+                mr.record_id,
+                mr.patient_id,
+                mr.family_member_id,
+                mr.record_type,
+                mr.title,
+                mr.description,
+                mr.file_path as file_url,
+                mr.file_type,
+                mr.visit_date,
+                mr.doctor_id,
+                mr.facility_id,
+                mr.created_at,
+                fm.first_name as family_member_first_name,
+                fm.last_name as family_member_last_name
+            FROM medical_records mr
+            LEFT JOIN family_members fm ON mr.family_member_id = fm.family_member_id
+            WHERE mr.patient_id = :patient_id
+        """
+        params = {"patient_id": patient_id}
+
+        if type_filter:
+            placeholders = ", ".join(f":t{i}" for i in range(len(type_filter)))
+            query += f" AND mr.record_type IN ({placeholders})"
+            for i, t in enumerate(type_filter):
+                params[f"t{i}"] = t
+
+        query += " ORDER BY mr.visit_date DESC, mr.created_at DESC LIMIT :lim"
+        params["lim"] = limit
+
+        result = db.session.execute(db.text(query), params).fetchall()
+
+        records = []
+        for row in result:
+            record = dict(row._mapping) if hasattr(row, '_mapping') else dict(zip(row.keys(), row))
+            for key in ('visit_date', 'created_at'):
+                if record.get(key) and hasattr(record[key], 'isoformat'):
+                    record[key] = record[key].isoformat()
+            records.append(record)
+
+        return jsonify({
+            'success': True,
+            'records': records,
+            'count': len(records),
+            'patient_id': patient_id,
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error fetching staff medical records: {e}")
+        logger.error(traceback.format_exc())
+        return jsonify({
+            'success': False,
+            'error': f'Failed to fetch medical records: {str(e)}',
+        }), 500
+
 
 @patients_bp.route('/medical-records', methods=['GET'])
 @require_jwt

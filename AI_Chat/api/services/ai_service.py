@@ -221,6 +221,21 @@ def generate_capability_prompt(query, capability, patient_info=None, file_contex
                     context += "\n- PEDIATRIC PATIENT: Use pediatric normal variants and radiation safety protocols\n"
                 elif age > 65:
                     context += "- ELDERLY PATIENT: Consider age-related degenerative changes and osteoporosis\n"
+
+            medical_records = patient_info.get('medicalRecords') or []
+            if medical_records:
+                context += "\nMEDICAL RECORDS ON FILE (from database — prioritize radiology/imaging-related entries):\n"
+                for rec in medical_records[:20]:
+                    rtype = rec.get('record_type', 'record')
+                    title = rec.get('title', 'Untitled')
+                    vdate = rec.get('visit_date', '')
+                    desc = (rec.get('description') or '').strip()
+                    fm = ''
+                    if rec.get('family_member_first_name'):
+                        fm = f" (family: {rec['family_member_first_name']} {rec.get('family_member_last_name', '')})".strip()
+                    context += f"- [{rtype}] {title} — {vdate}{fm}\n"
+                    if desc:
+                        context += f"  Summary: {desc[:800]}\n"
                     
         elif capability == 'lab':
             context = f"PATIENT DEMOGRAPHICS FOR LABORATORY INTERPRETATION:\n"
@@ -272,6 +287,21 @@ def generate_capability_prompt(query, capability, patient_info=None, file_contex
                     if dept_name and ('lab' in dept_name.lower() or 'pathology' in dept_name.lower()):
                         context += f"- {appt_date}: {doctor_name} - {reason}\n"
             
+            medical_records = patient_info.get('medicalRecords') or []
+            if medical_records:
+                context += "\nMEDICAL RECORDS ON FILE (from database — prioritize laboratory-related entries):\n"
+                for rec in medical_records[:20]:
+                    rtype = rec.get('record_type', 'record')
+                    title = rec.get('title', 'Untitled')
+                    vdate = rec.get('visit_date', '')
+                    desc = (rec.get('description') or '').strip()
+                    fm = ''
+                    if rec.get('family_member_first_name'):
+                        fm = f" (family: {rec['family_member_first_name']} {rec.get('family_member_last_name', '')})".strip()
+                    context += f"- [{rtype}] {title} — {vdate}{fm}\n"
+                    if desc:
+                        context += f"  Summary: {desc[:800]}\n"
+
             # Add age and gender-specific lab considerations
             if age > 0 and gender:
                 if age < 18:
@@ -462,28 +492,45 @@ CRITICAL INSTRUCTIONS:
 Radiology/Imaging Query:
 {query}
 
-**STRUCTURED OUTPUT FORMAT** (MANDATORY):
+**STRUCTURED OUTPUT FORMAT** (MANDATORY — professional Markdown for clinical readability):
 
-Use this exact formatting structure with emojis and clear sections:
+Respond using ONLY GitHub-flavored Markdown. Do NOT use emojis.
 
-- [Imaging Study/Modality Analysis]
-- Technique & Quality:
-- [Imaging parameters, protocols used]
-- [Image quality assessment, patient factors]
+Required sections (use these exact ## headers in this order; omit a section only if not applicable):
 
-- Radiological Findings:
-- [Systematic description of normal anatomy]
-- [Abnormal findings with precise measurements]
-- [Density/signal characteristics]
+## Executive Summary
+One or two sentences: study type, principal impression, and urgency level.
 
-- Differential Diagnosis:
-- [Imaging-based differentials]
-- [Standard classifications (BI-RADS, Fleischner, etc.)]
+## Study & Technique
+- Modality, region, and protocol
+- Image quality and limitations (patient factors, technique)
 
-- Clinical Notes:
-- [Patient-specific considerations]
-- [Age/gender-appropriate normal variants]
-- [Additional imaging recommendations]
+## Key Findings
+- Systematic findings (normal anatomy first, then abnormalities)
+- Precise measurements, density/signal characteristics, and anatomical location
+- Use bullet lists; bold **critical abnormalities**
+
+## Differential Diagnosis
+- Ranked imaging-based differentials
+- Reference standard classifications when applicable (e.g., BI-RADS, Fleischner, LI-RADS)
+
+## Recommendations
+- Additional imaging, follow-up interval, or correlation studies
+- Suggested clinical correlation
+
+## Clinical Notes
+- Patient-specific context (age, gender, history, medications)
+- Red flags and when to escalate urgently
+
+## Disclaimer
+One sentence: AI-assisted support only; verify against source images and institutional protocols.
+
+Formatting rules:
+- Use ## for main sections and ### for subsections if needed
+- Use bullet lists (- ) for all detail lines
+- Use **bold** only for critical terms, measurements, or diagnoses
+- Maximum 280 words total
+- Plain professional clinical language; no conversational filler
 
 **MANDATORY PATIENT-CONTEXTUALIZED INTERPRETATION:**
 - Integrate patient age, gender, and medical history into radiological analysis
@@ -504,10 +551,8 @@ Use this exact formatting structure with emojis and clear sections:
 - Reference anatomical landmarks with age-appropriate measurements
 - Describe density, enhancement patterns with patient-specific considerations
 - Follow ACR/ESR/IRIA reporting guidelines with demographic modifications
-- Limit to 400 words
 
 **STRICT RULES & SAFETY PROTOCOLS:** 
-- Limit response to a MAXIMUM of 200 words for comprehensive coverage
 - Include appropriate disclaimers for off-label medication use or experimental treatments
 - Audience: Healthcare professionals ONLY
 - Always consider patient safety first - when in doubt, recommend consultation with specialist
@@ -530,27 +575,45 @@ CRITICAL INSTRUCTIONS:
 Laboratory Medicine Query:
 {query}
 
-**STRUCTURED OUTPUT FORMAT** (MANDATORY):
+**STRUCTURED OUTPUT FORMAT** (MANDATORY — professional Markdown for clinical readability):
 
-Use this exact formatting structure with emojis and clear sections:
+Respond using ONLY GitHub-flavored Markdown. Do NOT use emojis.
 
-- [Laboratory Test/Parameter Analysis]
-- Reference Ranges & Demographics:
-- [Age/gender-specific normal values]
-- [Population-adjusted reference ranges]
+Required sections (use these exact ## headers in this order; omit a section only if not applicable):
 
-- Result Interpretation:
-- [Clinical significance of values]
-- [Patient-specific considerations]
+## Executive Summary
+One or two sentences: tests reviewed, overall interpretation, and clinical urgency.
 
-- Differential Causes:
-- [Etiologies based on results]
-- [Risk stratification]
+## Reference Context
+- Age/gender-appropriate reference ranges used
+- Pre-analytical or specimen considerations if relevant
 
-- Clinical Notes:
-- [Patient-specific considerations]
-- [Medication interactions]
-- [Follow-up testing recommendations]
+## Result Interpretation
+- Parameter-by-parameter interpretation with values where provided
+- Flag **critical** or **abnormal** results clearly with bold
+- Clinical significance in patient context
+
+## Differential Considerations
+- Likely etiologies ranked by probability
+- Medication or disease-related confounders
+
+## Recommendations
+- Follow-up tests, repeat intervals, or confirmatory studies
+- Suggested clinical correlation
+
+## Clinical Notes
+- Integration with history, BMI, renal/hepatic context, and current medications
+- Red flags requiring urgent action
+
+## Disclaimer
+One sentence: AI-assisted support only; confirm with laboratory standards and treating clinician.
+
+Formatting rules:
+- Use ## for main sections and ### for subsections if needed
+- Use bullet lists (- ) for all detail lines
+- Use **bold** only for critical values, diagnoses, or actions
+- Maximum 280 words total
+- Plain professional clinical language; no conversational filler
 
 **MANDATORY PATIENT-CONTEXTUALIZED LABORATORY INTERPRETATION:**
 - Apply age and gender-specific reference ranges for all laboratory values
@@ -573,10 +636,8 @@ Use this exact formatting structure with emojis and clear sections:
 - Address analytical interferences from patient medications
 - Specify age and gender-adjusted critical value thresholds
 - Consider population and demographic-specific reference ranges
-- Limit to 400 words
 
 **STRICT RULES & SAFETY PROTOCOLS:** 
-- Limit response to a MAXIMUM of 200 words for comprehensive coverage
 - Include appropriate disclaimers for off-label medication use or experimental treatments
 - Audience: Healthcare professionals ONLY
 - Always consider patient safety first - when in doubt, recommend consultation with specialist

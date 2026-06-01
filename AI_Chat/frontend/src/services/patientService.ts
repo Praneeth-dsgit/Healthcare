@@ -182,6 +182,29 @@ class PatientService {
       return { success: false, error: 'Network error' };
     }
   }
+
+  async getHealthSummary(refresh = false): Promise<{
+    success: boolean;
+    summary?: string;
+    generated_at?: string;
+    error?: string;
+  }> {
+    try {
+      const url = `${API_BASE}/patient-portal/health-summary${refresh ? '?refresh=1' : ''}`;
+      const response = await authenticatedFetch(url, {
+        method: 'GET',
+        headers: getAuthHeaders(),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        return { success: false, error: data.error || 'Failed to load health summary' };
+      }
+      return data;
+    } catch (error) {
+      console.error('Error fetching health summary:', error);
+      return { success: false, error: 'Network error' };
+    }
+  }
 }
 
 export const patientService = new PatientService();

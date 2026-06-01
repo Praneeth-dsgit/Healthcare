@@ -10,7 +10,7 @@ import traceback
 import json
 import re
 import openai
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date, time as time_type
 from config import db
 from db_read_agent import DatabaseAgent
 
@@ -226,67 +226,11 @@ def get_available_slots():
         
         if not doctor_id:
             return jsonify({'success': False, 'error': 'Doctor ID is required'}), 400
-        
-        agent = DatabaseAgent()
-        
-        # Get today's date and 2 weeks from now
+
         today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
         end_date = today + timedelta(days=14)
-        
-        # Fetch all appointments for this doctor in the next 2 weeks
-        sql_query = f"""
-        SELECT appointment_date, status
-        FROM appointments
-        WHERE doctor_id = {doctor_id}
-        AND appointment_date >= '{today.strftime('%Y-%m-%d %H:%M:%S')}'
-        AND appointment_date < '{end_date.strftime('%Y-%m-%d %H:%M:%S')}'
-        AND status != 'Cancelled'
-        ORDER BY appointment_date
-        """
-        
-        results, error = agent.execute_query(sql_query)
-        
-        if error:
-            return jsonify({'success': False, 'error': error}), 500
-        
-        # Extract booked time slots
-        booked_slots = set()
-        if results:
-            for row in results:
-                appointment_date = row.get('appointment_date')
-                if appointment_date:
-                    if isinstance(appointment_date, str):
-                        dt = datetime.strptime(appointment_date, '%Y-%m-%d %H:%M:%S')
-                    else:
-                        dt = appointment_date
-                    date_str = dt.strftime('%Y-%m-%d')
-                    time_str = dt.strftime('%H:%M')
-                    booked_slots.add(f"{date_str}_{time_str}")
-        
-        # Generate all possible slots (9 AM to 5 PM, 30-minute intervals)
-        available_slots = {}
-        current_date = today
-        
-        while current_date < end_date:
-            date_str = current_date.strftime('%Y-%m-%d')
-            available_slots[date_str] = []
-            
-            # Generate time slots from 9:00 to 17:00 (5 PM) in 30-minute intervals
-            for hour in range(9, 17):
-                for minute in [0, 30]:
-                    time_str = f"{hour:02d}:{minute:02d}"
-                    slot_key = f"{date_str}_{time_str}"
-                    
-                    # Check if slot is booked
-                    if slot_key not in booked_slots:
-                        display_time = datetime.strptime(time_str, '%H:%M').strftime('%I:%M %p')
-                        available_slots[date_str].append({
-                            'time': time_str,
-                            'displayTime': display_time
-                        })
-            
-            current_date += timedelta(days=1)
-        
+        available_slots = _compute_available_slots_for_doctor(int(doctor_id))
+
         return jsonify({
             'success': True,
             'availableSlots': available_slots,
@@ -694,6 +638,546 @@ def front_desk_register_patient():
 # Patient Portal Routes (separate blueprint but related functionality)
 patient_portal_bp = Blueprint('patient_portal', __name__, url_prefix='/api/patient-portal')
 
+
+def _sql_row_to_dict(row):
+    if row is None:
+        return None
+    if hasattr(row, '_mapping'):
+        return dict(row._mapping)
+    return dict(zip(row.keys(), row))
+
+
+def _format_db_date(value) -> str | None:
+    """Normalize DATE/datetime values from PyMySQL rows to YYYY-MM-DD."""
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return value[:10]
+    if isinstance(value, datetime):
+        return value.strftime('%Y-%m-%d')
+    if isinstance(value, date):
+        return value.strftime('%Y-%m-%d')
+    if hasattr(value, 'strftime'):
+        return value.strftime('%Y-%m-%d')
+    return str(value)[:10]
+
+
+def _format_db_time(value, default: str = '09:00') -> str:
+    """Normalize TIME values (PyMySQL returns timedelta) to HH:MM."""
+    if value is None:
+        return default
+    if isinstance(value, str):
+        s = value.strip()
+        if len(s) >= 5:
+            return s[:5]
+        return default
+    if isinstance(value, timedelta):
+        total = int(value.total_seconds()) % 86400
+        hours = total // 3600
+        minutes = (total % 3600) // 60
+        return f'{hours:02d}:{minutes:02d}'
+    if isinstance(value, datetime):
+        return value.strftime('%H:%M')
+    if isinstance(value, time_type):
+        return value.strftime('%H:%M')
+    if hasattr(value, 'strftime'):
+        return value.strftime('%H:%M')
+    return default
+
+
+def _truncate_text(text, max_len=400):
+    if not text:
+        return ''
+    text = str(text).strip()
+    if len(text) <= max_len:
+        return text
+    return text[:max_len] + '…'
+
+
+def _is_slots_availability_query(query: str) -> bool:
+    q = query.lower()
+    return (
+        'available slot' in q
+        or 'availability' in q
+        or ('slot' in q and any(k in q for k in ('appointment', 'doctor', 'tomorrow', 'today', 'cardio', 'specialty', 'department')))
+    )
+
+
+def _parse_slots_query_hints(query: str):
+    """Parse facility/specialty (e.g. sol:cardiology) and relative date from natural language."""
+    q = query.lower()
+    facility_hint = None
+    specialty_hint = None
+
+    colon_match = re.search(r'([a-z0-9][\w\s\-]*?)\s*:\s*([a-z][a-z\s]*)', q)
+    if colon_match:
+        facility_hint = colon_match.group(1).strip()
+        specialty_hint = colon_match.group(2).strip()
+
+    specialty_aliases = {
+        'cardio': 'cardiology',
+        'cardiology': 'cardiology',
+        'pediatric': 'pediatrics',
+        'pediatrics': 'pediatrics',
+        'ortho': 'orthopedics',
+        'orthopedics': 'orthopedics',
+        'neuro': 'neurology',
+        'neurology': 'neurology',
+        'derm': 'dermatology',
+        'dermatology': 'dermatology',
+        'radiology': 'radiology',
+    }
+    if not specialty_hint:
+        for key, canonical in specialty_aliases.items():
+            if re.search(rf'\b{re.escape(key)}\b', q):
+                specialty_hint = canonical
+                break
+
+    if not facility_hint:
+        at_match = re.search(r'\bat\s+([a-z0-9][\w\-]*)', q)
+        if at_match:
+            facility_hint = at_match.group(1).strip()
+        else:
+            for token in re.findall(r'\b([a-z]{2,})\b', q):
+                if token in specialty_aliases or token in (
+                    'available', 'slots', 'slot', 'what', 'are', 'the', 'for', 'tomorrow', 'today', 'appointment',
+                ):
+                    continue
+                if len(token) <= 6:
+                    facility_hint = token
+                    break
+
+    target_date = datetime.now().date()
+    if 'tomorrow' in q:
+        target_date = target_date + timedelta(days=1)
+    elif 'today' in q:
+        target_date = target_date
+    else:
+        day_match = re.search(r'\b(\d{4}-\d{2}-\d{2})\b', q)
+        if day_match:
+            try:
+                target_date = datetime.strptime(day_match.group(1), '%Y-%m-%d').date()
+            except ValueError:
+                pass
+
+    return facility_hint, specialty_hint, target_date
+
+
+def _normalize_specialty_name(name: str) -> str:
+    if not name:
+        return name
+    n = name.lower().strip()
+    if 'cardio' in n:
+        return 'cardiology'
+    if 'pediatric' in n:
+        return 'pediatrics'
+    if 'ortho' in n:
+        return 'orthopedics'
+    if 'neuro' in n:
+        return 'neurology'
+    if 'derm' in n:
+        return 'dermatology'
+    return n
+
+
+def _resolve_doctors_for_slots(facility_hint=None, specialty_hint=None):
+    """Find doctors by facility name and/or specialty without JSON_CONTAINS."""
+    conditions = ['d.is_active = TRUE', 'd.is_available = TRUE', 'df.is_active = TRUE', 'f.is_active = TRUE']
+    params = {}
+
+    if specialty_hint:
+        specialty_hint = _normalize_specialty_name(specialty_hint)
+        conditions.append('LOWER(s.name) LIKE :specialty')
+        params['specialty'] = f'%{specialty_hint}%'
+
+    if facility_hint:
+        conditions.append('LOWER(f.name) LIKE :facility')
+        params['facility'] = f'%{facility_hint.lower()}%'
+
+    where_clause = ' AND '.join(conditions)
+    sql = f"""
+        SELECT d.doctor_id, d.first_name, d.last_name,
+               s.name AS specialty_name, f.facility_id, f.name AS facility_name
+        FROM doctors d
+        INNER JOIN specialties s ON d.specialty_id = s.specialty_id
+        INNER JOIN doctor_facilities df ON d.doctor_id = df.doctor_id
+        INNER JOIN facilities f ON df.facility_id = f.facility_id
+        WHERE {where_clause}
+        ORDER BY f.name, d.last_name, d.first_name
+        LIMIT 10
+    """
+    rows = db.session.execute(db.text(sql), params).fetchall()
+    return [_sql_row_to_dict(r) for r in rows]
+
+
+def _compute_available_slots_for_doctor(doctor_id: int, days: int = 14):
+    """Return availableSlots map for the next `days` (same logic as /available-slots)."""
+    agent = DatabaseAgent()
+    today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    end_date = today + timedelta(days=days)
+
+    sql_query = f"""
+        SELECT appointment_date, appointment_time, status
+        FROM appointments
+        WHERE doctor_id = {int(doctor_id)}
+        AND appointment_date >= '{today.strftime('%Y-%m-%d')}'
+        AND appointment_date < '{end_date.strftime('%Y-%m-%d')}'
+        AND LOWER(status) NOT IN ('cancelled', 'canceled', 'completed')
+        ORDER BY appointment_date
+    """
+    results, error = agent.execute_query(sql_query)
+    if error:
+        raise RuntimeError(error)
+
+    booked_slots = set()
+    if results:
+        for row in results:
+            appointment_date = row.get('appointment_date')
+            appointment_time = row.get('appointment_time')
+            date_str = _format_db_date(appointment_date)
+            if not date_str:
+                continue
+            time_str = _format_db_time(appointment_time)
+            booked_slots.add(f'{date_str}_{time_str}')
+
+    available_slots = {}
+    current_date = today
+    while current_date < end_date:
+        date_str = current_date.strftime('%Y-%m-%d')
+        available_slots[date_str] = []
+        for hour in range(9, 17):
+            for minute in (0, 30):
+                time_str = f'{hour:02d}:{minute:02d}'
+                slot_key = f'{date_str}_{time_str}'
+                if slot_key not in booked_slots:
+                    display_time = datetime.strptime(time_str, '%H:%M').strftime('%I:%M %p')
+                    available_slots[date_str].append({'time': time_str, 'displayTime': display_time})
+        current_date += timedelta(days=1)
+
+    return available_slots
+
+
+def _handle_slots_availability_query(query: str):
+    """Answer available-slot questions without LLM-generated JSON_CONTAINS SQL."""
+    facility_hint, specialty_hint, target_date = _parse_slots_query_hints(query)
+    doctors = _resolve_doctors_for_slots(facility_hint, specialty_hint)
+
+    if not doctors:
+        hints = []
+        if facility_hint:
+            hints.append(f'facility matching "{facility_hint}"')
+        if specialty_hint:
+            hints.append(f'specialty matching "{specialty_hint}"')
+        hint_text = ' and '.join(hints) if hints else 'your criteria'
+        return {
+            'success': True,
+            'results': [],
+            'natural_results': [
+                f'No available doctors found for {hint_text}. '
+                'Try another facility or specialty name, or book from the Appointments page.'
+            ],
+            'count': 0,
+        }
+
+    date_str = target_date.strftime('%Y-%m-%d')
+    natural_lines = []
+    result_rows = []
+
+    for doc in doctors[:5]:
+        doctor_id = doc['doctor_id']
+        doctor_label = f"Dr. {doc['first_name']} {doc['last_name']}"
+        facility_label = doc.get('facility_name') or 'the facility'
+        specialty_label = doc.get('specialty_name') or specialty_hint or 'general'
+
+        try:
+            all_slots = _compute_available_slots_for_doctor(doctor_id)
+        except RuntimeError as exc:
+            logger.error(f'Slots computation failed for doctor {doctor_id}: {exc}')
+            natural_lines.append(f'{doctor_label}: unable to load slots ({exc}).')
+            continue
+
+        day_slots = all_slots.get(date_str, [])
+        if day_slots:
+            times = ', '.join(s['displayTime'] for s in day_slots[:12])
+            extra = f' (+{len(day_slots) - 12} more)' if len(day_slots) > 12 else ''
+            natural_lines.append(
+                f'{doctor_label} ({specialty_label} at {facility_label}) on {target_date.strftime("%a, %b %d, %Y")}: {times}{extra}.'
+            )
+        else:
+            natural_lines.append(
+                f'{doctor_label} ({specialty_label} at {facility_label}) has no open slots on {target_date.strftime("%a, %b %d, %Y")}.'
+            )
+
+        for slot in day_slots:
+            result_rows.append({
+                'doctor': doctor_label,
+                'specialty': specialty_label,
+                'facility': facility_label,
+                'date': date_str,
+                'time': slot['time'],
+                'display_time': slot['displayTime'],
+            })
+
+    if not natural_lines:
+        natural_lines.append('No slot information could be retrieved. Please try again or use the booking form.')
+
+    return {
+        'success': True,
+        'results': result_rows,
+        'natural_results': natural_lines,
+        'count': len(result_rows),
+    }
+
+
+def _build_dashboard_health_context(patient_id: str) -> str:
+    """Assemble patient data for AI Care Overview summary."""
+    parts = []
+
+    patient_row = db.session.execute(
+        db.text(
+            """
+            SELECT patient_id, first_name, last_name, date_of_birth, gender,
+                   blood_type, height_cm, weight_kg, bmi
+            FROM patients WHERE patient_id = :patient_id
+            """
+        ),
+        {'patient_id': patient_id},
+    ).fetchone()
+    patient = _sql_row_to_dict(patient_row)
+    if not patient:
+        return ''
+
+    age = None
+    dob = patient.get('date_of_birth')
+    if dob:
+        try:
+            if hasattr(dob, 'year'):
+                birth = dob
+            else:
+                birth = datetime.strptime(str(dob)[:10], '%Y-%m-%d')
+            today = datetime.now()
+            age = today.year - birth.year - (
+                (today.month, today.day) < (birth.month, birth.day)
+            )
+        except (ValueError, TypeError):
+            age = None
+
+    parts.append('PATIENT PROFILE:')
+    parts.append(
+        f"- Name: {patient.get('first_name', '')} {patient.get('last_name', '')}".strip()
+    )
+    if age is not None:
+        parts.append(f"- Age: {age} years")
+    if patient.get('gender'):
+        parts.append(f"- Gender: {patient.get('gender')}")
+    if patient.get('blood_type'):
+        parts.append(f"- Blood type: {patient.get('blood_type')}")
+    if patient.get('bmi'):
+        parts.append(f"- BMI: {round(float(patient['bmi']), 1)}")
+    if patient.get('height_cm') and patient.get('weight_kg'):
+        parts.append(f"- Height/weight: {patient['height_cm']} cm, {patient['weight_kg']} kg")
+
+    appt_rows = db.session.execute(
+        db.text(
+            """
+            SELECT a.appointment_date, a.appointment_time, a.status, a.reason,
+                   d.first_name AS doctor_first_name, d.last_name AS doctor_last_name,
+                   f.name AS facility_name
+            FROM appointments a
+            LEFT JOIN doctors d ON a.doctor_id = d.doctor_id
+            LEFT JOIN facilities f ON a.facility_id = f.facility_id
+            WHERE a.patient_id = :patient_id
+              AND a.family_member_id IS NULL
+              AND a.status IN ('scheduled', 'confirmed')
+              AND CONCAT(a.appointment_date, ' ', a.appointment_time) >= NOW()
+            ORDER BY a.appointment_date ASC, a.appointment_time ASC
+            LIMIT 5
+            """
+        ),
+        {'patient_id': patient_id},
+    ).fetchall()
+    if appt_rows:
+        parts.append('\nUPCOMING APPOINTMENTS:')
+        for i, row in enumerate(appt_rows, 1):
+            a = _sql_row_to_dict(row)
+            doctor = ''
+            if a.get('doctor_first_name') or a.get('doctor_last_name'):
+                doctor = f"Dr. {a.get('doctor_first_name', '')} {a.get('doctor_last_name', '')}".strip()
+            line = f"{i}. {a.get('appointment_date')} {a.get('appointment_time')}"
+            if doctor:
+                line += f" with {doctor}"
+            if a.get('facility_name'):
+                line += f" at {a.get('facility_name')}"
+            if a.get('reason'):
+                line += f" — {a.get('reason')}"
+            parts.append(line)
+
+    rad_rows = db.session.execute(
+        db.text(
+            """
+            SELECT appointment_date, appointment_time, scan_type, body_part, status, reason
+            FROM radiology_bookings
+            WHERE patient_id = :patient_id
+              AND family_member_id IS NULL
+              AND status = 'scheduled'
+              AND appointment_date >= CURDATE()
+            ORDER BY appointment_date ASC, appointment_time ASC
+            LIMIT 5
+            """
+        ),
+        {'patient_id': patient_id},
+    ).fetchall()
+    if rad_rows:
+        parts.append('\nUPCOMING RADIOLOGY:')
+        for i, row in enumerate(rad_rows, 1):
+            b = _sql_row_to_dict(row)
+            scan = (b.get('scan_type') or 'scan').upper()
+            if b.get('body_part'):
+                scan += f" ({b.get('body_part')})"
+            parts.append(
+                f"{i}. {scan} on {b.get('appointment_date')} at {b.get('appointment_time')}"
+            )
+
+    record_rows = db.session.execute(
+        db.text(
+            """
+            SELECT record_type, title, description, visit_date
+            FROM medical_records
+            WHERE patient_id = :patient_id AND family_member_id IS NULL
+            ORDER BY visit_date DESC, created_at DESC
+            LIMIT 8
+            """
+        ),
+        {'patient_id': patient_id},
+    ).fetchall()
+    if record_rows:
+        parts.append('\nRECENT MEDICAL RECORDS:')
+        for i, row in enumerate(record_rows, 1):
+            r = _sql_row_to_dict(row)
+            desc = _truncate_text(r.get('description'), 250)
+            line = f"{i}. [{r.get('record_type')}] {r.get('title')} ({r.get('visit_date')})"
+            if desc:
+                line += f": {desc}"
+            parts.append(line)
+
+    family_rows = db.session.execute(
+        db.text(
+            """
+            SELECT first_name, last_name, relationship, allergies, medical_history
+            FROM family_members
+            WHERE primary_patient_id = :patient_id AND is_active = 1
+            """
+        ),
+        {'patient_id': patient_id},
+    ).fetchall()
+    if family_rows:
+        parts.append(f'\nFAMILY MEMBERS ({len(family_rows)} linked):')
+        for row in family_rows[:5]:
+            m = _sql_row_to_dict(row)
+            line = f"- {m.get('first_name')} {m.get('last_name')} ({m.get('relationship')})"
+            if m.get('allergies'):
+                line += f"; allergies: {_truncate_text(m['allergies'], 80)}"
+            parts.append(line)
+
+    try:
+        bill_row = db.session.execute(
+            db.text(
+                """
+                SELECT COUNT(*) AS pending_count
+                FROM billing
+                WHERE patient_id = :patient_id
+                  AND status IN ('pending', 'partially_paid')
+                """
+            ),
+            {'patient_id': patient_id},
+        ).fetchone()
+    except Exception:
+        bill_row = None
+    if bill_row:
+        pending = _sql_row_to_dict(bill_row).get('pending_count') or 0
+        if pending:
+            parts.append(f'\nBILLING: {pending} bill(s) pending or partially paid.')
+
+    return '\n'.join(parts)
+
+
+@patient_portal_bp.route('/health-summary', methods=['GET', 'OPTIONS'])
+@require_jwt
+def patient_portal_health_summary():
+    """Generate a brief AI Care Overview summary for the patient dashboard."""
+    try:
+        patient_id = g.patient_id
+        if not patient_id:
+            return jsonify({'success': False, 'error': 'No patient record for this user'}), 400
+
+        health_context = _build_dashboard_health_context(patient_id)
+        if not health_context.strip():
+            return jsonify({
+                'success': True,
+                'summary': (
+                    '• Welcome to your care portal.\n'
+                    '• Complete your profile and book appointments to get a personalized AI health overview.\n'
+                    '• This is an AI summary, not medical advice.'
+                ),
+                'generated_at': datetime.utcnow().isoformat() + 'Z',
+            }), 200
+
+        prompt = f"""Using ONLY the patient data below, write a brief Care Overview for their dashboard.
+
+Requirements:
+- 3 to 5 bullet points starting with •
+- Under 130 words total
+- Mention upcoming appointments or scans if any
+- Mention notable allergies, conditions, or recent lab/record highlights if present
+- If data is sparse, note what is on file and suggest one helpful next step (e.g. book a check-up)
+- Warm, clear, patient-friendly tone
+- Plain text only — no markdown, no bold, no headers
+- Do NOT diagnose or prescribe
+- End with exactly this line on its own: This is an AI summary, not medical advice.
+
+PATIENT DATA:
+{health_context}
+"""
+
+        response = openai.ChatCompletion.create(
+            model='gpt-4',
+            messages=[
+                {
+                    'role': 'system',
+                    'content': (
+                        'You create concise, compassionate patient dashboard health overviews. '
+                        'Use only provided data. Never invent test results or appointments.'
+                    ),
+                },
+                {'role': 'user', 'content': prompt},
+            ],
+            max_tokens=280,
+            temperature=0.5,
+        )
+
+        summary = (response.choices[0].message.content or '').strip()
+        if not summary:
+            summary = (
+                '• Your care information is on file.\n'
+                '• Check appointments and medical records for the latest updates.\n'
+                '• This is an AI summary, not medical advice.'
+            )
+
+        return jsonify({
+            'success': True,
+            'summary': summary,
+            'generated_at': datetime.utcnow().isoformat() + 'Z',
+        }), 200
+
+    except Exception as e:
+        logger.error(f'Error generating health summary: {e}')
+        logger.error(traceback.format_exc())
+        return jsonify({
+            'success': False,
+            'error': 'Failed to generate health summary',
+        }), 500
+
+
 @patient_portal_bp.route('/query', methods=['POST', 'OPTIONS'])
 @require_jwt
 def patient_portal_query():
@@ -715,6 +1199,10 @@ def patient_portal_query():
                 'success': False,
                 'error': 'No patient record for this user'
             }), 400
+
+        if _is_slots_availability_query(query):
+            slot_result = _handle_slots_availability_query(query)
+            return jsonify(slot_result), 200
         
         agent = DatabaseAgent()
         
@@ -1084,9 +1572,19 @@ Your role is to:
    - If the query mentions a relationship (e.g., "my wife's records", "my child's allergies"), identify the family member by relationship
    - If the query says "me", "myself", "my health", "my records", use the PRIMARY PATIENT's data
    - If the query asks about "family members" or "all family members", provide information for ALL family members listed in the context
-   - If unclear, ask which person they're asking about
+   - ONLY ask which person when the query clearly needs that person's private records (e.g. "my lab results", "my vitamin level") and the person is ambiguous
+   - Do NOT ask if a general health question is "incomplete" — answer it directly (see section 6)
+
+6. General Health Education (vitamins, deficiencies, symptoms, conditions, diet, wellness):
+   - For topics like vitamin deficiency, anemia, diabetes, headache remedies, nutrition, supplements, etc., give a helpful answer immediately
+   - Interpret minor typos charitably (e.g. "vitami" means vitamin, "deficency" means deficiency)
+   - Include: brief overview, common signs/symptoms, common causes, dietary sources or general management tips, when to see a doctor, and a short disclaimer
+   - You may briefly mention that lab tests can confirm deficiencies if relevant, but do not refuse to answer or only ask clarifying questions
+   - If the patient has relevant lab data in context (e.g. Vitamin D, B12), mention their results when available; otherwise still provide general education
 
 5. Appointment Booking: When a patient asks about booking an appointment or says "yes" to booking, respond with: "I can help you book an appointment! Please fill out the form below, or provide more details like which doctor or specialty you'd like to see, preferred date and time, and reason for the appointment."
+
+Note: For general wellness questions (section 6), answer fully first; only ask follow-up questions at the end if helpful, not instead of answering.
 
 CRITICAL: You have been provided with detailed health information in the context above, including:
 - LAB RESULTS AND DIAGNOSTICS: Complete lab test results, blood work, diagnostic test results, pathology reports
@@ -1102,7 +1600,7 @@ ALWAYS use this information to answer questions. When asked about lab results, d
 IMPORTANT GUIDELINES:
 - Be conversational, natural, and engaging - like talking to a helpful friend
 - Remember and reference previous parts of the conversation when relevant
-- Ask follow-up questions when appropriate to better understand the patient's needs
+- Ask follow-up questions only after giving a helpful answer, not instead of answering general health questions
 - Use a warm, empathetic, and patient-focused tone
 - For medical advice beyond home remedies, encourage consulting a healthcare professional
 - When answering about patient data, be clear and concise
@@ -1149,11 +1647,29 @@ Format your responses in a clear, easy-to-read manner with simple bullet points 
             context += "- If the query mentions a name or relationship, match it to the family member information provided above\n"
             context += "- If the query is about 'me' or 'myself', use the PRIMARY PATIENT information\n"
         
-        if any(keyword in message_lower for keyword in ['dizziness', 'headache', 'pain', 'feeling', 'symptom', 'remedy', 'treatment', 'ache', 'ill', 'sick', 'unwell', 'health', 'condition']):
+        health_education_keywords = [
+            'vitamin', 'vitamins', 'deficiency', 'deficient', 'nutrition', 'nutrient', 'supplement',
+            'anemia', 'iron', 'calcium', 'magnesium', 'folate', 'b12', 'd3', 'protein', 'diet',
+            'symptom', 'symptoms', 'cause', 'causes', 'prevent', 'prevention', 'treatment',
+            'disease', 'condition', 'disorder', 'infection', 'fever', 'cough', 'cold', 'flu',
+            'headache', 'migraine', 'pain', 'ache', 'nausea', 'fatigue', 'tired', 'weakness',
+            'remedy', 'remedies', 'home remedy', 'wellness', 'immune', 'cholesterol', 'blood pressure',
+            'diabetes', 'thyroid', 'allergy', 'asthma', 'dehydration', 'hydration',
+        ]
+        is_health_education = any(kw in message_lower for kw in health_education_keywords)
+
+        if is_health_education:
+            context += "THIS IS A GENERAL HEALTH / WELLNESS EDUCATION QUERY:\n"
+            context += "- Answer directly with clear, practical information — do NOT say the question is incomplete\n"
+            context += "- Fix obvious typos in your understanding (e.g. vitami → vitamin) and answer the intended topic\n"
+            context += "- Structure: what it is, common signs, causes/risk factors, foods or lifestyle tips, when to seek care, brief disclaimer\n"
+            context += "- If patient lab records in context mention this topic, reference them; if not, still give a full general answer\n"
+            context += "- Keep the response concise but complete (at least 4-6 sentences or bullet points)\n"
+        elif any(keyword in message_lower for keyword in ['dizziness', 'headache', 'pain', 'feeling', 'symptom', 'remedy', 'treatment', 'ache', 'ill', 'sick', 'unwell', 'health', 'condition']):
             context += "- When providing health advice or remedies, ALWAYS consider the SPECIFIC PERSON'S profile information (age, medical history, allergies, medications) and tailor suggestions accordingly\n"
             context += "- Avoid suggesting anything that might interact with that person's known allergies or medications\n"
         
-        context += "\nREMEMBER: All the data you need is provided in the context above. Use it to answer the query comprehensively.\n"
+        context += "\nREMEMBER: All the data you need is provided in the context above. Use it to answer the query comprehensively. Never respond with only a clarifying question when you can provide useful general health information.\n"
 
         # Build messages array with conversation history
         messages_array = [{"role": "system", "content": context}]
@@ -1179,7 +1695,13 @@ Format your responses in a clear, easy-to-read manner with simple bullet points 
             temperature=0.8  # Slightly higher temperature for more conversational responses
         )
 
-        ai_response = response.choices[0].message.content.strip()
+        ai_response = (response.choices[0].message.content or '').strip()
+
+        if not ai_response:
+            ai_response = (
+                "I couldn't generate a full answer right now. Please try again in a moment, "
+                "or rephrase your question (for example: \"Tell me about vitamin D deficiency\")."
+            )
 
         return jsonify({
             'success': True,

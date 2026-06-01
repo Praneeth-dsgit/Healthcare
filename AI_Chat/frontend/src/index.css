@@ -5,43 +5,166 @@
 @tailwind utilities;
 
 
-/* Professional Healthcare Theme Variables */
+/* Dark gradient healthcare theme */
 :root {
-  --primary-blue: #2563eb;
-  --primary-blue-light: #60a5fa;
-  --primary-blue-dark: #1e3a8a;
-  --secondary-teal: #0f766e;
-  --accent-green: #16a34a;
-  --warning-amber: #d97706;
-  --error-red: #dc2626;
-  --success-green: #059669;
-  --neutral-gray: #64748b;
-  --light-gray: #f1f5f9;
-  --white: #ffffff;
-  --surface: #ffffff;
-  --surface-soft: #f8fafc;
-  --surface-tint: #eef6ff;
-  --text-primary: #0f172a;
-  --text-secondary: #475569;
-  --text-muted: #64748b;
-  --border-color: #e2e8f0;
-  --ring-color: rgba(37, 99, 235, 0.22);
-  --shadow-light: 0 1px 2px rgb(15 23 42 / 0.05);
-  --shadow-medium: 0 12px 30px -22px rgb(15 23 42 / 0.45);
-  --shadow-large: 0 24px 60px -34px rgb(15 23 42 / 0.55);
+  --primary-blue: #38bdf8;
+  --primary-blue-light: #7dd3fc;
+  --primary-blue-dark: #0284c7;
+  --secondary-teal: #2dd4bf;
+  --accent-green: #34d399;
+  --warning-amber: #fbbf24;
+  --error-red: #f87171;
+  --success-green: #34d399;
+  --neutral-gray: #94a3b8;
+  --light-gray: #1e293b;
+  --white: #f8fafc;
+  --surface: rgba(15, 23, 42, 0.72);
+  --surface-elevated: rgba(30, 41, 59, 0.88);
+  --surface-soft: rgba(15, 23, 42, 0.55);
+  --surface-tint: rgba(56, 189, 248, 0.08);
+  --text-primary: #f1f5f9;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
+  --border-color: rgba(148, 163, 184, 0.18);
+  --border-strong: rgba(148, 163, 184, 0.28);
+  --ring-color: rgba(56, 189, 248, 0.45);
+  --shadow-light: 0 1px 2px rgb(0 0 0 / 0.35);
+  --shadow-medium: 0 16px 40px -24px rgb(0 0 0 / 0.65);
+  --shadow-large: 0 28px 64px -28px rgb(0 0 0 / 0.75);
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 16px;
+  --portal-accent: #2dd4bf;
+  --portal-accent-light: #5eead4;
+  --portal-accent-muted: rgba(45, 212, 191, 0.12);
+  --gradient-page: linear-gradient(145deg, #020617 0%, #0f172a 42%, #1e1b4b 100%);
+  --gradient-header: linear-gradient(135deg, rgba(15, 23, 42, 0.95) 0%, rgba(30, 27, 75, 0.92) 55%, rgba(15, 118, 110, 0.35) 100%);
+}
+
+[data-portal="patient"] {
+  --portal-accent: #2dd4bf;
+  --portal-accent-light: #5eead4;
+  --portal-accent-muted: rgba(45, 212, 191, 0.14);
+}
+
+[data-portal="doctor"] {
+  --portal-accent: #38bdf8;
+  --portal-accent-light: #7dd3fc;
+  --portal-accent-muted: rgba(56, 189, 248, 0.14);
+}
+
+[data-portal="radiology"] {
+  --portal-accent: #818cf8;
+  --portal-accent-light: #a5b4fc;
+  --portal-accent-muted: rgba(129, 140, 248, 0.14);
+}
+
+[data-portal="lab"] {
+  --portal-accent: #34d399;
+  --portal-accent-light: #6ee7b7;
+  --portal-accent-muted: rgba(52, 211, 153, 0.14);
+}
+
+[data-portal="frontdesk"] {
+  --portal-accent: #fbbf24;
+  --portal-accent-light: #fcd34d;
+  --portal-accent-muted: rgba(251, 191, 36, 0.14);
+}
+
+/* PatientEngagement sections embedded in front desk portal */
+[data-portal="frontdesk"] .frontdesk-embed .bg-white,
+[data-portal="frontdesk"] .frontdesk-embed [class*="bg-white"] {
+  background: linear-gradient(160deg, var(--surface-elevated), var(--surface)) !important;
+  border-color: var(--border-color) !important;
+  color: var(--text-primary);
+}
+
+[data-portal="frontdesk"] .frontdesk-embed .border-gray-200,
+[data-portal="frontdesk"] .frontdesk-embed .border-gray-100,
+[data-portal="frontdesk"] .frontdesk-embed .border-gray-300 {
+  border-color: var(--border-strong) !important;
+}
+
+[data-portal="frontdesk"] .frontdesk-embed .text-gray-900,
+[data-portal="frontdesk"] .frontdesk-embed .text-gray-800 {
+  color: var(--text-primary) !important;
+}
+
+[data-portal="frontdesk"] .frontdesk-embed .text-gray-700,
+[data-portal="frontdesk"] .frontdesk-embed .text-gray-600 {
+  color: var(--text-secondary) !important;
+}
+
+[data-portal="frontdesk"] .frontdesk-embed .text-gray-500,
+[data-portal="frontdesk"] .frontdesk-embed .text-gray-400 {
+  color: var(--text-muted) !important;
+}
+
+[data-portal="frontdesk"] .frontdesk-embed input,
+[data-portal="frontdesk"] .frontdesk-embed select,
+[data-portal="frontdesk"] .frontdesk-embed textarea {
+  background: rgba(2, 6, 23, 0.55) !important;
+  border-color: var(--border-strong) !important;
+  color: var(--text-primary) !important;
+}
+
+[data-portal="frontdesk"] .frontdesk-embed input::placeholder,
+[data-portal="frontdesk"] .frontdesk-embed textarea::placeholder {
+  color: var(--text-muted) !important;
+}
+
+[data-portal="frontdesk"] .frontdesk-embed input:focus,
+[data-portal="frontdesk"] .frontdesk-embed select:focus,
+[data-portal="frontdesk"] .frontdesk-embed textarea:focus {
+  border-color: var(--portal-accent) !important;
+  box-shadow: 0 0 0 2px var(--portal-accent-muted) !important;
+  outline: none !important;
+}
+
+[data-portal="frontdesk"] .frontdesk-embed .text-blue-600,
+[data-portal="frontdesk"] .frontdesk-embed .border-blue-600 {
+  color: var(--portal-accent) !important;
+}
+
+[data-portal="frontdesk"] .frontdesk-embed .border-b-2.border-blue-600 {
+  border-color: var(--portal-accent) !important;
+}
+
+[data-portal="frontdesk"] .frontdesk-embed .bg-gray-50,
+[data-portal="frontdesk"] .frontdesk-embed .hover\:bg-gray-50:hover {
+  background: rgba(15, 23, 42, 0.65) !important;
+}
+
+[data-portal="frontdesk"] .frontdesk-embed .bg-gray-100,
+[data-portal="frontdesk"] .frontdesk-embed .hover\:bg-gray-100:hover,
+[data-portal="frontdesk"] .frontdesk-embed .disabled\:bg-gray-100:disabled {
+  background: rgba(30, 41, 59, 0.8) !important;
+}
+
+[data-portal="frontdesk"] .frontdesk-embed .bg-gray-400 {
+  background: rgba(71, 85, 105, 0.9) !important;
+}
+
+[data-portal="frontdesk"] .frontdesk-embed button.bg-blue-600,
+[data-portal="frontdesk"] .frontdesk-embed .bg-blue-600 {
+  background: var(--portal-accent) !important;
+  color: #0f172a !important;
+}
+
+[data-portal="frontdesk"] .frontdesk-embed .bg-slate-200\/80 {
+  background: rgba(30, 41, 59, 0.85) !important;
 }
 
 body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   color: var(--text-primary);
   background:
-    radial-gradient(circle at top left, rgba(14, 165, 233, 0.12), transparent 30rem),
-    radial-gradient(circle at top right, rgba(20, 184, 166, 0.1), transparent 28rem),
-    #f7fafc;
+    radial-gradient(ellipse 80% 50% at 10% -10%, rgba(56, 189, 248, 0.22), transparent 50%),
+    radial-gradient(ellipse 70% 45% at 90% 0%, rgba(129, 140, 248, 0.18), transparent 45%),
+    radial-gradient(ellipse 60% 40% at 50% 100%, rgba(45, 212, 191, 0.12), transparent 50%),
+    var(--gradient-page);
   font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  min-height: 100vh;
 }
 
 button,
@@ -62,34 +185,151 @@ textarea:focus-visible {
 }
 
 @layer components {
+  .app-page {
+    min-height: 100vh;
+    color: var(--text-primary);
+    background:
+      radial-gradient(ellipse 80% 50% at 10% -10%, rgba(56, 189, 248, 0.18), transparent 50%),
+      radial-gradient(ellipse 70% 45% at 90% 0%, rgba(129, 140, 248, 0.14), transparent 45%),
+      var(--gradient-page);
+  }
+
   .app-shell {
     background:
-      linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(248, 250, 252, 0.92)),
-      radial-gradient(circle at 20% 0%, rgba(59, 130, 246, 0.1), transparent 28rem);
+      linear-gradient(180deg, rgba(15, 23, 42, 0.92), rgba(2, 6, 23, 0.96)),
+      radial-gradient(circle at 20% 0%, rgba(56, 189, 248, 0.12), transparent 28rem);
+    color: var(--text-primary);
   }
 
   .app-topbar {
-    background: rgba(255, 255, 255, 0.9);
-    border-bottom: 1px solid rgba(226, 232, 240, 0.95);
-    box-shadow: 0 12px 28px -24px rgba(15, 23, 42, 0.7);
+    background: rgba(15, 23, 42, 0.82);
+    border-bottom: 1px solid var(--border-color);
+    box-shadow: var(--shadow-medium);
     backdrop-filter: blur(18px);
+    color: var(--text-primary);
+  }
+
+  .portal-header {
+    background: var(--gradient-header);
+    border-bottom: 1px solid var(--border-color);
+    box-shadow: var(--shadow-medium);
+    backdrop-filter: blur(16px);
+    color: var(--text-primary);
+  }
+
+  .content-panel {
+    background: linear-gradient(160deg, var(--surface-elevated), var(--surface));
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-medium);
+    color: var(--text-primary);
+  }
+
+  .modal-surface {
+    background: linear-gradient(165deg, rgba(30, 41, 59, 0.98), rgba(15, 23, 42, 0.98));
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-large);
+    color: var(--text-primary);
+    color-scheme: dark;
+  }
+
+  .filter-bar {
+    background: var(--surface-soft);
+    border-bottom: 1px solid var(--border-color);
+    color: var(--text-secondary);
+  }
+
+  .dropdown-menu {
+    background: var(--surface-elevated);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-large);
+    color: var(--text-primary);
+  }
+
+  .faq-dropdown-panel {
+    background: #1e293b;
+    border: 1px solid #475569;
+    color: var(--text-primary);
+  }
+
+  .data-table-head {
+    background: rgba(15, 23, 42, 0.65);
+    color: var(--text-muted);
+  }
+
+  .data-table-body {
+    background: transparent;
+    color: var(--text-secondary);
+  }
+
+  .data-table-row:hover {
+    background: rgba(56, 189, 248, 0.06);
+  }
+
+  .form-field,
+  .content-panel input,
+  .content-panel select,
+  .content-panel textarea,
+  .modal-surface input,
+  .modal-surface select,
+  .modal-surface textarea,
+  .chat-glass-input textarea,
+  .chat-glass-input input {
+    background: rgba(2, 6, 23, 0.55);
+    border: 1px solid var(--border-strong);
+    color: var(--text-primary);
+    border-radius: var(--radius-sm);
+  }
+
+  .form-field::placeholder,
+  .content-panel input::placeholder,
+  .modal-surface input::placeholder {
+    color: var(--text-muted);
+  }
+
+  .form-field:focus,
+  .content-panel input:focus,
+  .content-panel select:focus,
+  .content-panel textarea:focus,
+  .modal-surface input:focus,
+  .modal-surface select:focus,
+  .modal-surface textarea:focus {
+    border-color: var(--portal-accent);
+    outline: none;
+    box-shadow: 0 0 0 3px var(--ring-color);
+  }
+
+  .form-label {
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    font-weight: 600;
   }
 
   .brand-mark {
-    background: linear-gradient(135deg, #2563eb, #0f766e);
-    box-shadow: 0 10px 20px -14px rgba(37, 99, 235, 0.8);
+    background: linear-gradient(135deg, #38bdf8, #2dd4bf);
+    box-shadow: 0 10px 24px -12px rgba(56, 189, 248, 0.65);
   }
 
   .brand-title {
-    color: #0f172a;
+    color: var(--text-primary);
     letter-spacing: 0;
   }
 
+  .brand-gradient-text {
+    background: linear-gradient(135deg, #7dd3fc, #5eead4);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
   .premium-card {
-    background: rgba(255, 255, 255, 0.92);
-    border: 1px solid rgba(226, 232, 240, 0.95);
+    background: linear-gradient(160deg, var(--surface-elevated), var(--surface));
+    border: 1px solid var(--border-color);
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-medium);
+    color: var(--text-primary);
   }
 
   .premium-card-hover {
@@ -97,91 +337,195 @@ textarea:focus-visible {
   }
 
   .premium-card-hover:hover {
-    border-color: rgba(147, 197, 253, 0.95);
+    border-color: color-mix(in srgb, var(--portal-accent) 45%, transparent);
     box-shadow: var(--shadow-large);
     transform: translateY(-1px);
   }
 
   .soft-panel {
-    background: linear-gradient(180deg, rgba(248, 250, 252, 0.9), rgba(255, 255, 255, 0.95));
-    border: 1px solid rgba(226, 232, 240, 0.9);
+    background: linear-gradient(180deg, var(--surface-soft), var(--surface));
+    border: 1px solid var(--border-color);
     border-radius: var(--radius-md);
+    color: var(--text-secondary);
   }
 
   .action-tile {
     min-height: 74px;
     border-radius: var(--radius-md);
-    border: 1px solid rgba(226, 232, 240, 0.95);
-    background: rgba(255, 255, 255, 0.86);
+    border: 1px solid var(--border-color);
+    background: var(--surface-soft);
     box-shadow: var(--shadow-light);
+    color: var(--text-primary);
     transition: background-color 180ms ease, border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
   }
 
   .action-tile:hover {
-    background: #ffffff;
-    border-color: rgba(96, 165, 250, 0.55);
+    background: var(--surface-elevated);
+    border-color: color-mix(in srgb, var(--portal-accent) 40%, transparent);
     box-shadow: var(--shadow-medium);
     transform: translateY(-1px);
   }
 
   .healthcare-button {
-    background: linear-gradient(135deg, #2563eb 0%, #0f766e 100%);
-    color: var(--white);
+    background: linear-gradient(135deg, #0ea5e9 0%, #14b8a6 55%, #6366f1 100%);
+    color: #f8fafc;
     border-radius: var(--radius-sm);
     padding: 0.75rem 1rem;
     font-weight: 700;
     transition: box-shadow 180ms ease, transform 180ms ease, filter 180ms ease;
-    border: none;
+    border: 1px solid rgba(125, 211, 252, 0.25);
     cursor: pointer;
-    box-shadow: 0 12px 24px -18px rgba(37, 99, 235, 0.85);
+    box-shadow: 0 14px 32px -16px rgba(14, 165, 233, 0.75);
   }
 
   .healthcare-button:hover {
-    filter: brightness(1.03);
-    box-shadow: 0 16px 32px -18px rgba(15, 118, 110, 0.75);
+    filter: brightness(1.08);
+    box-shadow: 0 18px 36px -14px rgba(45, 212, 191, 0.55);
     transform: translateY(-1px);
   }
 
   .healthcare-button:active {
-    transform: translateY(0);
+    transform: scale(0.98) translateY(0);
+  }
+
+  .portal-accent-button {
+    background: linear-gradient(135deg, var(--portal-accent) 0%, color-mix(in srgb, var(--portal-accent) 65%, #312e81) 100%);
+    color: #0f172a;
+    border-radius: var(--radius-sm);
+    padding: 0.75rem 1rem;
+    font-weight: 700;
+    transition: box-shadow 180ms ease, transform 180ms ease, filter 180ms ease;
+    border: 1px solid color-mix(in srgb, var(--portal-accent-light) 35%, transparent);
+    cursor: pointer;
+    box-shadow: 0 14px 28px -16px color-mix(in srgb, var(--portal-accent) 75%, transparent);
+  }
+
+  .portal-accent-button:hover {
+    filter: brightness(1.1);
+    transform: translateY(-1px);
+  }
+
+  .portal-accent-button:active {
+    transform: scale(0.98);
+  }
+
+  .btn-secondary {
+    background: rgba(51, 65, 85, 0.65);
+    border: 1px solid var(--border-strong);
+    color: var(--text-secondary);
+    border-radius: var(--radius-sm);
+    transition: background-color 180ms ease, color 180ms ease;
+  }
+
+  .btn-secondary:hover {
+    background: rgba(71, 85, 105, 0.75);
+    color: var(--text-primary);
+  }
+
+  .segment-tabs {
+    display: inline-flex;
+    gap: 0.25rem;
+    padding: 0.25rem;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.75);
+    border: 1px solid var(--border-color);
+  }
+
+  .segment-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.625rem 1rem;
+    border-radius: 999px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    transition: background-color 180ms ease, color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+    white-space: nowrap;
+  }
+
+  .segment-tab:hover {
+    color: var(--text-secondary);
+    background: rgba(51, 65, 85, 0.45);
+  }
+
+  .segment-tab-active {
+    background: linear-gradient(135deg, var(--portal-accent-muted), rgba(30, 41, 59, 0.9));
+    color: var(--portal-accent-light);
+    border: 1px solid color-mix(in srgb, var(--portal-accent) 35%, transparent);
+    box-shadow: 0 8px 24px -14px rgba(0, 0, 0, 0.5);
+  }
+
+  .tab-content-fade {
+    animation: tabContentFade 200ms ease-out;
+  }
+
+  .animate-fade-in-up {
+    animation: fadeInUp 300ms ease-out both;
+  }
+
+  .animate-stagger-children > * {
+    animation: fadeInUp 300ms ease-out both;
+  }
+
+  .animate-stagger-children > *:nth-child(1) { animation-delay: 0ms; }
+  .animate-stagger-children > *:nth-child(2) { animation-delay: 50ms; }
+  .animate-stagger-children > *:nth-child(3) { animation-delay: 100ms; }
+  .animate-stagger-children > *:nth-child(4) { animation-delay: 150ms; }
+  .animate-stagger-children > *:nth-child(5) { animation-delay: 200ms; }
+  .animate-stagger-children > *:nth-child(6) { animation-delay: 250ms; }
+
+  .chat-sidebar-session-active {
+    background: var(--portal-accent-muted);
+    border: 1px solid color-mix(in srgb, var(--portal-accent) 25%, transparent);
+    color: var(--portal-accent);
+  }
+
+  .chat-glass-input {
+    background: rgba(15, 23, 42, 0.88);
+    backdrop-filter: blur(12px);
+    border-top: 1px solid var(--border-color);
+    color: var(--text-primary);
   }
 
   .ghost-button {
-    border: 1px solid rgba(226, 232, 240, 0.95);
-    background: rgba(255, 255, 255, 0.78);
-    color: #334155;
+    border: 1px solid var(--border-strong);
+    background: rgba(30, 41, 59, 0.55);
+    color: var(--text-secondary);
     border-radius: var(--radius-sm);
     transition: background-color 180ms ease, border-color 180ms ease, color 180ms ease;
   }
 
   .ghost-button:hover {
-    background: #f8fafc;
-    border-color: #bfdbfe;
-    color: #1d4ed8;
+    background: rgba(51, 65, 85, 0.65);
+    border-color: color-mix(in srgb, var(--portal-accent) 45%, transparent);
+    color: var(--portal-accent-light);
   }
 
   .sidebar-surface {
-    background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(248,250,252,0.96));
-    border-right: 1px solid rgba(226, 232, 240, 0.95);
-    box-shadow: 16px 0 40px -38px rgba(15, 23, 42, 0.7);
+    background: linear-gradient(180deg, rgba(15, 23, 42, 0.96), rgba(2, 6, 23, 0.98));
+    border-right: 1px solid var(--border-color);
+    box-shadow: 16px 0 48px -32px rgba(0, 0, 0, 0.85);
+    color: var(--text-secondary);
   }
 
   .sidebar-link {
     min-height: 44px;
     border-radius: var(--radius-md);
-    color: #475569;
+    color: var(--text-muted);
     transition: background-color 160ms ease, color 160ms ease, box-shadow 160ms ease;
   }
 
   .sidebar-link:hover {
-    background: #eef6ff;
-    color: #1e3a8a;
+    background: var(--portal-accent-muted);
+    color: var(--portal-accent-light);
   }
 
   .sidebar-link-active {
-    background: linear-gradient(135deg, #2563eb, #0f766e);
-    color: #ffffff;
-    box-shadow: 0 14px 28px -20px rgba(37, 99, 235, 0.9);
+    background: linear-gradient(135deg, var(--portal-accent), color-mix(in srgb, var(--portal-accent) 55%, #312e81));
+    color: #0f172a;
+    font-weight: 700;
+    box-shadow: 0 14px 28px -18px color-mix(in srgb, var(--portal-accent) 70%, transparent);
   }
 
   .status-pill {
@@ -194,20 +538,34 @@ textarea:focus-visible {
   }
 
   .section-heading {
-    color: #0f172a;
+    color: var(--text-primary);
     font-size: 1rem;
     font-weight: 800;
     letter-spacing: 0;
   }
 
   .muted-label {
-    color: #64748b;
+    color: var(--text-muted);
     font-size: 0.8125rem;
     font-weight: 600;
   }
 
+  .profile-form-panel {
+    background: var(--surface-soft);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    color: var(--text-secondary);
+  }
+
+  .role-badge-doctor { background: rgba(56, 189, 248, 0.18); color: #7dd3fc; }
+  .role-badge-radiology { background: rgba(129, 140, 248, 0.2); color: #c7d2fe; }
+  .role-badge-lab { background: rgba(52, 211, 153, 0.18); color: #6ee7b7; }
+  .role-badge-admin { background: rgba(192, 132, 252, 0.2); color: #e9d5ff; }
+  .role-badge-staff { background: rgba(251, 191, 36, 0.18); color: #fde68a; }
+  .role-badge-default { background: rgba(148, 163, 184, 0.15); color: #cbd5e1; }
+
   .skeleton-line {
-    background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 37%, #e2e8f0 63%);
+    background: linear-gradient(90deg, #1e293b 25%, #334155 37%, #1e293b 63%);
     background-size: 400% 100%;
     animation: skeleton-shimmer 1.4s ease infinite;
   }
@@ -226,12 +584,35 @@ textarea:focus-visible {
   margin-bottom: 0.25rem;
 }
 
+/* Structured clinical AI reports (radiology / lab staff chat) */
+.staff-report-prose h2 {
+  letter-spacing: 0.04em;
+}
+
+.staff-report-prose h2:first-child {
+  margin-top: 0;
+}
+
+.staff-report-prose ul,
+.staff-report-prose ol {
+  margin-top: 0.25rem;
+}
+
+.staff-report-prose li::marker {
+  color: var(--portal-accent, #38bdf8);
+}
+
+.staff-report-prose blockquote {
+  border-radius: 0 0.375rem 0.375rem 0;
+}
+
 /* Professional Healthcare Components */
 .healthcare-card {
-  background: var(--white);
+  background: linear-gradient(160deg, var(--surface-elevated), var(--surface));
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-medium);
   border: 1px solid var(--border-color);
+  color: var(--text-primary);
   transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
 }
 
@@ -241,16 +622,17 @@ textarea:focus-visible {
 }
 
 .healthcare-input {
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
   padding: 12px 16px;
   transition: border-color 180ms ease, box-shadow 180ms ease;
-  background: var(--white);
+  background: rgba(2, 6, 23, 0.55);
+  color: var(--text-primary);
 }
 
 .healthcare-input:focus {
   border-color: var(--primary-blue);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  box-shadow: 0 0 0 3px var(--ring-color);
   outline: none;
 }
 
@@ -296,12 +678,12 @@ textarea:focus-visible {
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--light-gray);
+  background: rgba(15, 23, 42, 0.65);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: #475569;
   border-radius: 4px;
 }
 
@@ -310,6 +692,16 @@ textarea:focus-visible {
 }
 
 /* Professional Animations */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes tabContentFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
@@ -487,6 +879,364 @@ input::-ms-clear {
 /* Hide autofill/reveal buttons in WebKit browsers (Safari, Chrome variants) */
 input::-webkit-credentials-auto-fill-button {
   display: none;
+}
+
+/* Remap legacy light-theme utility classes inside dark surfaces */
+.app-page .text-gray-900,
+.modal-surface .text-gray-900,
+.app-shell .text-slate-950 {
+  color: var(--text-primary) !important;
+}
+
+.app-page .text-gray-700,
+.modal-surface .text-gray-700,
+.app-page label.text-gray-700,
+.modal-surface label.text-gray-700 {
+  color: var(--text-secondary) !important;
+}
+
+.app-page .text-gray-600,
+.app-page .text-gray-500,
+.modal-surface .text-gray-500,
+.modal-surface .text-gray-600 {
+  color: var(--text-muted) !important;
+}
+
+.app-page .text-gray-400,
+.modal-surface .text-gray-400 {
+  color: #64748b !important;
+}
+
+.app-page .text-blue-600,
+.app-shell .text-blue-600 {
+  color: var(--portal-accent-light) !important;
+}
+
+.app-page .hover\:text-blue-900:hover,
+.app-page a.text-blue-600:hover {
+  color: #bae6fd !important;
+}
+
+.app-page .border-gray-200,
+.app-page .border-gray-300,
+.modal-surface .border-gray-300 {
+  border-color: var(--border-color) !important;
+}
+
+.app-page .hover\:bg-gray-100:hover,
+.app-page .hover\:border-gray-300:hover {
+  background: rgba(51, 65, 85, 0.45) !important;
+}
+
+.app-page .border-blue-500 {
+  border-color: var(--portal-accent) !important;
+}
+
+.app-page input.border-gray-300,
+.app-page select.border-gray-300,
+.modal-surface input:not([type='checkbox']):not([type='radio']),
+.modal-surface select,
+.modal-surface textarea,
+.modal-surface input.border-gray-300,
+.modal-surface select.border-gray-300,
+.modal-surface textarea.border-gray-300 {
+  background: rgba(2, 6, 23, 0.55) !important;
+  border-color: var(--border-strong) !important;
+  color: var(--text-primary) !important;
+}
+
+.modal-surface input:-webkit-autofill,
+.modal-surface input:-webkit-autofill:hover,
+.modal-surface input:-webkit-autofill:focus,
+.form-field:-webkit-autofill,
+.form-field:-webkit-autofill:hover,
+.form-field:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--text-primary) !important;
+  caret-color: var(--text-primary);
+  box-shadow: 0 0 0 1000px rgba(2, 6, 23, 0.92) inset !important;
+  -webkit-box-shadow: 0 0 0 1000px rgba(2, 6, 23, 0.92) inset !important;
+  transition: background-color 99999s ease-in-out 0s;
+}
+
+.app-page input:focus,
+.app-page select:focus,
+.modal-surface input:focus,
+.modal-surface select:focus,
+.app-page .healthcare-input:focus {
+  border-color: var(--portal-accent) !important;
+  box-shadow: 0 0 0 3px var(--ring-color) !important;
+}
+
+.app-page label,
+.modal-surface label {
+  color: var(--text-secondary) !important;
+}
+
+select option {
+  background: #0f172a;
+  color: #f1f5f9;
+}
+
+/* Patient & doctor portal internal pages — dark theme for legacy light utility classes */
+.patient-portal-page,
+[data-portal="doctor"] {
+  min-height: 100%;
+  color: var(--text-primary);
+}
+
+.patient-portal-page .bg-white,
+[data-portal="doctor"] .bg-white,
+.patient-portal-page .bg-gray-50,
+[data-portal="doctor"] .bg-gray-50,
+.patient-portal-page .bg-gray-100,
+[data-portal="doctor"] .bg-gray-100 {
+  background: linear-gradient(160deg, var(--surface-elevated), var(--surface)) !important;
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+}
+
+.patient-portal-page .hover\:bg-gray-50:hover,
+[data-portal="doctor"] .hover\:bg-gray-50:hover,
+.patient-portal-page .hover\:bg-white:hover,
+[data-portal="doctor"] .hover\:bg-white:hover {
+  background: rgba(51, 65, 85, 0.5) !important;
+}
+
+.patient-portal-page .text-gray-900,
+[data-portal="doctor"] .text-gray-900,
+.patient-portal-page .text-slate-900,
+[data-portal="doctor"] .text-slate-900 {
+  color: var(--text-primary) !important;
+}
+
+.patient-portal-page .text-gray-800,
+[data-portal="doctor"] .text-gray-800,
+.patient-portal-page .text-gray-700,
+[data-portal="doctor"] .text-gray-700 {
+  color: var(--text-secondary) !important;
+}
+
+.patient-portal-page .text-gray-600,
+[data-portal="doctor"] .text-gray-600,
+.patient-portal-page .text-gray-500,
+[data-portal="doctor"] .text-gray-500 {
+  color: var(--text-muted) !important;
+}
+
+.patient-portal-page .text-blue-600,
+[data-portal="doctor"] .text-blue-600,
+.patient-portal-page .text-blue-700,
+[data-portal="doctor"] .text-blue-700,
+.patient-portal-page .text-blue-800,
+[data-portal="doctor"] .text-blue-800 {
+  color: var(--portal-accent-light) !important;
+}
+
+.patient-portal-page .border-gray-200,
+[data-portal="doctor"] .border-gray-200,
+.patient-portal-page .border-gray-300,
+[data-portal="doctor"] .border-gray-300 {
+  border-color: var(--border-color) !important;
+}
+
+.patient-portal-page input:not([type='checkbox']):not([type='radio']),
+[data-portal="doctor"] input:not([type='checkbox']):not([type='radio']),
+.patient-portal-page select,
+[data-portal="doctor"] select,
+.patient-portal-page textarea,
+[data-portal="doctor"] textarea {
+  background: rgba(2, 6, 23, 0.55) !important;
+  border-color: var(--border-strong) !important;
+  color: var(--text-primary) !important;
+}
+
+.patient-portal-page input::placeholder,
+[data-portal="doctor"] input::placeholder,
+.patient-portal-page textarea::placeholder,
+[data-portal="doctor"] textarea::placeholder {
+  color: var(--text-muted) !important;
+}
+
+.patient-portal-page label,
+[data-portal="doctor"] label {
+  color: var(--text-secondary) !important;
+}
+
+.patient-portal-page .bg-blue-600,
+[data-portal="doctor"] .bg-blue-600,
+.patient-portal-page button.bg-blue-600,
+[data-portal="doctor"] button.bg-blue-600 {
+  background: linear-gradient(135deg, var(--portal-accent), color-mix(in srgb, var(--portal-accent) 65%, #0f172a)) !important;
+  color: #0f172a !important;
+  border: 1px solid color-mix(in srgb, var(--portal-accent-light) 35%, transparent);
+}
+
+.patient-portal-page .bg-blue-600:hover,
+[data-portal="doctor"] .bg-blue-600:hover,
+.patient-portal-page button.bg-blue-600:hover,
+[data-portal="doctor"] button.bg-blue-600:hover,
+.patient-portal-page .hover\:bg-blue-700:hover,
+[data-portal="doctor"] .hover\:bg-blue-700:hover {
+  filter: brightness(1.08);
+}
+
+.patient-portal-page .bg-blue-100,
+[data-portal="doctor"] .bg-blue-100 {
+  background: var(--portal-accent-muted) !important;
+}
+
+.patient-portal-page .bg-yellow-50,
+[data-portal="doctor"] .bg-yellow-50 {
+  background: rgba(251, 191, 36, 0.12) !important;
+  border-color: rgba(251, 191, 36, 0.35) !important;
+}
+
+.patient-portal-page .text-yellow-800,
+[data-portal="doctor"] .text-yellow-800 {
+  color: #fde68a !important;
+}
+
+.patient-portal-page thead.bg-gray-50,
+[data-portal="doctor"] thead.bg-gray-50 {
+  background: rgba(15, 23, 42, 0.8) !important;
+}
+
+.patient-portal-page tr.hover\:bg-gray-50:hover {
+  background: rgba(45, 212, 191, 0.06) !important;
+}
+
+.patient-portal-page .border-b-2.border-blue-600,
+[data-portal="doctor"] .border-b-2.border-blue-600,
+.patient-portal-page .border-b-2.border-blue-500,
+[data-portal="doctor"] .border-b-2.border-blue-500 {
+  border-color: var(--portal-accent) !important;
+}
+
+.patient-portal-page .bg-gray-200,
+[data-portal="doctor"] .bg-gray-200,
+.patient-portal-page .bg-gray-300,
+[data-portal="doctor"] .bg-gray-300 {
+  background: rgba(51, 65, 85, 0.55) !important;
+  color: var(--text-secondary) !important;
+}
+
+.patient-portal-page .bg-gray-100,
+[data-portal="doctor"] .bg-gray-100 {
+  background: rgba(15, 23, 42, 0.65) !important;
+  color: var(--text-primary) !important;
+}
+
+.patient-portal-page .text-green-600,
+[data-portal="doctor"] .text-green-600 {
+  color: #34d399 !important;
+}
+
+.patient-portal-page .bg-green-100,
+[data-portal="doctor"] .bg-green-100 {
+  background: rgba(52, 211, 153, 0.15) !important;
+}
+
+/* Appointment / booking status card backgrounds */
+.patient-portal-page .bg-blue-50,
+[data-portal="doctor"] .bg-blue-50 {
+  background: rgba(14, 165, 233, 0.1) !important;
+}
+
+.patient-portal-page .bg-amber-50,
+[data-portal="doctor"] .bg-amber-50 {
+  background: rgba(251, 191, 36, 0.1) !important;
+}
+
+.patient-portal-page .bg-green-50,
+[data-portal="doctor"] .bg-green-50 {
+  background: rgba(52, 211, 153, 0.1) !important;
+}
+
+.patient-portal-page .bg-red-50,
+[data-portal="doctor"] .bg-red-50 {
+  background: rgba(248, 113, 113, 0.1) !important;
+}
+
+.patient-portal-page .border-blue-200,
+[data-portal="doctor"] .border-blue-200 {
+  border-color: rgba(56, 189, 248, 0.3) !important;
+}
+
+.patient-portal-page .border-amber-200,
+[data-portal="doctor"] .border-amber-200 {
+  border-color: rgba(251, 191, 36, 0.35) !important;
+}
+
+.patient-portal-page .border-green-200,
+[data-portal="doctor"] .border-green-200 {
+  border-color: rgba(52, 211, 153, 0.3) !important;
+}
+
+.patient-portal-page .border-red-200,
+[data-portal="doctor"] .border-red-200 {
+  border-color: rgba(248, 113, 113, 0.35) !important;
+}
+
+.patient-portal-page .text-amber-800,
+[data-portal="doctor"] .text-amber-800 {
+  color: #fde68a !important;
+}
+
+.patient-portal-page .text-green-800,
+[data-portal="doctor"] .text-green-800 {
+  color: #6ee7b7 !important;
+}
+
+.patient-portal-page .text-red-800,
+[data-portal="doctor"] .text-red-800 {
+  color: #fca5a5 !important;
+}
+
+.patient-portal-page .hover\:border-blue-200:hover,
+[data-portal="doctor"] .hover\:border-blue-200:hover,
+.patient-portal-page .hover\:border-blue-400:hover,
+[data-portal="doctor"] .hover\:border-blue-400:hover {
+  border-color: rgba(56, 189, 248, 0.45) !important;
+}
+
+.patient-portal-page .divide-gray-200 > :not([hidden]) ~ :not([hidden]),
+[data-portal="doctor"] .divide-gray-200 > :not([hidden]) ~ :not([hidden]) {
+  border-color: var(--border-color) !important;
+}
+
+.patient-portal-page .border-gray-100,
+[data-portal="doctor"] .border-gray-100 {
+  border-color: var(--border-color) !important;
+}
+
+[data-portal="doctor"] tr.hover\:bg-gray-50:hover {
+  background: rgba(56, 189, 248, 0.06) !important;
+}
+
+[data-portal="doctor"] .bg-green-600 {
+  background: linear-gradient(135deg, #34d399, #059669) !important;
+  color: #0f172a !important;
+}
+
+[data-portal="doctor"] .hover\:bg-green-700:hover {
+  filter: brightness(1.08);
+}
+
+[data-portal="doctor"] .bg-gray-600 {
+  background: rgba(51, 65, 85, 0.85) !important;
+  color: var(--text-primary) !important;
+}
+
+[data-portal="doctor"] .recharts-cartesian-grid line {
+  stroke: rgba(71, 85, 105, 0.45) !important;
+}
+
+[data-portal="doctor"] .recharts-text {
+  fill: #94a3b8 !important;
+}
+
+[data-portal="doctor"] .recharts-legend-item-text {
+  color: #94a3b8 !important;
 }
 
 

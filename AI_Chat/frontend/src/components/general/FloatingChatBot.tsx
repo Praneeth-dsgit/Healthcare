@@ -1,7 +1,7 @@
 /**
  * Floating Chat Bot Button
  * Opens the chat interface in a modal/overlay
- * Used in General Practitioner Dashboard - shows "General Medical Assistant"
+ * Used in General Practitioner Dashboard - shows "General Health Assistant"
  */
 
 import React, { useState } from 'react';
@@ -27,7 +27,6 @@ const FloatingChatBot: React.FC = () => {
   };
 
   const closeChat = () => {
-    // Clear chat messages from localStorage when closing
     try {
       localStorage.removeItem('general_practitioner_chat_messages');
     } catch (error) {
@@ -44,66 +43,60 @@ const FloatingChatBot: React.FC = () => {
   };
 
   return (
-    <>
-      {/* Floating Button */}
+    <div data-portal="doctor" className="general-health-assistant">
       {!isOpen && (
         <button
+          type="button"
           onClick={toggleChat}
-          className="fixed bottom-6 right-6 bg-blue-600 hover:bg-blue-700 text-white rounded-full hover:rounded-2xl px-4 py-4 shadow-lg hover:shadow-xl transition-all duration-100 z-50 flex items-center justify-center group overflow-hidden"
-          aria-label="Open AI Assistant"
+          className="portal-accent-button group fixed bottom-6 right-6 z-50 flex items-center justify-center overflow-hidden rounded-full px-4 py-4 shadow-lg transition-all duration-200 hover:scale-105"
+          aria-label="Open General Health Assistant"
         >
-          <div className="flex items-center gap-0 group-hover:gap-3 transition-all duration-300">
-            <MessageSquare 
-              size={24} 
-              className="group-hover:-rotate-12 transition-transform duration-300 flex-shrink-0" 
+          <div className="flex items-center gap-0 transition-all duration-300 group-hover:gap-3">
+            <MessageSquare
+              size={24}
+              className="flex-shrink-0 text-slate-900 transition-transform duration-300 group-hover:-rotate-12"
             />
-            <span className="opacity-0 group-hover:opacity-100 max-w-0 group-hover:max-w-[200px] whitespace-nowrap transition-all duration-300 font-medium text-sm overflow-hidden">
+            <span className="max-w-0 overflow-hidden whitespace-nowrap text-sm font-semibold text-slate-900 opacity-0 transition-all duration-300 group-hover:max-w-[200px] group-hover:opacity-100">
               General Health Assistant
             </span>
           </div>
         </button>
       )}
 
-      {/* Chat Interface Overlay */}
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-end justify-end pointer-events-none">
+        <div className="pointer-events-none fixed inset-0 z-50 flex items-end justify-end p-4 sm:p-6">
           <div
-            className={`
-              rounded-lg shadow-2xl hover:shadow-3xl flex flex-col overflow-hidden transition-all duration-300 pointer-events-auto
-              ${isMinimized 
-                ? 'w-[300px] h-[56px] cursor-pointer bg-blue-100 border-2 border-blue-300' 
-                : 'w-[400px] h-[600px] bg-white shadow-2xl rounded-t-lg border-t border-l border-r border-gray-200'}
-            `}
+            className={`premium-card pointer-events-auto flex flex-col overflow-hidden border border-sky-500/25 shadow-2xl transition-all duration-300 ${
+              isMinimized
+                ? 'h-14 w-[min(100vw-2rem,320px)] cursor-pointer'
+                : 'h-[min(600px,85vh)] w-[min(100vw-2rem,420px)]'
+            }`}
             onClick={() => isMinimized && maximizeChat()}
+            role="dialog"
+            aria-label="General Health Assistant"
           >
-            {/* Header */}
-            <div className={`flex items-center justify-between border-b border-gray-200 bg-blue-50 ${
-              isMinimized ? 'px-4 py-2' : 'p-4 bg-blue-600 text-white rounded-t-lg'
-            }`}>
-              <div className="flex items-center space-x-2">
-                {isMinimized ? (
-                  <div className="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0">
-                    <MessageSquare size={14} className="text-white" />
-                  </div>
-                ) : (
-                  <MessageSquare size={20} />
-                )}
-                <h3 className={`font-semibold ${
-                  isMinimized 
-                    ? 'text-sm' 
-                    : ''
-                }`}>
+            <div
+              className={`flex shrink-0 items-center justify-between border-b border-sky-500/20 ${
+                isMinimized
+                  ? 'bg-slate-900/90 px-4 py-2'
+                  : 'bg-gradient-to-r from-slate-900 via-slate-900 to-sky-950/60 px-4 py-3'
+              }`}
+            >
+              <div className="flex min-w-0 items-center gap-2">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-sky-500/30 bg-sky-500/20">
+                  <MessageSquare size={16} className="text-sky-300" />
+                </div>
+                <h3 className="truncate text-sm font-semibold text-slate-100">
                   {isMinimized ? (
-                    <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-100 text-blue-800 transition-all duration-200 hover:bg-blue-200 hover:text-blue-900 hover:shadow-md hover:scale-105">
-                      General Health Assistant
-                    </span>
+                    <span className="text-sky-300">General Health Assistant</span>
                   ) : (
                     'General Health Assistant'
                   )}
                 </h3>
               </div>
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center gap-1">
                 <button
+                  type="button"
                   onClick={(e) => {
                     e.stopPropagation();
                     if (isMinimized) {
@@ -112,20 +105,17 @@ const FloatingChatBot: React.FC = () => {
                       minimizeChat();
                     }
                   }}
-                  className={`p-1 rounded-md transition-all duration-200 ${
-                    isMinimized
-                      ? 'text-gray-600 hover:text-white hover:bg-blue-400 hover:shadow-md hover:scale-110'
-                      : 'hover:bg-blue-700 rounded text-white'
-                  }`}
-                  aria-label={isMinimized ? "Maximize" : "Minimize"}
-                  title={isMinimized ? "Maximize" : "Minimize"}
+                  className="ghost-button rounded-lg p-1.5 text-slate-300 hover:text-sky-200"
+                  aria-label={isMinimized ? 'Maximize' : 'Minimize'}
+                  title={isMinimized ? 'Maximize' : 'Minimize'}
                 >
                   {isMinimized ? <Maximize2 size={18} /> : <Minimize2 size={18} />}
                 </button>
                 {!isMinimized && (
                   <button
+                    type="button"
                     onClick={handleCloseClick}
-                    className="p-1 hover:bg-blue-700 rounded transition-colors text-white"
+                    className="ghost-button rounded-lg p-1.5 text-slate-300 hover:text-red-300"
                     aria-label="Close"
                     title="Close"
                   >
@@ -135,31 +125,31 @@ const FloatingChatBot: React.FC = () => {
               </div>
             </div>
 
-            {/* Chat Content */}
             <div
-              className={`flex-1 overflow-hidden relative transition-opacity duration-200
-                ${isMinimized ? 'opacity-0 pointer-events-none h-0' : 'opacity-100'}
-              `}
+              className={`relative min-h-0 flex-1 overflow-hidden transition-opacity duration-200 ${
+                isMinimized ? 'pointer-events-none h-0 opacity-0' : 'opacity-100'
+              }`}
             >
               <ChatInterface />
-              
-              {/* Close Confirmation Popup */}
+
               {showCloseConfirm && (
-                <div className="absolute inset-0 bg-white bg-opacity-95 flex items-center justify-center z-50">
-                  <div className="bg-white rounded-lg shadow-xl hover:shadow-2xl p-6 border transition-all duration-200">
-                    <p className="text-sm mb-4 text-center">
+                <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-950/90 p-4 backdrop-blur-sm">
+                  <div className="premium-card w-full max-w-xs border border-sky-500/20 p-5 text-center">
+                    <p className="mb-4 text-sm text-slate-300">
                       Closing will clear chat history. Continue?
                     </p>
-                    <div className="flex gap-3 justify-center">
+                    <div className="flex justify-center gap-3">
                       <button
+                        type="button"
                         onClick={() => setShowCloseConfirm(false)}
-                        className="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 hover:shadow-md hover:scale-105 transition-all duration-200"
+                        className="btn-secondary rounded-lg px-4 py-2 text-sm font-medium"
                       >
                         Cancel
                       </button>
                       <button
+                        type="button"
                         onClick={closeChat}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 hover:shadow-md hover:scale-105 transition-all duration-200"
+                        className="rounded-lg bg-red-500/90 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-500"
                       >
                         Confirm
                       </button>
@@ -172,16 +162,15 @@ const FloatingChatBot: React.FC = () => {
         </div>
       )}
 
-      {/* Backdrop */}
       {isOpen && !isMinimized && (
         <div
-          className="fixed inset-0 bg-black bg-opacity-20 z-40"
+          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-[2px]"
           onClick={minimizeChat}
+          aria-hidden
         />
       )}
-    </>
+    </div>
   );
 };
 
 export default FloatingChatBot;
-

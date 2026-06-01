@@ -146,45 +146,57 @@ const Signup: React.FC<SignupProps> = ({ onSignupSuccess, onNavigateToLogin }) =
 
       {/* Email Already Exists Dialog */}
       {showEmailExistsDialog && existingEmailInfo && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
-            <div className="flex items-center mb-4">
-              <UserCheck className="h-6 w-6 text-blue-600 mr-2" />
-              <h3 className="text-lg font-semibold text-gray-900">Account Already Exists</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div
+            className="modal-surface w-full max-w-md p-6 animate-fade-in-up"
+            role="dialog"
+            aria-labelledby="account-exists-title"
+          >
+            <div className="mb-4 flex items-center gap-2">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-sky-500/15 ring-1 ring-sky-500/30">
+                <UserCheck className="h-5 w-5 text-sky-300" />
+              </div>
+              <h3 id="account-exists-title" className="text-lg font-semibold text-slate-100">
+                Account Already Exists
+              </h3>
             </div>
-            
-            <div className="mb-6">
-              <p className="text-gray-600 mb-2">
-                An account with <strong>{existingEmailInfo.email}</strong> already exists.
+
+            <div className="mb-6 space-y-4">
+              <p className="text-sm text-slate-400">
+                An account with{' '}
+                <strong className="font-medium text-slate-200">{existingEmailInfo.email}</strong>{' '}
+                already exists.
               </p>
-              
+
               {existingEmailInfo.isVerified ? (
-                <div className="bg-green-50 border border-green-200 rounded-md p-3">
-                  <p className="text-sm text-green-700">
-                    ✓ This account is verified and ready to use.
+                <div className="rounded-lg border border-emerald-500/35 bg-emerald-500/10 p-3">
+                  <p className="text-sm text-emerald-300">
+                    This account is verified and ready to use.
                   </p>
                 </div>
               ) : (
-                <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3">
-                  <p className="text-sm text-yellow-700">
-                    ⚠ This account exists but hasn't been verified yet.
+                <div className="rounded-lg border border-amber-500/35 bg-amber-500/10 p-3">
+                  <p className="text-sm text-amber-200">
+                    This account exists but has not been verified yet.
                   </p>
                 </div>
               )}
             </div>
-            
+
             <div className="flex flex-col gap-3">
               <button
+                type="button"
                 onClick={handleNavigateToLogin}
-                className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md transition-colors"
+                className="healthcare-button flex w-full items-center justify-center gap-2 rounded-lg py-2.5 font-medium"
               >
                 <LogIn className="h-4 w-4" />
                 Go to Login
               </button>
-              
+
               <button
+                type="button"
                 onClick={() => setShowEmailExistsDialog(false)}
-                className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2 px-4 rounded-md transition-colors"
+                className="ghost-button w-full rounded-lg py-2.5 font-semibold"
               >
                 Try Different Email
               </button>

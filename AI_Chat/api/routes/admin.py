@@ -18,6 +18,119 @@ logger = logging.getLogger(__name__)
 # Create blueprint
 admin_bp = Blueprint('admin', __name__, url_prefix='/api/admin')
 
+
+def _apply_doctor_profile(doctor_id, data):
+    """Update doctor profile fields shown on patient portal cards."""
+    if not doctor_id:
+        return
+
+    updates = []
+    params = {'doctor_id': doctor_id}
+
+    if 'qualification' in data:
+        updates.append('qualification = :qualification')
+        params['qualification'] = data.get('qualification') or None
+    if 'experience_years' in data and data.get('experience_years') is not None:
+        updates.append('experience_years = :experience_years')
+        params['experience_years'] = data.get('experience_years')
+    if 'consultation_fee' in data and data.get('consultation_fee') is not None:
+        updates.append('consultation_fee = :consultation_fee')
+        params['consultation_fee'] = data.get('consultation_fee')
+    if 'bio' in data:
+        updates.append('bio = :bio')
+        params['bio'] = data.get('bio') or None
+    if 'is_available' in data and data.get('is_available') is not None:
+        updates.append('is_available = :is_available')
+        params['is_available'] = bool(data.get('is_available'))
+
+    if updates:
+        db.session.execute(
+            db.text(f"UPDATE doctors SET {', '.join(updates)} WHERE doctor_id = :doctor_id"),
+            params,
+        )
+
+    if 'facility_id' in data:
+        facility_id = data.get('facility_id')
+        db.session.execute(
+            db.text("UPDATE doctor_facilities SET is_primary = FALSE WHERE doctor_id = :doctor_id"),
+            {'doctor_id': doctor_id},
+        )
+        if facility_id:
+            existing = db.session.execute(
+                db.text(
+                    "SELECT doctor_facility_id FROM doctor_facilities "
+                    "WHERE doctor_id = :doctor_id AND facility_id = :facility_id"
+                ),
+                {'doctor_id': doctor_id, 'facility_id': facility_id},
+            ).fetchone()
+            if existing:
+                db.session.execute(
+                    db.text(
+                        "UPDATE doctor_facilities SET is_primary = TRUE, is_active = TRUE "
+                        "WHERE doctor_id = :doctor_id AND facility_id = :facility_id"
+                    ),
+                    {'doctor_id': doctor_id, 'facility_id': facility_id},
+                )
+            else:
+                db.session.execute(
+                    db.text(
+                        "INSERT INTO doctor_facilities (doctor_id, facility_id, is_primary, is_active) "
+                        "VALUES (:doctor_id, :facility_id, TRUE, TRUE)"
+                    ),
+                    {'doctor_id': doctor_id, 'facility_id': facility_id},
+                )
+
+
+def _create_doctor_row_if_missing(
+    *,
+    email: str,
+    specialty_id: int,
+    first_name: str = '',
+    last_name: str = '',
+    phone=None,
+    data=None,
+):
+    """Ensure a doctors table row exists (patient portal lists doctors from this table)."""
+    existing = db.session.execute(
+        db.text("SELECT doctor_id FROM doctors WHERE email = :email AND is_active = TRUE"),
+        {'email': email},
+    ).fetchone()
+    if existing:
+        doctor_id = existing[0]
+        if specialty_id:
+            db.session.execute(
+                db.text("UPDATE doctors SET specialty_id = :specialty_id WHERE doctor_id = :doctor_id"),
+                {'specialty_id': specialty_id, 'doctor_id': doctor_id},
+            )
+        if data:
+            _apply_doctor_profile(doctor_id, data)
+        return doctor_id
+
+    doctor_id_result = db.session.execute(
+        db.text("SELECT COALESCE(MAX(doctor_id), 0) + 1 as next_id FROM doctors")
+    ).fetchone()
+    new_doctor_id = doctor_id_result[0] if doctor_id_result else 1
+
+    db.session.execute(
+        db.text("""
+            INSERT INTO doctors (doctor_id, first_name, last_name, specialty_id, email, phone, is_active)
+            VALUES (:doctor_id, :first_name, :last_name, :specialty_id, :email, :phone, :is_active)
+        """),
+        {
+            'doctor_id': new_doctor_id,
+            'first_name': first_name or 'Doctor',
+            'last_name': last_name or '',
+            'specialty_id': specialty_id,
+            'email': email,
+            'phone': phone,
+            'is_active': True,
+        },
+    )
+    if data:
+        _apply_doctor_profile(new_doctor_id, data)
+    return new_doctor_id
+
+
 @admin_bp.route('/users', methods=['GET'])
 @require_jwt
 def list_users():
@@ -297,6 +410,8 @@ def create_user():
             }
         )
         db.session.flush()
+
+        final_doctor_id = None
         
         # Get the newly created user ID
         user_result = db.session.execute(
@@ -333,8 +448,8 @@ def create_user():
             db.session.rollback()
             pass
         
-        # Create employee record for admin, lab_technician, non_medical_staff, radiology
-        if role in ['admin', 'lab_technician', 'non_medical_staff', 'radiology']:
+        # Employee-only roles (no doctors table row)
+        if role in ['admin', 'lab_technician', 'non_medical_staff']:
             from utils.employee_id_generator import generate_employee_id
             employee_id = generate_employee_id(prefix="EMP", format_type="short")
             
@@ -355,8 +470,8 @@ def create_user():
                 }
             )
         
-        # Create or update doctor record if role is doctor or radiology
-        elif role in ['doctor', 'radiology']:
+        # Doctor + radiology: must have a doctors row (patient portal lists from doctors table)
+        if role in ['doctor', 'radiology']:
             if not specialty_id:
                 return jsonify({
                     'success': False,
@@ -365,7 +480,7 @@ def create_user():
             
             # If doctor_id provided, update existing doctor record
             if doctor_id:
-                # Update doctor's email if it's different
+                final_doctor_id = doctor_id
                 db.session.execute(
                     db.text("UPDATE doctors SET email = :email, phone = :phone, specialty_id = :specialty_id WHERE doctor_id = :doctor_id"),
                     {
@@ -376,11 +491,11 @@ def create_user():
                     }
                 )
             else:
-                # Create new doctor record
                 doctor_id_result = db.session.execute(
                     db.text("SELECT COALESCE(MAX(doctor_id), 0) + 1 as next_id FROM doctors")
                 ).fetchone()
                 new_doctor_id = doctor_id_result[0] if doctor_id_result else 1
+                final_doctor_id = new_doctor_id
                 
                 db.session.execute(
                     db.text("""
@@ -397,6 +512,8 @@ def create_user():
                         'is_active': True
                     }
                 )
+
+            _apply_doctor_profile(final_doctor_id, data)
             
             # Also create employee record for doctors/radiology
             from utils.employee_id_generator import generate_employee_id
@@ -423,13 +540,16 @@ def create_user():
         
         logger.info(f"Admin created user {email} with role {role}")
         
-        return jsonify({
+        response_payload = {
             'success': True,
             'message': f'User created successfully with role: {role}',
             'user_id': user_id,
             'email': email,
-            'role': role
-        }), 201
+            'role': role,
+        }
+        if role in ['doctor', 'radiology'] and final_doctor_id:
+            response_payload['doctor_id'] = final_doctor_id
+        return jsonify(response_payload), 201
         
     except Exception as e:
         logger.error(f"Error creating user: {e}")
@@ -497,44 +617,37 @@ def update_user(user_id):
                     ).fetchone()
                     
                     if not doctor_result:
-                        # Require specialty_id for doctor/radiology roles
                         if not specialty_id:
                             return jsonify({
                                 'success': False,
                                 'error': 'Specialty ID is required when assigning doctor or radiology role'
                             }), 400
-                        
-                        # Get next doctor_id
-                        doctor_id_result = db.session.execute(
-                            db.text("SELECT COALESCE(MAX(doctor_id), 0) + 1 as next_id FROM doctors")
-                        ).fetchone()
-                        doctor_id = doctor_id_result[0] if doctor_id_result else 1
-                        
-                        # Get name from patient table if available
-                        name_result = db.session.execute(
-                            db.text("SELECT first_name, last_name, phone FROM patients WHERE user_id = :user_id LIMIT 1"),
-                            {"user_id": user_id}
-                        ).fetchone()
-                        
-                        first_name = name_result[0] if name_result else ""
-                        last_name = name_result[1] if name_result else ""
-                        phone = name_result[2] if name_result else None
-                        
-                        # Create doctor record
-                        db.session.execute(
-                            db.text("""
-                                INSERT INTO doctors (doctor_id, first_name, last_name, specialty_id, email, phone, is_active)
-                                VALUES (:doctor_id, :first_name, :last_name, :specialty_id, :email, :phone, :is_active)
-                            """),
-                            {
-                                'doctor_id': doctor_id,
-                                'first_name': first_name,
-                                'last_name': last_name,
-                                'specialty_id': specialty_id,
-                                'email': current_email,
-                                'phone': phone,
-                                'is_active': True
-                            }
+
+                        fn = (data.get('first_name') or '').strip()
+                        ln = (data.get('last_name') or '').strip()
+                        ph = data.get('phone')
+                        if not (fn or ln):
+                            name_result = db.session.execute(
+                                db.text("""
+                                    SELECT first_name, last_name, phone FROM employees WHERE user_id = :user_id
+                                    UNION ALL
+                                    SELECT first_name, last_name, phone FROM patients WHERE user_id = :user_id
+                                    LIMIT 1
+                                """),
+                                {'user_id': user_id},
+                            ).fetchone()
+                            if name_result:
+                                fn = fn or (name_result[0] or '')
+                                ln = ln or (name_result[1] or '')
+                                ph = ph or name_result[2]
+
+                        _create_doctor_row_if_missing(
+                            email=current_email,
+                            specialty_id=specialty_id,
+                            first_name=fn,
+                            last_name=ln,
+                            phone=ph,
+                            data=data,
                         )
                     elif specialty_id:
                         # Update existing doctor's specialty if provided
@@ -627,14 +740,50 @@ def update_user(user_id):
                 {"email": data['email'], "user_id": user_id}
             )
         
+        # Resolve doctor record for profile updates
+        email_for_doctor = data.get('email') or current_email
+        doctor_row = db.session.execute(
+            db.text("SELECT doctor_id FROM doctors WHERE email = :email"),
+            {'email': email_for_doctor},
+        ).fetchone()
+        final_doctor_id = doctor_row[0] if doctor_row else None
+
+        profile_keys = (
+            'qualification', 'experience_years', 'consultation_fee',
+            'bio', 'facility_id', 'is_available',
+        )
+        if final_doctor_id and any(k in data for k in profile_keys):
+            _apply_doctor_profile(final_doctor_id, data)
+
+        if final_doctor_id and data.get('phone'):
+            db.session.execute(
+                db.text("UPDATE doctors SET phone = :phone WHERE doctor_id = :doctor_id"),
+                {'phone': data.get('phone'), 'doctor_id': final_doctor_id},
+            )
+        if final_doctor_id and (data.get('first_name') or data.get('last_name')):
+            db.session.execute(
+                db.text(
+                    "UPDATE doctors SET first_name = COALESCE(:first_name, first_name), "
+                    "last_name = COALESCE(:last_name, last_name) WHERE doctor_id = :doctor_id"
+                ),
+                {
+                    'first_name': data.get('first_name') or None,
+                    'last_name': data.get('last_name') or None,
+                    'doctor_id': final_doctor_id,
+                },
+            )
+
         db.session.commit()
         
         logger.info(f"Admin updated user {user_id}")
         
-        return jsonify({
+        response_payload = {
             'success': True,
-            'message': 'User updated successfully'
-        }), 200
+            'message': 'User updated successfully',
+        }
+        if final_doctor_id:
+            response_payload['doctor_id'] = final_doctor_id
+        return jsonify(response_payload), 200
         
     except Exception as e:
         logger.error(f"Error updating user: {e}")
@@ -644,6 +793,48 @@ def update_user(user_id):
             'success': False,
             'error': f'Failed to update user: {str(e)}'
         }), 500
+
+
+@admin_bp.route('/users/<int:user_id>/doctor', methods=['GET'])
+@require_jwt
+def get_user_doctor_profile(user_id):
+    """Get doctor profile for a user account (by linked email)."""
+    try:
+        row = db.session.execute(
+            db.text("""
+                SELECT
+                    d.doctor_id,
+                    d.first_name,
+                    d.last_name,
+                    d.phone,
+                    d.specialty_id,
+                    d.qualification,
+                    d.experience_years,
+                    d.consultation_fee,
+                    d.bio,
+                    d.is_available,
+                    df.facility_id,
+                    f.name AS facility_name,
+                    s.name AS specialty_name
+                FROM users u
+                LEFT JOIN doctors d ON u.email = d.email AND d.is_active = TRUE
+                LEFT JOIN doctor_facilities df
+                    ON d.doctor_id = df.doctor_id AND df.is_primary = TRUE AND df.is_active = TRUE
+                LEFT JOIN facilities f ON df.facility_id = f.facility_id
+                LEFT JOIN specialties s ON d.specialty_id = s.specialty_id
+                WHERE u.id = :user_id
+            """),
+            {'user_id': user_id},
+        ).fetchone()
+
+        if not row or not row[0]:
+            return jsonify({'success': False, 'error': 'No doctor profile linked to this user'}), 404
+
+        profile = dict(row._mapping) if hasattr(row, '_mapping') else dict(zip(row.keys(), row))
+        return jsonify({'success': True, 'profile': profile}), 200
+    except Exception as e:
+        logger.error(f"Error fetching user doctor profile: {e}")
+        return jsonify({'success': False, 'error': f'Failed to fetch doctor profile: {str(e)}'}), 500
 
 @admin_bp.route('/users/<int:user_id>/verify', methods=['PUT'])
 @require_jwt
@@ -765,6 +956,67 @@ def delete_user(user_id):
             'error': f'Failed to delete user: {str(e)}'
         }), 500
 
+@admin_bp.route('/users/repair-missing-doctors', methods=['POST'])
+@require_jwt
+def repair_missing_doctor_profiles():
+    """
+    Create missing doctors rows for doctor/radiology users created before the radiology fix.
+    Uses employees (or patients) for names and radiology specialty when needed.
+    """
+    try:
+        rows = db.session.execute(
+            db.text("""
+                SELECT u.id, u.email, LOWER(TRIM(COALESCE(u.role, ''))) AS role,
+                       e.first_name, e.last_name, e.phone
+                FROM users u
+                LEFT JOIN doctors d ON d.email = u.email AND d.is_active = TRUE
+                LEFT JOIN employees e ON e.user_id = u.id
+                WHERE LOWER(TRIM(COALESCE(u.role, ''))) IN ('doctor', 'radiology')
+                  AND d.doctor_id IS NULL
+            """)
+        ).fetchall()
+
+        radiology_spec = db.session.execute(
+            db.text("SELECT specialty_id FROM specialties WHERE LOWER(name) LIKE '%radiology%' LIMIT 1")
+        ).fetchone()
+        radiology_specialty_id = radiology_spec[0] if radiology_spec else None
+
+        repaired = []
+        for row in rows:
+            mapping = dict(row._mapping) if hasattr(row, '_mapping') else dict(zip(row.keys(), row))
+            email = mapping['email']
+            role = mapping['role']
+            specialty_id = radiology_specialty_id if role == 'radiology' else None
+            if not specialty_id:
+                spec_row = db.session.execute(
+                    db.text("SELECT specialty_id FROM specialties WHERE is_active = TRUE ORDER BY specialty_id LIMIT 1")
+                ).fetchone()
+                specialty_id = spec_row[0] if spec_row else None
+            if not specialty_id:
+                continue
+
+            doctor_id = _create_doctor_row_if_missing(
+                email=email,
+                specialty_id=specialty_id,
+                first_name=(mapping.get('first_name') or '').strip(),
+                last_name=(mapping.get('last_name') or '').strip(),
+                phone=mapping.get('phone'),
+            )
+            repaired.append({'email': email, 'doctor_id': doctor_id})
+
+        db.session.commit()
+        return jsonify({
+            'success': True,
+            'message': f'Repaired {len(repaired)} doctor profile(s)',
+            'repaired': repaired,
+        }), 200
+    except Exception as e:
+        logger.error(f"Error repairing doctor profiles: {e}")
+        logger.error(traceback.format_exc())
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @admin_bp.route('/unassigned-staff', methods=['GET'])
 @require_jwt
 def list_unassigned_staff():
@@ -844,4 +1096,87 @@ def get_specialties():
             'success': False,
             'error': f'Failed to fetch specialties: {str(e)}'
         }), 500
+
+
+@admin_bp.route('/facilities', methods=['GET'])
+@require_jwt
+def list_facilities():
+    """List active facilities for doctor profile assignment"""
+    try:
+        result = db.session.execute(
+            db.text(
+                "SELECT facility_id, name, city, type FROM facilities "
+                "WHERE is_active = TRUE ORDER BY name"
+            )
+        ).fetchall()
+
+        facilities = []
+        for row in result:
+            facilities.append(
+                dict(row._mapping) if hasattr(row, '_mapping') else dict(zip(row.keys(), row))
+            )
+
+        return jsonify({'success': True, 'facilities': facilities}), 200
+    except Exception as e:
+        logger.error(f"Error listing facilities: {e}")
+        return jsonify({'success': False, 'error': f'Failed to list facilities: {str(e)}'}), 500
+
+
+@admin_bp.route('/doctors/<int:doctor_id>', methods=['GET'])
+@require_jwt
+def get_doctor_profile(doctor_id):
+    """Get doctor profile fields for admin edit forms"""
+    try:
+        row = db.session.execute(
+            db.text("""
+                SELECT
+                    d.doctor_id,
+                    d.qualification,
+                    d.experience_years,
+                    d.consultation_fee,
+                    d.bio,
+                    d.is_available,
+                    df.facility_id,
+                    f.name AS facility_name
+                FROM doctors d
+                LEFT JOIN doctor_facilities df
+                    ON d.doctor_id = df.doctor_id AND df.is_primary = TRUE AND df.is_active = TRUE
+                LEFT JOIN facilities f ON df.facility_id = f.facility_id
+                WHERE d.doctor_id = :doctor_id
+            """),
+            {'doctor_id': doctor_id},
+        ).fetchone()
+
+        if not row:
+            return jsonify({'success': False, 'error': 'Doctor not found'}), 404
+
+        profile = dict(row._mapping) if hasattr(row, '_mapping') else dict(zip(row.keys(), row))
+        return jsonify({'success': True, 'profile': profile}), 200
+    except Exception as e:
+        logger.error(f"Error fetching doctor profile: {e}")
+        return jsonify({'success': False, 'error': f'Failed to fetch doctor profile: {str(e)}'}), 500
+
+
+@admin_bp.route('/doctors/<int:doctor_id>', methods=['PUT'])
+@require_jwt
+def update_doctor_profile(doctor_id):
+    """Update doctor profile fields (patient portal card)"""
+    try:
+        exists = db.session.execute(
+            db.text("SELECT doctor_id FROM doctors WHERE doctor_id = :doctor_id"),
+            {'doctor_id': doctor_id},
+        ).fetchone()
+        if not exists:
+            return jsonify({'success': False, 'error': 'Doctor not found'}), 404
+
+        data = request.get_json() or {}
+        _apply_doctor_profile(doctor_id, data)
+        db.session.commit()
+
+        return jsonify({'success': True, 'message': 'Doctor profile updated successfully'}), 200
+    except Exception as e:
+        logger.error(f"Error updating doctor profile: {e}")
+        logger.error(traceback.format_exc())
+        db.session.rollback()
+        return jsonify({'success': False, 'error': f'Failed to update doctor profile: {str(e)}'}), 500
 

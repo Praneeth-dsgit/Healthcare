@@ -1,7 +1,9 @@
 /**
  * Radiology Service - API calls for radiology booking
+ * Uses JWT (Authorization: Bearer).
  */
 
+import { getAuthHeaders, authenticatedFetch } from './authService';
 import { getApiRoot } from '../utils/apiBase';
 
 const API_BASE = getApiRoot();
@@ -41,36 +43,24 @@ export interface RadiologyBookingData {
 }
 
 class RadiologyService {
-  private getPatientId(): string | null {
+  getPatientId(): string | null {
     return sessionStorage.getItem('patient_id');
-  }
-
-  private getAuthHeaders(): HeadersInit {
-    const patientId = this.getPatientId();
-    const headers: HeadersInit = {
-      'Content-Type': 'application/json',
-    };
-    if (patientId) {
-      headers['X-Patient-ID'] = patientId;
-    }
-    return headers;
   }
 
   async bookRadiology(data: RadiologyBookingData): Promise<{ success: boolean; booking?: RadiologyBooking; error?: string }> {
     try {
-      const response = await fetch(`${API_BASE}/radiology/bookings`, {
+      const response = await authenticatedFetch(`${API_BASE}/radiology/bookings`, {
         method: 'POST',
-        headers: this.getAuthHeaders(),
+        headers: getAuthHeaders(),
         body: JSON.stringify(data),
       });
-      
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: `HTTP ${response.status}: ${response.statusText}` }));
         return { success: false, error: errorData.error || `Server error: ${response.status}` };
       }
-      
-      const result = await response.json();
-      return result;
+
+      return await response.json();
     } catch (error) {
       console.error('Radiology booking error:', error);
       return { success: false, error: error instanceof Error ? error.message : 'Network error. Please check your connection.' };
@@ -79,9 +69,9 @@ class RadiologyService {
 
   async getBookings(): Promise<{ success: boolean; bookings?: RadiologyBooking[]; error?: string }> {
     try {
-      const response = await fetch(`${API_BASE}/radiology/bookings`, {
+      const response = await authenticatedFetch(`${API_BASE}/radiology/bookings`, {
         method: 'GET',
-        headers: this.getAuthHeaders(),
+        headers: getAuthHeaders(),
       });
       const data = await response.json();
       return data;
@@ -92,9 +82,9 @@ class RadiologyService {
 
   async getBooking(bookingId: number): Promise<{ success: boolean; booking?: RadiologyBooking; error?: string }> {
     try {
-      const response = await fetch(`${API_BASE}/radiology/bookings/${bookingId}`, {
+      const response = await authenticatedFetch(`${API_BASE}/radiology/bookings/${bookingId}`, {
         method: 'GET',
-        headers: this.getAuthHeaders(),
+        headers: getAuthHeaders(),
       });
       const data = await response.json();
       return data;
@@ -105,9 +95,9 @@ class RadiologyService {
 
   async cancelBooking(bookingId: number, reason?: string): Promise<{ success: boolean; error?: string }> {
     try {
-      const response = await fetch(`${API_BASE}/radiology/bookings/${bookingId}/cancel`, {
+      const response = await authenticatedFetch(`${API_BASE}/radiology/bookings/${bookingId}/cancel`, {
         method: 'POST',
-        headers: this.getAuthHeaders(),
+        headers: getAuthHeaders(),
         body: JSON.stringify({ reason }),
       });
       const data = await response.json();
@@ -119,4 +109,3 @@ class RadiologyService {
 }
 
 export const radiologyService = new RadiologyService();
-

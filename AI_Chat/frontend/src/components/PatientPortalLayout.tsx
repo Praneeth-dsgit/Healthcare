@@ -8,7 +8,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Calendar, Scan, FileText, CreditCard,
-  User, Users, LogOut, X, Stethoscope, Building2, Minus, Maximize2, Bell, ChevronDown
+  User, Users, LogOut, X, Stethoscope, Building2, Minus, Maximize2, Bell, ChevronDown, Menu
 }from 'lucide-react';
 import AiAssistantIcon from '../assets/ai_assistant_icon.png';  
 import PatientDashboard from './patient/PatientDashboard';
@@ -33,6 +33,7 @@ const PatientPortalLayout: React.FC = () => {
   const location = useLocation();
 
   const [sidebarOpen] = useState(true);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   // Persist chat visibility state across navigation
   const [showChat, setShowChat] = useState(() => {
     const saved = sessionStorage.getItem('patient_portal_chat_visible');
@@ -205,25 +206,33 @@ const PatientPortalLayout: React.FC = () => {
   };
 
   return (
-    <div className="app-shell flex h-screen flex-col text-slate-900">
+    <div className="app-shell flex h-screen flex-col text-slate-100" data-portal="patient">
       {/* Top Header Bar */}
       <div className="app-topbar z-30">
         <div className="flex flex-col lg:flex-row lg:items-center">
           <div className="flex items-center gap-3 px-4 py-4 sm:px-6 lg:px-8">
+              <button
+                type="button"
+                onClick={() => setMobileNavOpen(true)}
+                className="mr-1 rounded-xl p-2 text-slate-400 hover:bg-slate-800 md:hidden"
+                aria-label="Open navigation"
+              >
+                <Menu size={20} />
+              </button>
               <div className="brand-mark flex h-10 w-10 items-center justify-center rounded-xl text-sm font-black text-white">AH</div>
               <div>
               <h1 className="brand-title text-xl font-extrabold">Acufore Health</h1>
-              <p className="text-xs font-semibold text-slate-500">Healthcare Management</p>
+              <p className="text-xs font-semibold text-slate-400">Healthcare Management</p>
               </div>
           </div>
-          <div className="hidden h-12 w-px bg-slate-200 lg:block"></div>
+          <div className="hidden h-12 w-px bg-slate-600/50 lg:block"></div>
           <div className="mx-auto flex-1 px-4 pb-4 sm:px-6 lg:px-8 lg:py-4">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
-                <p className="text-xs font-bold uppercase tracking-wide text-teal-700">Patient Portal</p>
-                <h1 className="truncate text-xl font-extrabold text-slate-950 sm:text-2xl">{getWelcomeMessage()}</h1>
-                <p className="mt-1 text-sm text-slate-500">
-                  Patient ID: <span className="rounded-md bg-slate-100 px-2 py-0.5 font-mono text-xs font-semibold text-slate-700">{patientId || 'Loading...'}</span>
+                <p className="text-xs font-bold uppercase tracking-wide text-teal-300">Patient Portal</p>
+                <h1 className="truncate text-xl font-extrabold text-slate-100 sm:text-2xl">{getWelcomeMessage()}</h1>
+                <p className="mt-1 text-sm text-slate-400">
+                  Patient ID: <span className="rounded-md bg-slate-800/80 px-2 py-0.5 font-mono text-xs font-semibold text-slate-200">{patientId || 'Loading...'}</span>
                 </p>
               </div>
               {/* Top Right: Notifications and Profile */}
@@ -234,7 +243,7 @@ const PatientPortalLayout: React.FC = () => {
                   className="ghost-button relative flex h-11 w-11 items-center justify-center rounded-xl"
                   title={`${unreadCount > 0 ? `${unreadCount} unread notification${unreadCount > 1 ? 's' : ''}` : 'Notifications'}`}
                 >
-                  <Bell size={20} className="text-slate-700" />
+                  <Bell size={20} className="text-slate-300" />
                   {unreadCount > 0 && (
                     <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs font-bold text-white ring-2 ring-white">
                       {unreadCount > 9 ? '9+' : unreadCount}
@@ -246,11 +255,11 @@ const PatientPortalLayout: React.FC = () => {
                 <div className="relative" ref={profileMenuRef}>
                   <button
                     onClick={() => setShowProfileMenu(!showProfileMenu)}
-                    className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white/75 px-3 py-2 transition-colors hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                    className="ghost-button flex items-center gap-3 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:ring-offset-2 focus:ring-offset-slate-900"
                   >
                     <div className="flex items-center gap-2">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-blue-100 to-teal-100">
-                        <User className="w-6 h-6 text-blue-600" />
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-teal-500/30 to-sky-500/30 border border-teal-500/30">
+                        <User className="w-6 h-6 text-teal-300" />
                       </div>
                       {loadingPatient ? (
                         <div className="text-left hidden sm:block">
@@ -259,19 +268,19 @@ const PatientPortalLayout: React.FC = () => {
                         </div>
                       ) : (
                         <div className="text-left hidden sm:block">
-                          <p className="text-sm font-bold text-slate-900">
+                          <p className="text-sm font-bold text-slate-100">
                             {patientFirstName && patientLastName
                               ? `${patientFirstName} ${patientLastName}`
                               : patientFirstName || 'Patient'}
                           </p>
-                          <p className="text-xs text-slate-500">
+                          <p className="text-xs text-slate-400">
                             {patientEmail || 'No email'}
                           </p>
             </div>
           )}
                     </div>
                     <ChevronDown 
-                      className={`w-4 h-4 text-gray-500 transition-transform ${showProfileMenu ? 'rotate-180' : ''}`}
+                      className={`w-4 h-4 text-slate-400 transition-transform ${showProfileMenu ? 'rotate-180' : ''}`}
                     />
                   </button>
 
@@ -284,13 +293,13 @@ const PatientPortalLayout: React.FC = () => {
                       />
                       <div className="premium-card absolute right-0 z-20 mt-2 w-52 overflow-hidden rounded-xl">
                         <div className="py-1">
-                          <div className="border-b border-slate-100 px-4 py-3 sm:hidden">
-                            <p className="text-sm font-bold text-slate-900">
+                          <div className="border-b border-slate-700/50 px-4 py-3 sm:hidden">
+                            <p className="text-sm font-bold text-slate-100">
                               {patientFirstName && patientLastName
                                 ? `${patientFirstName} ${patientLastName}`
                                 : patientFirstName || 'Patient'}
                             </p>
-                            <p className="mt-1 text-xs text-slate-500">
+                            <p className="mt-1 text-xs text-slate-400">
                               {patientEmail || 'No email'}
                             </p>
                           </div>
@@ -299,7 +308,7 @@ const PatientPortalLayout: React.FC = () => {
                               navigate('/portal/profile');
                               setShowProfileMenu(false);
                             }}
-                            className="flex w-full items-center px-4 py-2.5 text-sm text-slate-700 transition-colors hover:bg-blue-50"
+                            className="flex w-full items-center px-4 py-2.5 text-sm text-slate-200 transition-colors hover:bg-slate-800/80"
                           >
                             <User className="w-4 h-4 mr-2" />
                             View Profile
@@ -309,7 +318,7 @@ const PatientPortalLayout: React.FC = () => {
                               handleLogout();
                               setShowProfileMenu(false);
                             }}
-                            className="flex w-full items-center px-4 py-2.5 text-sm text-slate-700 transition-colors hover:bg-red-50 hover:text-red-700"
+                            className="flex w-full items-center px-4 py-2.5 text-sm text-slate-200 transition-colors hover:bg-red-500/15 hover:text-red-300"
           >
                             <LogOut className="w-4 h-4 mr-2" />
                             Logout
@@ -327,7 +336,15 @@ const PatientPortalLayout: React.FC = () => {
 
       {/* Main Content Area with Sidebar */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar */}
+        {mobileNavOpen && (
+          <div
+            className="fixed inset-0 z-40 bg-slate-900/40 md:hidden"
+            onClick={() => setMobileNavOpen(false)}
+            aria-hidden
+          />
+        )}
+
+        {/* Sidebar - desktop */}
         <div className={`${sidebarOpen ? 'w-60' : 'w-20'} sidebar-surface hidden flex-col transition-all duration-300 md:flex`}>
         <nav className="flex-1 space-y-1.5 p-3">
           {menuItems.map((item) => {
@@ -358,10 +375,56 @@ const PatientPortalLayout: React.FC = () => {
         </nav>
       </div>
 
+        {/* Sidebar - mobile drawer */}
+        <div
+          className={`sidebar-surface fixed inset-y-0 left-0 z-50 flex w-72 flex-col transition-transform duration-300 md:hidden ${
+            mobileNavOpen ? 'translate-x-0' : '-translate-x-full'
+          }`}
+        >
+          <div className="flex items-center justify-between border-b border-slate-200/80 px-4 py-3">
+            <p className="text-xs font-bold uppercase tracking-wide text-teal-300">Patient Portal</p>
+            <button
+              type="button"
+              onClick={() => setMobileNavOpen(false)}
+              className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"
+              aria-label="Close navigation"
+            >
+              <X size={20} />
+            </button>
+          </div>
+          <nav className="flex-1 space-y-1.5 overflow-y-auto p-3">
+            {menuItems.map((item) => {
+              const Icon = item.icon;
+              const isActive =
+                location.pathname === item.path ||
+                (item.path === '/portal/appointments' && location.pathname.startsWith('/portal/appointments')) ||
+                (item.path === '/portal/radiology' && location.pathname.startsWith('/portal/radiology')) ||
+                (item.path === '/portal/doctors' && location.pathname.startsWith('/portal/doctors')) ||
+                (item.path === '/portal/facilities' && location.pathname.startsWith('/portal/facilities'));
+
+              return (
+                <button
+                  key={item.path}
+                  onClick={() => {
+                    navigate(item.path);
+                    setMobileNavOpen(false);
+                  }}
+                  className={`sidebar-link relative flex w-full items-center gap-3 px-4 py-3 text-left text-sm font-bold ${
+                    isActive ? 'sidebar-link-active' : ''
+                  }`}
+                >
+                  <Icon size={20} />
+                  <span className="font-medium">{item.label}</span>
+                </button>
+              );
+            })}
+          </nav>
+        </div>
+
       {/* Main Content */}
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         {/* Main Content Area */}
-        <div className="relative flex-1 overflow-auto">
+        <div className="patient-portal-page relative flex-1 overflow-auto animate-fade-in-up" data-portal="patient">
           {location.pathname === '/portal/dashboard' || location.pathname === '/portal' ? (
             <PatientDashboard />
           ) : location.pathname === '/portal/profile' ? (
@@ -389,55 +452,57 @@ const PatientPortalLayout: React.FC = () => {
           ) : (
             <PatientDashboard />
           )}
+        </div>
 
-          {/* Floating AI Chat Button */}
+        {/* Floating assistant — outside scroll area so position:fixed stays on viewport */}
         {!showChat && (
           <button
-          onClick={() => {
-            setShowChat(true);
-            setIsMinimized(false);
-          }}
-          className="fixed bottom-1 right-8 z-50 items-center hover:scale-110 transition-all duration-300"
-        >
-          <img
-            src={AiAssistantIcon}
-            alt="AI Assistant"
-            className="h-16 w-16 rounded-full border-2 border-white drop-shadow-xl transition-all duration-200 hover:scale-105"
-          />
-          <span className="mt-2 block text-sm font-extrabold text-slate-900 transition-colors duration-200 hover:text-blue-700">
-            Assistant
-          </span>
-        </button>        
+            type="button"
+            onClick={() => {
+              setShowChat(true);
+              setIsMinimized(false);
+            }}
+            className="fixed bottom-6 right-6 z-[60] flex flex-col items-center transition-transform duration-300 hover:scale-110"
+            aria-label="Open AI Health Assistant"
+          >
+            <img
+              src={AiAssistantIcon}
+              alt=""
+              className="h-16 w-16 rounded-full border-2 border-white drop-shadow-xl transition-transform duration-200 hover:scale-105"
+            />
+            <span className="mt-2 block text-sm font-extrabold text-slate-100 drop-shadow-md transition-colors duration-200 hover:text-teal-300">
+              Assistant
+            </span>
+          </button>
         )}
 
         {/* Chat Window - Always mounted to preserve state across navigation */}
         <>
-          {/* Overlay - only show when chat is open and not minimized */}
           {showChat && !isMinimized && (
             <div
-              className="fixed inset-0 bg-black bg-opacity-30 z-40"
+              className="fixed inset-0 z-[55] bg-black/30"
               onClick={() => setIsMinimized(true)}
+              aria-hidden
             />
           )}
 
-          {/* Chat Widget - always mounted but conditionally visible */}
           <div
-            className={`fixed bottom-0 right-0 z-50 flex flex-col overflow-hidden rounded-t-2xl border border-slate-200 shadow-2xl transition-all duration-300
+            className={`fixed bottom-0 right-0 z-[60] flex flex-col overflow-hidden rounded-t-2xl border border-slate-200 shadow-2xl transition-all duration-300
               ${!showChat ? 'hidden' : ''}
-              ${isMinimized 
-                ? 'h-[56px] w-[300px] cursor-pointer bg-blue-50' 
-                : 'h-[600px] w-[400px] bg-white'}
+              ${isMinimized
+                ? 'h-[56px] w-[300px] cursor-pointer bg-slate-800/95'
+                : 'h-[min(600px,85vh)] w-[min(400px,calc(100vw-1.5rem))] bg-slate-900/95 border border-slate-700/50'}
             `}
             onClick={() => isMinimized && setIsMinimized(false)}
           >
             {/* Header */}
-            <div className={`flex items-center justify-between border-b border-slate-200 bg-gradient-to-r from-blue-50 to-teal-50 ${
+            <div className={`flex items-center justify-between border-b border-slate-700/50 bg-gradient-to-r from-slate-900 via-slate-800 to-teal-950 ${
               isMinimized ? 'px-4 py-2' : 'p-4'
             }`}>
               <h2 className="text-sm font-semibold">
-                <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-100 text-blue-800 transition-all duration-200 hover:bg-blue-200 hover:text-blue-900 hover:shadow-md hover:scale-105">
-                  <div className="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0">
-                    <Stethoscope size={14} className="text-white" />
+                <span className="inline-flex items-center gap-2 rounded-full border border-teal-500/30 bg-teal-500/15 px-3 py-1 text-teal-100 transition-all duration-200 hover:bg-teal-500/25 hover:shadow-md hover:scale-105">
+                  <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-teal-400 to-sky-500">
+                    <Stethoscope size={14} className="text-slate-950" />
                   </div>
                   {patientFirstName
                     ? `${patientFirstName}'s Assistant`
@@ -455,7 +520,7 @@ const PatientPortalLayout: React.FC = () => {
                     }
                   }}
                   title={isMinimized ? "Maximize" : "Minimize"}
-                  className="rounded-lg p-1 text-slate-600 transition-colors hover:bg-white hover:text-blue-700"
+                  className="rounded-lg p-1 text-slate-300 transition-colors hover:bg-slate-700/50 hover:text-teal-200"
                 >
                   {isMinimized ? <Maximize2 size={18} /> : <Minus size={18} />}
                 </button>
@@ -467,7 +532,7 @@ const PatientPortalLayout: React.FC = () => {
                       setShowCloseConfirm(true);
                     }}
                     title="Close"
-                    className="rounded-lg p-1 text-slate-600 transition-colors hover:bg-red-50 hover:text-red-700"
+                    className="rounded-lg p-1 text-slate-300 transition-colors hover:bg-red-500/20 hover:text-red-300"
                   >
                     <X size={18} />
                   </button>
@@ -514,31 +579,31 @@ const PatientPortalLayout: React.FC = () => {
           </div>
         </>
 
-        {/* Notification Popup */}
         {showNotificationPopup && currentNotification && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="premium-card w-full max-w-md p-6 animate-in fade-in slide-in-from-bottom-4">
+          <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4">
+            <div className="premium-card w-full max-w-md p-6 animate-fade-in-up">
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
-                    <Bell className="w-5 h-5 text-blue-600" />
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-sky-500/15 ring-1 ring-sky-500/30">
+                    <Bell className="h-5 w-5 text-sky-300" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-bold text-slate-900">{currentNotification.title}</h3>
-                    <p className="text-xs text-slate-500">
+                    <h3 className="text-lg font-bold text-slate-100">{currentNotification.title}</h3>
+                    <p className="text-xs text-slate-400">
                       {new Date(currentNotification.created_at).toLocaleString()}
                     </p>
                   </div>
                 </div>
                 <button
+                  type="button"
                   onClick={handleNotificationClose}
-                  className="text-slate-400 transition-colors hover:text-slate-600"
+                  className="text-slate-400 transition-colors hover:text-slate-200"
                 >
                   <X size={20} />
                 </button>
               </div>
               
-              <p className="mb-6 text-slate-700">{currentNotification.message}</p>
+              <p className="mb-6 text-sm leading-relaxed text-slate-300">{currentNotification.message}</p>
               
               <div className="flex gap-3">
                 <button
@@ -557,8 +622,7 @@ const PatientPortalLayout: React.FC = () => {
             </div>
           </div>
         )}
-        </div>
-        </div>
+      </div>
       </div>
     </div>
   );

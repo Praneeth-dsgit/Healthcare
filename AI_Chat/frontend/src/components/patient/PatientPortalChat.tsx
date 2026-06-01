@@ -665,10 +665,15 @@ const PatientPortalChat = React.forwardRef<{ clearMessages: () => void }, {}>((_
         const data = await response.json();
 
         if (data.success) {
+          const naturalText = (data.natural_results || []).filter(Boolean).join('\n').trim();
           const assistantMessage: Message = {
             id: (Date.now() + 1).toString(),
             role: 'assistant',
-            content: data.natural_results?.join('\n') || 'Here are the results:',
+            content:
+              naturalText ||
+              (data.results?.length
+                ? 'Here are the results from your records.'
+                : 'No matching records were found. Try rephrasing or ask a general health question.'),
             timestamp: new Date(),
             results: data.results || [],
             natural_results: data.natural_results || [],
@@ -711,10 +716,29 @@ const PatientPortalChat = React.forwardRef<{ clearMessages: () => void }, {}>((_
         }),
       });
 
-      const data = await response.json();
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok || data.success === false) {
+        const assistantMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant',
+          content:
+            data.error ||
+            data.response ||
+            'Sorry, I could not process that question. Please try again or rephrase it.',
+          timestamp: new Date(),
+        };
+        setMessages((prev) => [...prev, assistantMessage]);
+        setIsLoading(false);
+        return;
+      }
 
       // Remove markdown formatting from response
-      let cleanedResponse = data.response || 'I apologize, but I encountered an error. Please try again.';
+      let cleanedResponse = (data.response || '').trim();
+      if (!cleanedResponse) {
+        cleanedResponse =
+          'I could not generate a response. Please try again or ask in a slightly different way.';
+      }
       // Remove markdown bold (**text** or __text__)
       cleanedResponse = cleanedResponse.replace(/\*\*(.*?)\*\*/g, '$1');
       cleanedResponse = cleanedResponse.replace(/__(.*?)__/g, '$1');
@@ -804,14 +828,14 @@ const PatientPortalChat = React.forwardRef<{ clearMessages: () => void }, {}>((_
   const hasMessages = messages.length > 0;
 
   return (
-    <div className="flex flex-col h-full bg-white relative">
+    <div className="flex flex-col h-full bg-slate-900/95 relative text-slate-100">
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4 hide-scrollbar">
         {!hasMessages ? (
           /* Welcome Message - Centered */
           <div className="flex items-center justify-center h-full">
             <div className="text-center px-6">
-              <p className="text-gray-600 text-sm">
+              <p className="text-slate-300 text-sm">
                 Hi there! 👋 I'm your AI health assistant. I can help with home remedies, appointments, and your health information.
               </p>
             </div>
@@ -821,8 +845,8 @@ const PatientPortalChat = React.forwardRef<{ clearMessages: () => void }, {}>((_
           <div key={message.id} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div className={`max-w-[80%] rounded-lg p-3 transition-all duration-200 ${
               message.role === 'user' 
-                ? 'bg-blue-600 text-white hover:shadow-lg hover:scale-[1.02]' 
-                : 'bg-gray-100 text-gray-900 hover:shadow-md hover:scale-[1.01]'
+                ? 'bg-gradient-to-br from-sky-600 to-teal-600 text-white hover:shadow-lg hover:scale-[1.02]' 
+                : 'bg-slate-800 border border-slate-700/60 text-slate-100 hover:shadow-md hover:scale-[1.01]'
             }`}>
               <div className="whitespace-pre-wrap text-sm leading-relaxed">{message.content}</div>
               
@@ -1095,11 +1119,11 @@ const PatientPortalChat = React.forwardRef<{ clearMessages: () => void }, {}>((_
         )}
         {isLoading && (
           <div className="flex justify-start">
-            <div className="bg-gray-100 rounded-lg p-3">
+            <div className="rounded-lg border border-slate-700/60 bg-slate-800 p-3">
               <div className="flex space-x-1">
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                <div className="h-2 w-2 animate-bounce rounded-full bg-teal-400"></div>
+                <div className="h-2 w-2 animate-bounce rounded-full bg-teal-400" style={{ animationDelay: '0.1s' }}></div>
+                <div className="h-2 w-2 animate-bounce rounded-full bg-teal-400" style={{ animationDelay: '0.2s' }}></div>
               </div>
             </div>
           </div>
@@ -1111,14 +1135,13 @@ const PatientPortalChat = React.forwardRef<{ clearMessages: () => void }, {}>((_
       <div className="quick-options-container absolute bottom-20 right-4 z-20">
             {/* Expandable Quick Options Menu */}
             <div
-              className={`absolute bottom-full right-0 mb-2 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden transition-all duration-300 ease-in-out z-10 ${
+              className={`absolute bottom-full right-0 z-10 mb-2 w-[200px] overflow-hidden rounded-lg border border-slate-700/60 bg-slate-900/95 shadow-xl backdrop-blur-sm transition-all duration-300 ease-in-out ${
                 showQuickOptions
                   ? 'opacity-100 translate-y-0 max-h-96'
                   : 'opacity-0 translate-y-2 max-h-0 pointer-events-none'
               }`}
-              style={{ width: '200px' }}
             >
-              <div className="p-2 space-y-1">
+              <div className="space-y-1 p-2">
                 <button
                   type="button"
                   onClick={() => {
@@ -1126,10 +1149,10 @@ const PatientPortalChat = React.forwardRef<{ clearMessages: () => void }, {}>((_
                     setShowQuickOptions(false);
                   }}
                   disabled={isLoading}
-                  className="w-full flex items-center justify-end gap-2 px-3 py-2 pr-4 text-xs bg-white border border-gray-300 rounded-lg hover:bg-red-50 hover:border-red-400 hover:shadow-md hover:scale-105 transition-all duration-200 text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed text-right"
+                  className="flex w-full items-center justify-end gap-2 rounded-lg border border-slate-600/80 bg-slate-800/90 px-3 py-2 pr-4 text-right text-xs text-slate-200 transition-all duration-200 hover:border-rose-500/40 hover:bg-rose-500/10 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <span>My Health</span>
-                  <Heart size={14} className="text-red-500 flex-shrink-0" />
+                  <Heart size={14} className="shrink-0 text-rose-400" />
                 </button>
                 <button
                   type="button"
@@ -1138,10 +1161,10 @@ const PatientPortalChat = React.forwardRef<{ clearMessages: () => void }, {}>((_
                     setShowQuickOptions(false);
                   }}
                   disabled={isLoading}
-                  className="w-full flex items-center justify-end gap-2 px-3 py-2 pr-4 text-xs bg-white border border-gray-300 rounded-lg hover:bg-purple-50 hover:border-purple-400 hover:shadow-md hover:scale-105 transition-all duration-200 text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed text-right"
+                  className="flex w-full items-center justify-end gap-2 rounded-lg border border-slate-600/80 bg-slate-800/90 px-3 py-2 pr-4 text-right text-xs text-slate-200 transition-all duration-200 hover:border-violet-500/40 hover:bg-violet-500/10 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <span>Family Health</span>
-                  <Users size={14} className="text-purple-500 flex-shrink-0" />
+                  <Users size={14} className="shrink-0 text-violet-400" />
                 </button>
                 <button
                   type="button"
@@ -1150,10 +1173,10 @@ const PatientPortalChat = React.forwardRef<{ clearMessages: () => void }, {}>((_
                     setShowQuickOptions(false);
                   }}
                   disabled={isLoading}
-                  className="w-full flex items-center justify-end gap-2 px-3 py-2 pr-4 text-xs bg-white border border-gray-300 rounded-lg hover:bg-green-50 hover:border-green-400 hover:shadow-md hover:scale-105 transition-all duration-200 text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed text-right"
+                  className="flex w-full items-center justify-end gap-2 rounded-lg border border-slate-600/80 bg-slate-800/90 px-3 py-2 pr-4 text-right text-xs text-slate-200 transition-all duration-200 hover:border-emerald-500/40 hover:bg-emerald-500/10 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <span>Appointments</span>
-                  <Calendar size={14} className="text-green-500 flex-shrink-0" />
+                  <Calendar size={14} className="shrink-0 text-emerald-400" />
                 </button>
                 <button
                   type="button"
@@ -1162,10 +1185,10 @@ const PatientPortalChat = React.forwardRef<{ clearMessages: () => void }, {}>((_
                     setShowQuickOptions(false);
                   }}
                   disabled={isLoading}
-                  className="w-full flex items-center justify-end gap-2 px-3 py-2 pr-4 text-xs bg-white border border-gray-300 rounded-lg hover:bg-blue-50 hover:border-blue-400 hover:shadow-md hover:scale-105 transition-all duration-200 text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed text-right"
+                  className="flex w-full items-center justify-end gap-2 rounded-lg border border-slate-600/80 bg-slate-800/90 px-3 py-2 pr-4 text-right text-xs text-slate-200 transition-all duration-200 hover:border-teal-500/40 hover:bg-teal-500/10 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <span>Book Appointment</span>
-                  <Stethoscope size={14} className="text-blue-500 flex-shrink-0" />
+                  <Stethoscope size={14} className="shrink-0 text-teal-400" />
                 </button>
               </div>
             </div>
@@ -1175,18 +1198,15 @@ const PatientPortalChat = React.forwardRef<{ clearMessages: () => void }, {}>((_
                type="button"
                onClick={() => setShowQuickOptions(!showQuickOptions)}
                disabled={isLoading}
-               className="w-10 h-10 rounded-full bg-blue-600 hover:bg-blue-700 text-white shadow-2xl hover:shadow-2xl hover:scale-110 transition-all duration-200 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 z-10"
+               className="z-10 flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-sky-600 to-teal-600 text-white shadow-lg ring-1 ring-teal-500/30 transition-all duration-200 hover:scale-105 hover:from-sky-500 hover:to-teal-500 hover:shadow-teal-500/20 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
                title="Quick actions"
-               style={{
-                 boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.2)'
-               }}
              >
                {showQuickOptions ? <X size={20} /> : <Menu size={20} />}
              </button>
       </div>
 
       {/* Input Form */}
-      <form onSubmit={handleSubmit} className="border-t border-gray-200 p-4">
+      <form onSubmit={handleSubmit} className="chat-glass-input border-t border-slate-700/50 p-4">
         <div className="flex gap-2">
           <textarea
             ref={inputRef}
@@ -1205,15 +1225,15 @@ const PatientPortalChat = React.forwardRef<{ clearMessages: () => void }, {}>((_
                 handleSubmit(e);
               }
             }}
-            placeholder="Ask..."
-            className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 hover:border-blue-400 transition-all duration-200 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
+            placeholder="Ask about your health, appointments..."
+            className="flex-1 rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 resize-none focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:border-teal-500/50 hover:border-slate-500 transition-all duration-200 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
             style={{ minHeight: '36px', maxHeight: '120px', overflowY: 'auto' }}
             rows={1}
           />
           <button
             type="submit"
             disabled={isLoading || !input.trim()}
-            className="bg-blue-600 hover:bg-blue-700 hover:shadow-lg hover:scale-110 text-white px-3 py-2 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:shadow-none flex items-center justify-center transition-all duration-200 ml-1"
+            className="portal-accent-button flex items-center justify-center rounded-lg px-3 py-2 transition-all duration-200 hover:scale-110 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100 ml-1"
           >
             <Send size={18} />
           </button>
