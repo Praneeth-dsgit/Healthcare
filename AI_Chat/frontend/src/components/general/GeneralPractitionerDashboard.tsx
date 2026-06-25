@@ -8,7 +8,7 @@ import { Calendar, FileText, Search, BarChart3, User, LogOut, ChevronDown, Users
 import { useNavigate } from 'react-router-dom';
 import DoctorAppointments from './DoctorAppointments';
 import PrescriptionUpload from './PrescriptionUpload';
-import MedicineLookup from './MedicineLookup';
+import MedicineLookup, { LookupMedicineSelection } from './MedicineLookup';
 import ReportsAnalytics from './ReportsAnalytics';
 import SegmentTabs from '../ui/SegmentTabs';
 import StatCard from '../ui/StatCard';
@@ -23,6 +23,11 @@ const GeneralPractitionerDashboard: React.FC = () => {
   const [loadingDoctor, setLoadingDoctor] = useState(true);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [prescriptionPatientId, setPrescriptionPatientId] = useState<string | null>(null);
+  const [selectedLookupMedicine, setSelectedLookupMedicine] = useState<{
+    selection: LookupMedicineSelection;
+    token: number;
+  } | null>(null);
+  const [diagnosisForLookup, setDiagnosisForLookup] = useState('');
   const navigate = useNavigate();
 
   const mainTabs = [
@@ -154,7 +159,11 @@ const GeneralPractitionerDashboard: React.FC = () => {
                 />
               )}
               {activeTab === 'prescriptions' && (
-                <PrescriptionUpload initialPatientId={prescriptionPatientId || undefined} />
+                <PrescriptionUpload
+                  initialPatientId={prescriptionPatientId || undefined}
+                  selectedLookupMedicine={selectedLookupMedicine || undefined}
+                  onDiagnosisChange={setDiagnosisForLookup}
+                />
               )}
               {activeTab === 'analytics' && <ReportsAnalytics />}
             </div>
@@ -169,7 +178,14 @@ const GeneralPractitionerDashboard: React.FC = () => {
               <p className="mt-0.5 text-xs text-slate-400">Search diseases, symptoms, and treatments</p>
             </div>
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-4 sm:p-5">
-              <MedicineLookup embedded />
+              <MedicineLookup
+                embedded
+                diagnosisQuery={diagnosisForLookup}
+                onSelectMedicine={(selection) => {
+                  setSelectedLookupMedicine({ selection, token: Date.now() });
+                  setActiveTab('prescriptions');
+                }}
+              />
             </div>
           </aside>
         </div>

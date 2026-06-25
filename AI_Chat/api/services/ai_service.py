@@ -3,6 +3,7 @@ AI Service Module
 Contains AI-related utility functions for query processing and prompt generation.
 """
 import logging
+import re
 import openai
 from config import OPENAI_API_KEY
 
@@ -62,12 +63,69 @@ Respond with only the category name (one word)."""
         else:
             return 'general'
 
+
+def is_educational_capability_query(query: str) -> bool:
+    """FAQ-style or teaching questions without a specific case upload."""
+    q = (query or '').lower().strip()
+    if not q:
+        return False
+    educational_markers = (
+        'how to ', 'how do i ', 'how do you ', 'how should ',
+        'what are the signs', 'what are normal', 'what does a normal',
+        'what is a normal', 'what imaging is best', 'steps to ',
+        'approach to ', 'systematic', 'checklist', 'guide to ',
+        'interpret a ', 'interpret an ', 'reading a ', 'read a ',
+        'interpret ', 'signs of ', 'look like', 'best for ',
+    )
+    if any(marker in q for marker in educational_markers):
+        return True
+    return q.startswith('how ') and any(w in q for w in ('interpret', 'read', 'evaluate', 'assess'))
+
+
+def has_case_interpretation_data(query: str, file_context=None, file_findings=None) -> bool:
+    """True when the user supplied report text, uploads, or numeric values to interpret."""
+    for blob in (file_findings, file_context):
+        if blob and len(str(blob).strip()) > 80:
+            return True
+    q = (query or '').lower()
+    if re.search(
+        r'\b\d+(\.\d+)?\s*(mg/dl|g/dl|mmol|meq/l|u/l|iu/l|cells/ul|%|k/ul|10\^9/l)\b',
+        q,
+        re.I,
+    ):
+        return True
+    return any(
+        phrase in q
+        for phrase in (
+            'above', 'attached', 'uploaded', 'this report', 'these results',
+            'following values', 'my patient', 'patient is', 'year-old', 'yo male', 'yo female',
+        )
+    )
+
+
 def is_query_relevant_to_capability(query, capability):
     """Check if query is semantically relevant to the selected capability"""
     
     # Handle unknown capabilities
     if capability not in ['radiology', 'lab', 'general']:
         return True  # Default to allowing if capability not recognized
+
+    q = query.lower()
+    if capability == 'radiology' and any(
+        w in q for w in [
+            'analyze', 'interpret', 'report', 'imaging', 'scan', 'x-ray', 'xray',
+            'findings', 'above', 'ct', 'mri', 'ultrasound', 'radiolog', 'image',
+            'chest', 'fracture', 'pneumonia', 'how to',
+        ]
+    ):
+        return True
+    if capability == 'lab' and any(
+        w in q for w in [
+            'analyze', 'interpret', 'report', 'lab', 'results', 'above', 'blood',
+            'pathology', 'test', 'panel', 'cbc', 'chemistry', 'how to',
+        ]
+    ):
+        return True
     
     try:
         # Define capability descriptions for semantic matching
@@ -397,6 +455,20 @@ def generate_capability_prompt(query, capability, patient_info=None, file_contex
     
     patient_context = build_patient_context(patient_info, capability)
 
+    medicine_lookup_section = ''
+    capability_str = capability.value if hasattr(capability, 'value') else str(capability)
+    if capability_str == 'general':
+        from services.medicine_lookup_service import get_medicine_lookup_context
+        medicine_ctx = get_medicine_lookup_context(query)
+        if medicine_ctx:
+            medicine_lookup_section = f"""
+
+📚 MEDICINE & CONDITION LOOKUP (institutional formulary — medicine_kbase.json):
+{medicine_ctx}
+
+When the doctor asks for treatment or medication suggestions, anchor your pharmacotherapy recommendations to the "Common treatments" listed above. Name specific drugs/classes from the lookup when applicable, then add dosing, monitoring, and patient-specific clinical notes.
+"""
+
     # Add file_findings to the prompt
     if file_findings:
         file_section = f"\n\n[File Findings / Uploaded File Analysis]\n{file_findings}\n"
@@ -424,6 +496,7 @@ You are assisting a healthcare professional.
 
 👤 Patient Context (if provided):
 {patient_context}
+{medicine_lookup_section}
 
 📌 Query Type: {query_type}  
 📌 Query: {query}
@@ -439,18 +512,19 @@ You are assisting a healthcare professional.
 - Diagnostic workup
 - Clinical notes (patient-specific risks, when to refer)
 
-**TREATMENT QUERIES**:
-- First-line lifestyle/conservative options
-- Pharmacotherapy (**names, dosages, frequencies, durations, monitoring**)
-- Surgical/procedural options
-- Clinical notes (contraindications, follow-up needs)
-
 **MEDICATION QUERIES**:
 - Drug class & indication
 - Dosing & administration
 - Side effects & monitoring
 - Contraindications & interactions
 - Clinical notes (personalized)
+- **Prefer medicines/treatments from the Medicine & Condition Lookup section when provided**
+
+**TREATMENT QUERIES**:
+- First-line lifestyle/conservative options
+- Pharmacotherapy (**names, dosages, frequencies, durations, monitoring**) — cite lookup list treatments first when available
+- Surgical/procedural options
+- Clinical notes (contraindications, follow-up needs)
 
 **CHRONIC CONDITION QUERIES**:
 - Long-term lifestyle changes
@@ -479,13 +553,56 @@ You are assisting a healthcare professional.
 """
         
     elif capability == 'radiology':
-        prompt = f"""You are a STRICTLY SPECIALIZED RADIOLOGY assistant for healthcare professionals.
+        educational = is_educational_capability_query(query) and not has_case_interpretation_data(
+            query, file_context, file_findings
+        )
+        if educational:
+            prompt = f"""You are a radiology education and interpretation assistant for licensed healthcare professionals.
+
+SCOPE:
+- This question is an educational / FAQ-style imaging question (no specific study uploaded).
+- ANSWER FULLY with a practical systematic approach. Do NOT refuse or only ask for a case upload.
+- Stay within radiology/imaging; redirect lab-only or general-medicine topics to the appropriate mode.
+
+{patient_context}
+
+Query:
+{query}
+
+**STRUCTURED OUTPUT FORMAT** (GitHub-flavored Markdown, no emojis):
+
+## Overview
+Brief purpose of the study/modality and when it is used.
+
+## Systematic Approach
+Step-by-step reading order (e.g., for chest X-ray: quality, tubes/lines, soft tissues, bones, diaphragm, heart/mediastinum, lungs/hila, pleura).
+
+## Key Anatomy & Normal Variants
+What to verify as normal before calling pathology.
+
+## Common Abnormal Patterns
+High-yield findings clinicians should not miss (bullets).
+
+## Pitfalls & Limitations
+Technical and interpretive caveats.
+
+## When to Escalate
+Red flags, need for CT/US/MRI, or urgent referral.
+
+## Disclaimer
+One sentence: educational support for clinicians; verify against source images and local protocols.
+
+Formatting: use ## headers, bullet lists, **bold** for critical terms only. Maximum 320 words.
+Optional closing line: offer case-specific interpretation if they share age, indication, and findings or upload an image."""
+        else:
+            prompt = f"""You are a STRICTLY SPECIALIZED RADIOLOGY assistant for healthcare professionals.
 
 CRITICAL INSTRUCTIONS:
 - ONLY respond to radiology and medical imaging questions
 - REFUSE general medical questions - redirect to general mode
 - REFUSE lab interpretation questions - redirect to lab mode
 - Focus EXCLUSIVELY on imaging: X-ray, CT, MRI, ultrasound, mammography, nuclear medicine
+- Educational imaging questions are in scope — provide systematic guidance when no case is attached
 
 {patient_context}
 
@@ -557,18 +674,61 @@ Formatting rules:
 - Audience: Healthcare professionals ONLY
 - Always consider patient safety first - when in doubt, recommend consultation with specialist
 
-STRICT RULE: If this query is NOT about medical imaging, respond with: "I specialize in radiology and medical imaging only. Please switch to General Medical or Lab mode for this question."
+STRICT RULE: Refuse ONLY if the query is clearly outside medical imaging (e.g., unrelated medication dosing). Do NOT refuse educational "how to interpret" imaging questions.
 
 Professional Focus: Board-certified radiologist with patient-specific interpretation expertise."""
 
     elif capability == 'lab':
-        prompt = f"""You are a STRICTLY SPECIALIZED LABORATORY MEDICINE expert for healthcare professionals.
+        educational = is_educational_capability_query(query) and not has_case_interpretation_data(
+            query, file_context, file_findings
+        )
+        if educational:
+            prompt = f"""You are a laboratory medicine education assistant for licensed healthcare professionals.
+
+SCOPE:
+- This question is an educational / FAQ-style lab question (no specific result values uploaded).
+- ANSWER FULLY with a practical systematic approach. Do NOT refuse or only ask for numeric results.
+- Stay within laboratory medicine; redirect imaging-only or general-medicine topics to the appropriate mode.
+
+{patient_context}
+
+Query:
+{query}
+
+**STRUCTURED OUTPUT FORMAT** (GitHub-flavored Markdown, no emojis):
+
+## Overview
+What the test/panel measures and typical clinical use.
+
+## Systematic Approach
+How to read the report in order (e.g., for CBC: WBC differential, Hgb/Hct, platelets, morphology flags, critical values).
+
+## Reference Context
+Age/gender/pre-analytical factors that shift interpretation.
+
+## Key Parameters & Patterns
+Normal vs abnormal patterns and clinical meaning (bullets).
+
+## Common Pitfalls
+Spurious results, interference, sampling issues.
+
+## When to Escalate
+Critical values, repeat testing, specialist referral.
+
+## Disclaimer
+One sentence: educational support for clinicians; confirm with lab standards and treating clinician.
+
+Formatting: use ## headers, bullet lists, **bold** for critical terms only. Maximum 320 words.
+Optional closing line: offer case-specific interpretation if they provide values and clinical context."""
+        else:
+            prompt = f"""You are a STRICTLY SPECIALIZED LABORATORY MEDICINE expert for healthcare professionals.
 
 CRITICAL INSTRUCTIONS:
 - ONLY respond to laboratory medicine and diagnostic testing questions
 - REFUSE general medical questions - redirect to general mode
 - REFUSE imaging questions - redirect to radiology mode
 - Focus EXCLUSIVELY on: blood tests, chemistry panels, hematology, microbiology, molecular diagnostics
+- Educational lab questions are in scope — provide systematic guidance when no values are attached
 
 {patient_context}
 
@@ -642,7 +802,7 @@ Formatting rules:
 - Audience: Healthcare professionals ONLY
 - Always consider patient safety first - when in doubt, recommend consultation with specialist
 
-STRICT RULE: If this query is NOT about laboratory testing or result interpretation, respond with: "I specialize in laboratory medicine only. Please switch to General Medical or Radiology mode for this question."
+STRICT RULE: Refuse ONLY if the query is clearly outside laboratory medicine. Do NOT refuse educational "how to interpret" lab questions.
 
 Expert Level: Clinical pathologist with patient-contextualized interpretation expertise."""
 
@@ -685,4 +845,42 @@ Please switch to the appropriate mode for detailed, expert-level assistance.
 """
 
     return previous_section + prompt + file_section
+
+
+def get_chat_stream_system_message(capability) -> str:
+    """System message for /api/chat/stream — aligned with capability-specific user prompts."""
+    capability_str = capability.value if hasattr(capability, 'value') else str(capability)
+
+    if capability_str == 'radiology':
+        return """You are a radiology assistant for licensed healthcare professionals.
+
+- Answer educational "how to interpret" questions with a systematic, practical approach. Do NOT refuse solely because no image was uploaded.
+- For case-specific questions with findings or uploads, follow the Markdown structure in the user message.
+- Stay within radiology/imaging; redirect only clearly off-topic questions (e.g., unrelated medication dosing or pure lab-result interpretation).
+- Use GitHub-flavored Markdown (## headers, bullet lists). No emojis.
+- Maximum ~320 words unless the user message specifies otherwise."""
+
+    if capability_str == 'lab':
+        return """You are a laboratory medicine assistant for licensed healthcare professionals.
+
+- Answer educational "how to interpret" questions (e.g., CBC panels) with a systematic approach. Do NOT refuse solely because numeric results were not provided.
+- For case-specific questions with values or uploads, follow the Markdown structure in the user message.
+- Stay within laboratory medicine; redirect only clearly off-topic questions (e.g., imaging interpretation).
+- Use GitHub-flavored Markdown (## headers, bullet lists). No emojis.
+- Maximum ~320 words unless the user message specifies otherwise."""
+
+    return """You are a specialized medical AI assistant for general medical queries.
+Your audience is licensed healthcare professionals.
+Your role is to provide concise, structured, safe, and clinically useful guidance.
+
+SAFETY RULES:
+- Stay within general clinical scope.
+- Redirect radiology-only or lab-only interpretation to the appropriate mode when needed.
+- Never provide layperson advice; assume responses are for clinicians.
+
+FORMATTING (general mode):
+- Use indented hierarchical structure with bullet points.
+- Bold medication names, dosages, and the labels "Clinical Notes" and "Disclaimer".
+- Include a brief disclaimer for healthcare professionals only.
+- Keep responses concise and actionable."""
 

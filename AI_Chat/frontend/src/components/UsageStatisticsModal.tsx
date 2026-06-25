@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Activity, DollarSign, BarChart3, TrendingUp, RefreshCw, Download } from 'lucide-react';
+import { getApiBaseUrl } from '../utils/apiBase';
 
 interface UsageStatisticsModalProps {
   isOpen: boolean;
@@ -52,7 +53,7 @@ const UsageStatisticsModal: React.FC<UsageStatisticsModalProps> = ({ isOpen, onC
     setError(null);
     
     try {
-      const response = await fetch(`http://localhost:5000/api/usage/statistics?user_email=${encodeURIComponent(userEmail)}`);
+      const response = await fetch(`${getApiBaseUrl()}/api/usage/statistics?user_email=${encodeURIComponent(userEmail)}`);
       const data = await response.json();
       
       if (data.success) {

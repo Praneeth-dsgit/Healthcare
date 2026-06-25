@@ -6,6 +6,7 @@ import PrivacyModal from './PrivacyModal';
 import HelpModal from './HelpModal';
 import UsageStatisticsModal from './UsageStatisticsModal';
 import { doctorService } from '../services/doctorService';
+import { getApiBaseUrl } from '../utils/apiBase';
 
 interface HeaderProps {
   sessions: any[];
@@ -108,7 +109,7 @@ const Header: React.FC<HeaderProps> = ({
     
     setIsLoadingFaqs(true);
     try {
-      const response = await fetch('http://localhost:5000/api/faqs/generate', {
+      const response = await fetch(`${getApiBaseUrl()}/api/faqs/generate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

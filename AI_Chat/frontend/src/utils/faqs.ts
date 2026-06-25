@@ -2,6 +2,8 @@
  * Shared FAQ defaults and fetch for radiology/lab/general capabilities
  */
 
+import { getApiBaseUrl } from './apiBase';
+
 export function getDefaultFaqs(capability: string): string[] {
   const defaultFaqs: Record<string, string[]> = {
     radiology: [
@@ -46,7 +48,7 @@ export function getDefaultFaqs(capability: string): string[] {
 
 export async function fetchFaqs(capability: string, sessionId: string): Promise<string[]> {
   try {
-    const response = await fetch('http://localhost:5000/api/faqs/generate', {
+    const response = await fetch(`${getApiBaseUrl()}/api/faqs/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ capability, session_id: sessionId }),

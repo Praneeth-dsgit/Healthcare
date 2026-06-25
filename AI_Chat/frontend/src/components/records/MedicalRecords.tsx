@@ -13,6 +13,7 @@ import {
   PortalLoading,
   portalInputClass,
 } from '../patient/portalPageLayout';
+import { getMedicalRecordDownloadName } from '../../utils/medicalRecordDownload';
 
 // Component to format prescription description
 const PrescriptionDescription: React.FC<{ 
@@ -232,14 +233,15 @@ const MedicalRecords: React.FC = () => {
     }
   };
 
-  const handleDownload = async (recordId: number) => {
+  const handleDownload = async (record: MedicalRecord) => {
     try {
-      const blob = await recordService.downloadRecord(recordId);
-      if (blob) {
-        const url = window.URL.createObjectURL(blob);
+      const result = await recordService.downloadRecord(record.record_id);
+      if (result) {
+        const url = window.URL.createObjectURL(result.blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `record-${recordId}.pdf`;
+        a.download =
+          result.filename || getMedicalRecordDownloadName(record);
         document.body.appendChild(a);
         a.click();
         window.URL.revokeObjectURL(url);
@@ -410,7 +412,7 @@ const MedicalRecords: React.FC = () => {
                   {/* Download Button */}
                   {(record.file_url || record.record_type === 'prescription') && (
                     <button
-                      onClick={() => handleDownload(record.record_id)}
+                      onClick={() => handleDownload(record)}
                       className="ml-4 bg-blue-600 text-white px-5 py-2.5 rounded-lg hover:bg-blue-700 hover:shadow-lg hover:scale-105 flex items-center gap-2 transition-all duration-200 font-medium"
                       title="Download record"
                     >

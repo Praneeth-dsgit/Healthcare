@@ -94,6 +94,16 @@ except FileNotFoundError:
     logger.warning(f"Diseases file {DISEASES_FILE} not found. Continuing without it.")
     diseases = {}
 
+# Load medicine catalog JSON file (medicine/molecule rows)
+MEDICINE_CATALOG_FILE = 'medicine_catalog.json'
+try:
+    with open(MEDICINE_CATALOG_FILE, encoding='utf-8') as f:
+        medicine_catalog = json.load(f)
+    logger.info(f"Loaded medicine catalog from {MEDICINE_CATALOG_FILE}")
+except FileNotFoundError:
+    logger.warning(f"Medicine catalog file {MEDICINE_CATALOG_FILE} not found. Continuing without it.")
+    medicine_catalog = {}
+
 # Database setup
 # Install PyMySQL as MySQLdb replacement
 pymysql.install_as_MySQLdb()

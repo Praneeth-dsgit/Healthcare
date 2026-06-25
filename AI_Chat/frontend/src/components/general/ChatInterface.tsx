@@ -206,8 +206,8 @@ const ChatInterface: React.FC = () => {
               </div>
               <p className="text-sm font-semibold text-slate-100">General Health Assistant</p>
               <p className="mt-2 text-sm leading-relaxed text-slate-400">
-                Ask about treatment protocols, diagnostic criteria, patient care, or general clinical
-                questions. Use quick actions below for common prompts.
+                Ask about treatment protocols, medications, or conditions. Suggestions are grounded
+                in the Medicine &amp; Condition Lookup database when relevant.
               </p>
             </div>
           </div>
@@ -239,6 +239,18 @@ const ChatInterface: React.FC = () => {
           style={{ width: '220px' }}
         >
           <div className="space-y-1 p-2">
+            <button
+              type="button"
+              onClick={() => {
+                handleQuickAction('Suggest medicines and first-line treatment for hypertension');
+                setShowQuickOptions(false);
+              }}
+              disabled={isLoading}
+              className={quickActionClass}
+            >
+              <span>Medicine suggestions</span>
+              <Stethoscope size={14} className="shrink-0 text-sky-400" />
+            </button>
             <button
               type="button"
               onClick={() => {

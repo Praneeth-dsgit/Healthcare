@@ -3,13 +3,19 @@
  * Create prescriptions using a structured template
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Plus, X, Save, Printer, Download, Search, Calendar, ChevronDown } from 'lucide-react';
-import jsPDF from 'jspdf';
 import { patientService } from '../../services/patientService';
 import { doctorService } from '../../services/doctorService';
 import { getAuthHeaders, authenticatedFetch } from '../../services/authService';
 import { getApiRoot } from '../../utils/apiBase';
+import {
+  buildPrescriptionPdf,
+  downloadPrescriptionPdf,
+  prescriptionPdfBlob,
+  PrescriptionPdfOptions,
+} from '../../utils/prescriptionPdf';
+import { LookupMedicineSelection } from './MedicineLookup';
 
 interface Medication {
   id: string;
@@ -34,9 +40,19 @@ interface PatientOption {
 interface PrescriptionTemplateProps {
   onPrescriptionSaved?: () => void;
   initialPatientId?: string;
+  selectedLookupMedicine?: {
+    selection: LookupMedicineSelection;
+    token: number;
+  };
+  onDiagnosisChange?: (diagnosis: string) => void;
 }
 
-const PrescriptionTemplate: React.FC<PrescriptionTemplateProps> = ({ onPrescriptionSaved, initialPatientId }) => {
+const PrescriptionTemplate: React.FC<PrescriptionTemplateProps> = ({
+  onPrescriptionSaved,
+  initialPatientId,
+  selectedLookupMedicine,
+  onDiagnosisChange,
+}) => {
   const [patientId, setPatientId] = useState(initialPatientId || '');
   const [patientName, setPatientName] = useState('');
   const [patientAge, setPatientAge] = useState('');
@@ -68,6 +84,76 @@ const PrescriptionTemplate: React.FC<PrescriptionTemplateProps> = ({ onPrescript
   const [familyMembers, setFamilyMembers] = useState<any[]>([]);
   const [selectedFamilyMemberId, setSelectedFamilyMemberId] = useState<number | null>(null);
   const [loadingFamilyMembers, setLoadingFamilyMembers] = useState(false);
+  const lastPdfSnapshotRef = useRef<PrescriptionPdfOptions | null>(null);
+
+  const computeAge = (dateOfBirth?: string): string => {
+    if (!dateOfBirth) return '';
+    const dob = new Date(dateOfBirth);
+    if (Number.isNaN(dob.getTime())) return '';
+    const today = new Date();
+    let age = today.getFullYear() - dob.getFullYear();
+    const monthDiff = today.getMonth() - dob.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) age -= 1;
+    return age.toString();
+  };
+
+  const buildPdfOptions = async (): Promise<PrescriptionPdfOptions | null> => {
+    const pid = patientId.trim();
+    if (!pid) {
+      setError('Please select or enter a patient ID');
+      return null;
+    }
+
+    const filledMeds = medications.filter((m) => m.name.trim());
+    if (filledMeds.length === 0) {
+      setError('Add at least one medication with a name');
+      return null;
+    }
+
+    let name = patientName.trim();
+    let age = patientAge.trim();
+    let gender = patientGender.trim();
+
+    if (!name) {
+      const result = await patientService.getPatientById(pid);
+      if (result.success && result.patient) {
+        const p = result.patient;
+        name = `${p.first_name || ''} ${p.last_name || ''}`.trim();
+        age = age || computeAge(p.date_of_birth);
+        gender = gender || p.gender || '';
+      }
+    }
+
+    let recipientLabel: string | undefined;
+    if (prescriptionFor === 'family_member' && selectedFamilyMemberId) {
+      const member = familyMembers.find((fm) => fm.family_member_id === selectedFamilyMemberId);
+      if (member) {
+        recipientLabel = `${member.first_name || ''} ${member.last_name || ''}`.trim();
+        if (member.relationship) recipientLabel += ` (${member.relationship})`;
+      }
+    }
+
+    return {
+      patientId: pid,
+      patientName: name || 'N/A',
+      patientAge: age || 'N/A',
+      patientGender: gender || 'N/A',
+      prescriptionDate,
+      diagnosis,
+      medications: filledMeds.map((m) => ({
+        name: m.name.trim(),
+        dosage: m.dosage.trim(),
+        frequency: m.frequency.trim(),
+        duration: m.duration.trim(),
+        instructions: m.instructions.trim(),
+      })),
+      additionalNotes,
+      doctorName: doctorName.trim(),
+      doctorQualification: doctorQualification.trim(),
+      doctorLicense: doctorLicense.trim(),
+      recipientLabel,
+    };
+  };
 
   // Load patients list and doctor info on mount
   useEffect(() => {
@@ -76,11 +162,10 @@ const PrescriptionTemplate: React.FC<PrescriptionTemplateProps> = ({ onPrescript
 
   // Load patient details if initialPatientId is provided
   useEffect(() => {
-    if (initialPatientId && initialPatientId !== patientId) {
-      setPatientId(initialPatientId);
-      // Trigger patient details load by setting patientSearch
-      setPatientSearch(initialPatientId);
+    if (initialPatientId?.trim()) {
+      handlePatientSelect(initialPatientId.trim());
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialPatientId]);
 
   // Load patients when search changes or doctorId is available
@@ -148,14 +233,7 @@ const PrescriptionTemplate: React.FC<PrescriptionTemplateProps> = ({ onPrescript
         
         // Calculate age from date_of_birth
         if (patient.date_of_birth) {
-          const dob = new Date(patient.date_of_birth);
-          const today = new Date();
-          let age = today.getFullYear() - dob.getFullYear();
-          const monthDiff = today.getMonth() - dob.getMonth();
-          if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
-            age--;
-          }
-          setPatientAge(age.toString());
+          setPatientAge(computeAge(patient.date_of_birth));
         }
         
         setPatientGender(patient.gender || '');
@@ -195,14 +273,7 @@ const PrescriptionTemplate: React.FC<PrescriptionTemplateProps> = ({ onPrescript
       
       // Calculate age from date_of_birth
       if (member.date_of_birth) {
-        const dob = new Date(member.date_of_birth);
-        const today = new Date();
-        let age = today.getFullYear() - dob.getFullYear();
-        const monthDiff = today.getMonth() - dob.getMonth();
-        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
-          age--;
-        }
-        setPatientAge(age.toString());
+        setPatientAge(computeAge(member.date_of_birth));
       }
       
       setPatientGender(member.gender || '');
@@ -228,179 +299,78 @@ const PrescriptionTemplate: React.FC<PrescriptionTemplateProps> = ({ onPrescript
     );
   };
 
-  const generatePDF = () => {
-    const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const margin = 15;
-    let yPos = margin;
+  useEffect(() => {
+    if (!selectedLookupMedicine?.selection?.name) return;
+    const sel = selectedLookupMedicine.selection;
 
-    // Header
-    doc.setFontSize(18);
-    doc.setFont('helvetica', 'bold');
-    doc.text('PRESCRIPTION', pageWidth / 2, yPos, { align: 'center' });
-    yPos += 10;
-
-    // Date
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`Date: ${new Date(prescriptionDate).toLocaleDateString()}`, margin, yPos);
-    yPos += 8;
-
-    // Patient Information
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Patient Information:', margin, yPos);
-    yPos += 7;
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`Name: ${patientName || 'N/A'}`, margin, yPos);
-    yPos += 5;
-    doc.text(`Patient ID: ${patientId || 'N/A'}`, margin, yPos);
-    yPos += 5;
-    doc.text(`Age: ${patientAge || 'N/A'} | Gender: ${patientGender || 'N/A'}`, margin, yPos);
-    yPos += 8;
-
-    // Diagnosis
-    if (diagnosis) {
-      doc.setFontSize(12);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Diagnosis:', margin, yPos);
-      yPos += 7;
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'normal');
-      const diagnosisLines = doc.splitTextToSize(diagnosis, pageWidth - 2 * margin);
-      doc.text(diagnosisLines, margin, yPos);
-      yPos += diagnosisLines.length * 5 + 5;
-    }
-
-    // Medications
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Medications:', margin, yPos);
-    yPos += 7;
-
-    medications.forEach((med, index) => {
-      if (med.name) {
-        // Check if we need a new page
-        if (yPos > 250) {
-          doc.addPage();
-          yPos = margin;
-        }
-
-        doc.setFontSize(10);
-        doc.setFont('helvetica', 'bold');
-        doc.text(`${index + 1}. ${med.name}`, margin, yPos);
-        yPos += 5;
-        doc.setFont('helvetica', 'normal');
-        if (med.dosage) doc.text(`   Dosage: ${med.dosage}`, margin + 5, yPos);
-        yPos += 5;
-        if (med.frequency) doc.text(`   Frequency: ${med.frequency}`, margin + 5, yPos);
-        yPos += 5;
-        if (med.duration) doc.text(`   Duration: ${med.duration}`, margin + 5, yPos);
-        yPos += 5;
-        if (med.instructions) {
-          const instructionLines = doc.splitTextToSize(`   Instructions: ${med.instructions}`, pageWidth - 2 * margin - 5);
-          doc.text(instructionLines, margin + 5, yPos);
-          yPos += instructionLines.length * 5;
-        }
-        yPos += 3;
+    setMedications((prev) => {
+      const firstEmptyIdx = prev.findIndex((m) => !m.name.trim());
+      const targetIdx = firstEmptyIdx >= 0 ? firstEmptyIdx : prev.length;
+      const next = [...prev];
+      const medRow: Medication = {
+        id: firstEmptyIdx >= 0 ? next[targetIdx].id : Date.now().toString(),
+        name: sel.name,
+        dosage: sel.strength || '',
+        frequency: '',
+        duration: '',
+        instructions: sel.indications || '',
+      };
+      if (firstEmptyIdx >= 0) {
+        next[targetIdx] = { ...next[targetIdx], ...medRow };
+      } else {
+        next.push(medRow);
       }
+      return next;
     });
+  }, [selectedLookupMedicine?.token]);
 
-    // Additional Notes
-    if (additionalNotes) {
-      if (yPos > 240) {
-        doc.addPage();
-        yPos = margin;
-      }
-      yPos += 5;
-      doc.setFontSize(12);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Additional Notes:', margin, yPos);
-      yPos += 7;
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'normal');
-      const noteLines = doc.splitTextToSize(additionalNotes, pageWidth - 2 * margin);
-      doc.text(noteLines, margin, yPos);
-      yPos += noteLines.length * 5 + 5;
-    }
-
-    // Doctor Information
-    if (yPos > 240) {
-      doc.addPage();
-      yPos = margin;
-    } else {
-      yPos += 10;
-    }
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Prescribed By:', margin, yPos);
-    yPos += 7;
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    if (doctorName) doc.text(`Dr. ${doctorName}`, margin, yPos);
-    yPos += 5;
-    if (doctorQualification) doc.text(doctorQualification, margin, yPos);
-    yPos += 5;
-    if (doctorLicense) doc.text(`License: ${doctorLicense}`, margin, yPos);
-    yPos += 10;
-
-    // Signature line
-    doc.line(margin, yPos, margin + 60, yPos);
-    doc.setFontSize(9);
-    doc.text('Doctor\'s Signature', margin, yPos + 5);
-
-    // Footer
-    const totalPages = doc.getNumberOfPages();
-    for (let i = 1; i <= totalPages; i++) {
-      doc.setPage(i);
-      doc.setFontSize(8);
-      doc.setFont('helvetica', 'italic');
-      doc.text(
-        'This prescription is for medical use only. Please follow the instructions carefully.',
-        pageWidth / 2,
-        doc.internal.pageSize.getHeight() - 10,
-        { align: 'center' }
-      );
-    }
-
-    return doc;
-  };
-
-  const handlePrint = () => {
-    const doc = generatePDF();
+  const handlePrint = async () => {
+    const options = await buildPdfOptions();
+    if (!options) return;
+    const doc = buildPrescriptionPdf(options);
     doc.autoPrint();
     window.open(doc.output('bloburl'), '_blank');
   };
 
-  const handleDownload = () => {
-    const doc = generatePDF();
-    const filename = `Prescription_${patientId || 'Patient'}_${prescriptionDate}.pdf`;
-    doc.save(filename);
+  const handleDownload = async () => {
+    setError(null);
+    const options = await buildPdfOptions();
+    if (!options) {
+      if (lastPdfSnapshotRef.current) {
+        downloadPrescriptionPdf(lastPdfSnapshotRef.current);
+        return;
+      }
+      return;
+    }
+    lastPdfSnapshotRef.current = options;
+    downloadPrescriptionPdf(options);
   };
 
   const handleSave = async () => {
-    if (!patientId.trim()) {
-      setError('Please enter a patient ID');
+    setError(null);
+    const pdfOptions = await buildPdfOptions();
+    if (!pdfOptions) return;
+
+    if (prescriptionFor === 'family_member' && !selectedFamilyMemberId) {
+      setError('Please select a family member');
       return;
     }
 
     setSaving(true);
-    setError(null);
     setSuccess(false);
 
     try {
-      // Generate PDF
-      const doc = generatePDF();
-      const pdfBlob = doc.output('blob');
-      const pdfFile = new File([pdfBlob], `Prescription_${patientId}_${prescriptionDate}.pdf`, {
-        type: 'application/pdf',
-      });
+      lastPdfSnapshotRef.current = pdfOptions;
+      const pdfBlob = prescriptionPdfBlob(pdfOptions);
+      const pdfFile = new File(
+        [pdfBlob],
+        `Prescription_${pdfOptions.patientId}_${prescriptionDate}.pdf`,
+        { type: 'application/pdf' }
+      );
 
-      // Create FormData
       const formData = new FormData();
       formData.append('file', pdfFile);
-      const pid = patientId.trim();
+      const pid = pdfOptions.patientId;
       formData.append('patient_id', pid);
       formData.append('record_type', 'prescription');
       formData.append('title', `Prescription - ${prescriptionDate}`);
@@ -417,12 +387,19 @@ const PrescriptionTemplate: React.FC<PrescriptionTemplateProps> = ({ onPrescript
       
       // Create description from prescription data
       const description = `
-Patient: ${patientName || 'N/A'}
-Age: ${patientAge || 'N/A'} | Gender: ${patientGender || 'N/A'}
-Diagnosis: ${diagnosis || 'N/A'}
-Medications: ${medications.filter(m => m.name).map(m => `${m.name} (${m.dosage}, ${m.frequency})`).join(', ')}
-${additionalNotes ? `Notes: ${additionalNotes}` : ''}
-Prescribed by: Dr. ${doctorName || 'N/A'}
+Patient: ${pdfOptions.patientName}
+Patient ID: ${pdfOptions.patientId}
+Age: ${pdfOptions.patientAge} | Gender: ${pdfOptions.patientGender}
+Diagnosis: ${pdfOptions.diagnosis || 'N/A'}
+Medications:
+${pdfOptions.medications
+  .map(
+    (m, i) =>
+      `${i + 1}. ${m.name}${m.dosage ? ` — ${m.dosage}` : ''}${m.frequency ? `, ${m.frequency}` : ''}${m.duration ? ` for ${m.duration}` : ''}${m.instructions ? `. ${m.instructions}` : ''}`
+  )
+  .join('\n')}
+${pdfOptions.additionalNotes ? `Notes: ${pdfOptions.additionalNotes}` : ''}
+Prescribed by: Dr. ${pdfOptions.doctorName || 'N/A'}
       `.trim();
       
       formData.append('description', description);
@@ -443,13 +420,12 @@ Prescribed by: Dr. ${doctorName || 'N/A'}
 
       if (result.success) {
         setSuccess(true);
-        // Notify parent component to refresh prescriptions list
+        downloadPrescriptionPdf(pdfOptions);
         if (onPrescriptionSaved) {
           onPrescriptionSaved();
         }
         setTimeout(() => {
           setSuccess(false);
-          // Reset form
           setPatientId('');
           setPatientName('');
           setPatientAge('');
@@ -508,7 +484,7 @@ Prescribed by: Dr. ${doctorName || 'N/A'}
                   name="prescriptionFor"
                   value="patient"
                   checked={prescriptionFor === 'patient'}
-                  onChange={(e) => {
+                  onChange={() => {
                     setPrescriptionFor('patient');
                     setSelectedFamilyMemberId(null);
                     // Reload patient details if patientId is set
@@ -526,7 +502,7 @@ Prescribed by: Dr. ${doctorName || 'N/A'}
                   name="prescriptionFor"
                   value="family_member"
                   checked={prescriptionFor === 'family_member'}
-                  onChange={(e) => setPrescriptionFor('family_member')}
+                  onChange={() => setPrescriptionFor('family_member')}
                   disabled={!patientId || familyMembers.length === 0}
                   className="w-4 h-4 text-blue-600 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
                 />
@@ -697,7 +673,11 @@ Prescribed by: Dr. ${doctorName || 'N/A'}
           <input
             type="text"
             value={diagnosis}
-            onChange={(e) => setDiagnosis(e.target.value)}
+            onChange={(e) => {
+              const value = e.target.value;
+              setDiagnosis(value);
+              onDiagnosisChange?.(value);
+            }}
             placeholder="Enter diagnosis"
             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />

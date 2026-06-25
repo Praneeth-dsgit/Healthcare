@@ -8,6 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import { Calendar, Clock, User, MapPin, Plus, X, Edit2, Filter, ChevronLeft, ChevronRight, Check } from 'lucide-react';
 import { appointmentService, Appointment } from '../../services/appointmentService';
 import { patientService, FamilyMember } from '../../services/patientService';
+import { getApiBaseUrl } from '../../utils/apiBase';
 function appointmentStatusPillClass(status: string): string {
   const pills: Record<string, string> = {
     scheduled: 'bg-sky-500/15 text-sky-300',
@@ -95,7 +96,7 @@ const AppointmentList: React.FC = () => {
   const fetchAvailableSlots = async (doctorId: number) => {
     try {
       setLoadingSlots(true);
-      const response = await fetch('http://localhost:5000/api/patient-engagement/available-slots', {
+      const response = await fetch(`${getApiBaseUrl()}/api/patient-engagement/available-slots`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -335,12 +336,21 @@ const AppointmentList: React.FC = () => {
         {/* Filter Tabs */}
         <div className="content-panel mb-6 p-2 transition-all duration-300">
           <div className="flex gap-2">
-            <button
-              type="button"
+            <div
+              role="button"
+              tabIndex={0}
               onClick={() => {
                 setFilter('upcoming');
                 setSelectedMonth('all');
                 setShowMonthFilter(false);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  setFilter('upcoming');
+                  setSelectedMonth('all');
+                  setShowMonthFilter(false);
+                }
               }}
               className={`flex flex-1 items-center justify-between rounded-lg px-4 py-3 text-sm font-semibold transition-colors ${
                 filter === 'upcoming'
@@ -360,6 +370,7 @@ const AppointmentList: React.FC = () => {
               {filter === 'upcoming' && (
                 <div className="relative month-filter-container">
                   <button
+                    type="button"
                     onClick={(e) => {
                       e.stopPropagation();
                       setShowMonthFilter(!showMonthFilter);
@@ -402,13 +413,22 @@ const AppointmentList: React.FC = () => {
                   )}
                 </div>
               )}
-            </button>
-            <button
-              type="button"
+            </div>
+            <div
+              role="button"
+              tabIndex={0}
               onClick={() => {
                 setFilter('past');
                 setSelectedMonth('all');
                 setShowMonthFilter(false);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  setFilter('past');
+                  setSelectedMonth('all');
+                  setShowMonthFilter(false);
+                }
               }}
               className={`flex flex-1 items-center justify-between rounded-lg px-4 py-3 text-sm font-semibold transition-colors ${
                 filter === 'past'
@@ -428,6 +448,7 @@ const AppointmentList: React.FC = () => {
               {filter === 'past' && (
                 <div className="relative month-filter-container">
             <button
+                    type="button"
                     onClick={(e) => {
                       e.stopPropagation();
                       setShowMonthFilter(!showMonthFilter);
@@ -469,7 +490,7 @@ const AppointmentList: React.FC = () => {
                   )}
                 </div>
               )}
-            </button>
+            </div>
           </div>
         </div>
 

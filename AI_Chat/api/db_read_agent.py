@@ -1520,6 +1520,8 @@ If any information is not found, use null for that field.
                     mr.record_type,
                     mr.title,
                     mr.description,
+                    mr.file_path,
+                    mr.file_type,
                     mr.visit_date,
                     mr.created_at,
                     fm.first_name AS family_member_first_name,

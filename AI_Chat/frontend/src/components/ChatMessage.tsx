@@ -3,7 +3,7 @@ import { FileText, Download, Copy, Stethoscope, Smile, Pencil } from 'lucide-rea
 import ReactMarkdown from 'react-markdown';
 import { Message } from '../types';
 import { formatTime } from '../utils/date';
-import { buildStaffReportPlainText, downloadStaffInterpretationPdf, StaffReportType } from '../utils/staffReportPdf';
+import { buildStaffReportPlainText, downloadStaffInterpretationPdf, downloadStaffInterpretationPdfAsync, StaffReportType } from '../utils/staffReportPdf';
 import { createStaffMarkdownComponents } from '../utils/staffMarkdownComponents';
 
 interface ChatMessageProps {
@@ -17,6 +17,8 @@ interface ChatMessageProps {
   showUploadProgress?: boolean;
   uploadProgress?: number;
   analyzing?: boolean;
+  /** When set, embedded in radiology PDF downloads (source study image). */
+  referenceImage?: { url: string; label?: string };
 }
 
 const ChatMessage: React.FC<ChatMessageProps> = ({
@@ -28,6 +30,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
   showUploadProgress,
   uploadProgress = 0,
   analyzing,
+  referenceImage,
 }) => {
   const isUser = message.role === 'user';
   const isStaff = variant === 'staff';
@@ -70,16 +73,24 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
     reportType: effectiveReportType,
     messageId: message.id,
     timestamp: message.timestamp,
-    sourceFileName: getTopic() || undefined,
+    sourceFileName: referenceImage?.label || getTopic() || undefined,
+    referenceImage: referenceImage
+      ? { url: referenceImage.url, label: referenceImage.label }
+      : undefined,
   });
 
-  const handleDownloadPDF = () => {
+  const handleDownloadPDF = async () => {
+    const opts = reportPdfOptions();
+    if (isStaff && effectiveReportType === 'radiology' && referenceImage?.url) {
+      await downloadStaffInterpretationPdfAsync(opts);
+      return;
+    }
     if (isStaff && (effectiveReportType === 'radiology' || effectiveReportType === 'lab')) {
-      downloadStaffInterpretationPdf(reportPdfOptions());
+      downloadStaffInterpretationPdf(opts);
       return;
     }
     downloadStaffInterpretationPdf({
-      ...reportPdfOptions(),
+      ...opts,
       reportType: 'general',
     });
   };

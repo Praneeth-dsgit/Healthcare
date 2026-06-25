@@ -24,13 +24,18 @@ class NotificationService {
     return sessionStorage.getItem('patient_id');
   }
 
-  async getNotifications(unreadOnly: boolean = false): Promise<{ success: boolean; notifications?: Notification[]; error?: string }> {
+  async getNotifications(
+    unreadOnly: boolean = false
+  ): Promise<{ success: boolean; notifications?: Notification[]; error?: string; unauthorized?: boolean }> {
     try {
       const queryParam = unreadOnly ? '?unread_only=true' : '';
       const response = await authenticatedFetch(`${API_BASE}/api/notifications/patient${queryParam}`, {
         method: 'GET',
         headers: getAuthHeaders(),
       });
+      if (response.status === 401) {
+        return { success: false, unauthorized: true, error: 'Unauthorized' };
+      }
       const data = await response.json();
       return data;
     } catch (error) {

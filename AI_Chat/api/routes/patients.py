@@ -8,6 +8,7 @@ import logging
 import traceback
 from config import db
 from utils.jwt_utils import require_jwt
+from services.condition_trend_service import extract_diagnosis_text, record_condition_event
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +55,18 @@ def _is_clinical_staff_user() -> bool:
 def _can_access_patient_records(requested_patient_id: str) -> bool:
     """Patients may read their own records; clinical staff may read any patient."""
     if g.patient_id and g.patient_id == requested_patient_id:
+        return True
+    return _is_clinical_staff_user()
+
+
+def _staff_can_delete_record_type(record_type: str) -> bool:
+    """Role-aware delete: radiology staff → imaging reports; lab staff → lab reports."""
+    role = _get_user_role(g.user_email)
+    if role in ('admin', 'doctor'):
+        return True
+    if role == 'radiology' and record_type in ('radiology_report', 'other'):
+        return True
+    if role in ('lab_technician', 'lab') and record_type in ('lab_report', 'other'):
         return True
     return _is_clinical_staff_user()
 
@@ -796,6 +809,28 @@ def upload_medical_record():
                 'success': False,
                 'error': 'patient_id is required (or must be the authenticated patient)'
             }), 400
+
+        if g.patient_id and g.patient_id != patient_id:
+            return jsonify({
+                'success': False,
+                'error': 'Not authorized to upload records for another patient',
+            }), 403
+
+        if not g.patient_id and not _is_clinical_staff_user():
+            return jsonify({
+                'success': False,
+                'error': 'Not authorized to upload medical records',
+            }), 403
+
+        patient_exists = db.session.execute(
+            db.text("SELECT patient_id FROM patients WHERE patient_id = :pid AND is_active = TRUE"),
+            {"pid": patient_id},
+        ).fetchone()
+        if not patient_exists:
+            return jsonify({
+                'success': False,
+                'error': f'Patient not found: {patient_id}',
+            }), 404
         
         # Check if file is provided
         if 'file' not in request.files:
@@ -813,6 +848,15 @@ def upload_medical_record():
         
         # Get record metadata
         record_type = request.form.get('record_type', 'prescription')
+        allowed_types = {
+            'prescription', 'lab_report', 'radiology_report',
+            'visit_summary', 'discharge_summary', 'other',
+        }
+        if record_type not in allowed_types:
+            return jsonify({
+                'success': False,
+                'error': f'Invalid record_type. Allowed: {", ".join(sorted(allowed_types))}',
+            }), 400
         title = request.form.get('title', file.filename)
         description = request.form.get('description', '')
         visit_date = request.form.get('visit_date', datetime.now().date().isoformat())
@@ -873,6 +917,22 @@ def upload_medical_record():
         db.session.commit()
         
         record_id = result.lastrowid
+
+        # Track diagnosis trend events from prescription descriptions (best-effort, non-blocking).
+        if record_type == 'prescription':
+            try:
+                diagnosis_text = extract_diagnosis_text(description)
+                if diagnosis_text:
+                    record_condition_event(
+                        patient_id=patient_id,
+                        doctor_id=int(doctor_id) if doctor_id else None,
+                        source_type='prescription',
+                        source_id=record_id,
+                        diagnosis_text=diagnosis_text,
+                        event_date=visit_date,
+                    )
+            except Exception as trend_exc:
+                logger.warning(f"Condition trend event recording skipped: {trend_exc}")
         
         return jsonify({
             'success': True,
@@ -888,6 +948,93 @@ def upload_medical_record():
             'success': False,
             'error': f'Failed to upload medical record: {str(e)}'
         }), 500
+
+
+def _list_staff_medical_records_impl():
+    """Shared handler: flat record list for lab/radiology staff sidebar."""
+    if not _is_clinical_staff_user():
+        return jsonify({
+            'success': False,
+            'error': 'Not authorized to view medical records',
+        }), 403
+
+    capability = request.args.get('capability')
+    search = (request.args.get('search') or '').strip()
+    limit = min(int(request.args.get('limit', 100)), 200)
+
+    type_filter = None
+    if capability == 'lab':
+        type_filter = ['lab_report']
+    elif capability == 'radiology':
+        type_filter = ['radiology_report']
+
+    query = """
+        SELECT
+            mr.record_id,
+            mr.patient_id,
+            mr.record_type,
+            mr.title,
+            mr.description,
+            mr.file_path as file_url,
+            mr.file_type,
+            mr.visit_date,
+            mr.created_at,
+            p.first_name,
+            p.last_name,
+            p.date_of_birth
+        FROM medical_records mr
+        INNER JOIN patients p ON mr.patient_id = p.patient_id
+        WHERE p.is_active = TRUE
+    """
+    params: dict = {}
+
+    if type_filter:
+        placeholders = ", ".join(f":t{i}" for i in range(len(type_filter)))
+        query += f" AND mr.record_type IN ({placeholders})"
+        for i, t in enumerate(type_filter):
+            params[f"t{i}"] = t
+
+    if search:
+        query += (
+            " AND (p.patient_id LIKE :search OR p.first_name LIKE :search"
+            " OR p.last_name LIKE :search OR mr.title LIKE :search)"
+        )
+        params['search'] = f'%{search}%'
+
+    query += " ORDER BY mr.visit_date DESC, mr.created_at DESC LIMIT :lim"
+    params['lim'] = limit
+
+    result = db.session.execute(db.text(query), params).fetchall()
+    records = []
+    for row in result:
+        item = dict(row._mapping) if hasattr(row, '_mapping') else dict(zip(row.keys(), row))
+        for key in ('visit_date', 'created_at', 'date_of_birth'):
+            if item.get(key) and hasattr(item[key], 'isoformat'):
+                item[key] = item[key].isoformat()
+        records.append(item)
+
+    return jsonify({
+        'success': True,
+        'records': records,
+        'count': len(records),
+    }), 200
+
+
+@patients_bp.route('/medical-records/staff-list', methods=['GET'])
+@patients_bp.route('/staff-medical-records', methods=['GET'])
+@require_jwt
+def list_staff_medical_records():
+    """Flat list of medical records for lab/radiology staff sidebar."""
+    try:
+        return _list_staff_medical_records_impl()
+    except Exception as e:
+        logger.error(f"Error listing staff medical records: {e}")
+        logger.error(traceback.format_exc())
+        return jsonify({
+            'success': False,
+            'error': f'Failed to list medical records: {str(e)}',
+        }), 500
+
 
 @patients_bp.route('/medical-records/<int:record_id>/download', methods=['GET'])
 @require_jwt
@@ -930,28 +1077,38 @@ def download_medical_record(record_id):
                 'error': 'File not found on server'
             }), 404
         
-        # Determine MIME type
-        file_type = record.get('file_type', 'application/octet-stream')
-        if file_path.lower().endswith('.pdf'):
-            file_type = 'application/pdf'
-        elif file_path.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.bmp')):
-            file_type = 'image/jpeg'
-        
-        # Get filename from path
-        filename = os.path.basename(file_path)
-        title = record.get('title', filename)
-        # Use title for download filename, but ensure it has proper extension
-        if not title.lower().endswith(('.pdf', '.png', '.jpg', '.jpeg', '.gif', '.bmp')):
-            if file_type == 'application/pdf':
-                filename = f"{title}.pdf"
-            else:
-                filename = title
-        
+        from werkzeug.utils import secure_filename
+
+        ext = os.path.splitext(file_path)[1].lower()
+        mime_by_ext = {
+            '.pdf': 'application/pdf',
+            '.png': 'image/png',
+            '.jpg': 'image/jpeg',
+            '.jpeg': 'image/jpeg',
+            '.gif': 'image/gif',
+            '.bmp': 'image/bmp',
+            '.webp': 'image/webp',
+        }
+        file_type = mime_by_ext.get(ext) or record.get('file_type') or 'application/octet-stream'
+
+        stored_name = os.path.basename(file_path)
+        title = (record.get('title') or stored_name).strip()
+        safe_title = secure_filename(title) or 'medical-record'
+
+        if ext and not safe_title.lower().endswith(ext):
+            download_name = f"{safe_title}{ext}"
+        elif safe_title.lower().endswith(tuple(mime_by_ext.keys())):
+            download_name = safe_title
+        elif ext:
+            download_name = f"{safe_title}{ext}"
+        else:
+            download_name = safe_title
+
         return send_file(
             file_path,
             mimetype=file_type,
             as_attachment=True,
-            download_name=filename
+            download_name=download_name,
         )
         
     except Exception as e:
@@ -960,5 +1117,72 @@ def download_medical_record(record_id):
         return jsonify({
             'success': False,
             'error': f'Failed to download medical record: {str(e)}'
+        }), 500
+
+
+@patients_bp.route('/medical-records/<int:record_id>', methods=['DELETE'])
+@require_jwt
+def delete_medical_record(record_id):
+    """Delete a medical record (staff or the owning patient). Removes DB row and file on disk."""
+    try:
+        import os
+
+        result = db.session.execute(
+            db.text("""
+                SELECT mr.record_id, mr.patient_id, mr.record_type, mr.title, mr.file_path
+                FROM medical_records mr
+                WHERE mr.record_id = :record_id
+            """),
+            {"record_id": record_id},
+        ).fetchone()
+
+        if not result:
+            return jsonify({'success': False, 'error': 'Record not found'}), 404
+
+        record = dict(result._mapping) if hasattr(result, '_mapping') else dict(zip(result.keys(), result))
+        patient_id = record.get('patient_id')
+        record_type = record.get('record_type')
+
+        if g.patient_id:
+            if g.patient_id != patient_id:
+                return jsonify({'success': False, 'error': 'Not authorized to delete this record'}), 403
+        elif not _is_clinical_staff_user():
+            return jsonify({'success': False, 'error': 'Not authorized to delete medical records'}), 403
+        elif not _staff_can_delete_record_type(record_type):
+            return jsonify({
+                'success': False,
+                'error': f'Not authorized to delete record type: {record_type}',
+            }), 403
+
+        if not _can_access_patient_records(patient_id):
+            return jsonify({'success': False, 'error': 'Not authorized to delete this record'}), 403
+
+        file_path = record.get('file_path')
+        if file_path and os.path.isfile(file_path):
+            try:
+                os.remove(file_path)
+            except OSError as exc:
+                logger.warning("Could not remove file %s: %s", file_path, exc)
+
+        db.session.execute(
+            db.text("DELETE FROM medical_records WHERE record_id = :record_id"),
+            {"record_id": record_id},
+        )
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': 'Medical record deleted',
+            'record_id': record_id,
+            'patient_id': patient_id,
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error deleting medical record: {e}")
+        logger.error(traceback.format_exc())
+        return jsonify({
+            'success': False,
+            'error': f'Failed to delete medical record: {str(e)}',
         }), 500
 

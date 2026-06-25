@@ -115,20 +115,19 @@ const RadiologyBooking: React.FC = () => {
   return (
     <PortalPageShell className="max-w-4xl">
         <PortalPageHero
-          eyebrow="Imaging"
-          title="Book Radiology Scan"
-          subtitle={`Step ${step} of 2`}
-          icon={<Scan />}
-          actions={
+          eyebrow={
             <button
               type="button"
               onClick={() => navigate('/portal/radiology')}
-              className="ghost-button inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-bold"
+              className="ghost-button -ml-1 inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-bold uppercase tracking-wide text-teal-300 transition-colors hover:text-teal-200"
             >
-              <ArrowLeft className="h-4 w-4" />
-              Back
+              <ArrowLeft className="h-3.5 w-3.5" />
+              Back to radiology
             </button>
           }
+          title="Book Radiology Scan"
+          subtitle={`Step ${step} of 2`}
+          icon={<Scan />}
         />
 
         {step === 1 && (

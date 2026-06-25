@@ -4,6 +4,7 @@
  */
 
 import { getAuthHeaders, authenticatedFetch } from './authService';
+import { filenameFromContentDisposition } from '../utils/medicalRecordDownload';
 
 import { getApiRoot } from '../utils/apiBase';
 
@@ -27,6 +28,52 @@ export interface MedicalRecord {
 }
 
 class RecordService {
+  /** Flat record list for lab/radiology staff sidebar (one row per file). */
+  async listStaffMedicalRecords(params?: {
+    capability?: 'lab' | 'radiology';
+    search?: string;
+    limit?: number;
+  }): Promise<{
+    success: boolean;
+    records?: Array<
+      MedicalRecord & {
+        first_name: string;
+        last_name: string;
+        date_of_birth?: string;
+      }
+    >;
+    count?: number;
+    error?: string;
+  }> {
+    const queryParams = new URLSearchParams();
+    if (params?.capability) queryParams.append('capability', params.capability);
+    if (params?.search) queryParams.append('search', params.search);
+    if (params?.limit) queryParams.append('limit', String(params.limit));
+    const qs = queryParams.toString();
+
+    const paths = [
+      `${API_BASE}/patient/medical-records/staff-list${qs ? `?${qs}` : ''}`,
+      `${API_BASE}/patient/staff-medical-records${qs ? `?${qs}` : ''}`,
+    ];
+
+    for (const url of paths) {
+      try {
+        const response = await authenticatedFetch(url, {
+          method: 'GET',
+          headers: getAuthHeaders(),
+        });
+        if (response.status === 405 || response.status === 404) {
+          continue;
+        }
+        return await response.json();
+      } catch {
+        continue;
+      }
+    }
+
+    return { success: false, error: 'Could not load staff medical records' };
+  }
+
   /** Patients with at least one medical record in the database (staff directory). */
   async listPatientsWithRecords(params?: {
     capability?: 'lab' | 'radiology' | 'general';
@@ -125,14 +172,20 @@ class RecordService {
     }
   }
 
-  async downloadRecord(recordId: number): Promise<Blob | null> {
+  async downloadRecord(
+    recordId: number
+  ): Promise<{ blob: Blob; filename: string | null } | null> {
     try {
       const response = await authenticatedFetch(`${API_BASE}/patient/medical-records/${recordId}/download`, {
         method: 'GET',
         headers: getAuthHeaders(),
       });
       if (response.ok) {
-        return await response.blob();
+        const blob = await response.blob();
+        const filename = filenameFromContentDisposition(
+          response.headers.get('Content-Disposition')
+        );
+        return { blob, filename };
       }
       return null;
     } catch (error) {
@@ -140,10 +193,16 @@ class RecordService {
     }
   }
 
-  async uploadMedicalRecord(formData: FormData): Promise<{ success: boolean; record?: MedicalRecord; error?: string }> {
+  async uploadMedicalRecord(
+    formData: FormData,
+    patientId?: string
+  ): Promise<{ success: boolean; record_id?: number; record?: MedicalRecord; error?: string; message?: string }> {
     try {
       const headers = getAuthHeaders() as Record<string, string>;
       delete headers['Content-Type']; // Let browser set multipart boundary for FormData
+      if (patientId) {
+        headers['X-Patient-ID'] = patientId;
+      }
       const response = await authenticatedFetch(`${API_BASE}/patient/medical-records`, {
         method: 'POST',
         headers,
@@ -152,6 +211,21 @@ class RecordService {
       const data = await response.json();
       return data;
     } catch (error) {
+      return { success: false, error: 'Network error' };
+    }
+  }
+
+  async deleteMedicalRecord(
+    recordId: number
+  ): Promise<{ success: boolean; error?: string; message?: string; patient_id?: string }> {
+    try {
+      const response = await authenticatedFetch(`${API_BASE}/patient/medical-records/${recordId}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders(),
+      });
+      const data = await response.json();
+      return data;
+    } catch {
       return { success: false, error: 'Network error' };
     }
   }

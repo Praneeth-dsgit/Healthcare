@@ -28,7 +28,9 @@ import {
   AlertCircle,
 } from 'lucide-react';
 
-const API_BASE = 'http://localhost:5000/api/patient-engagement';
+import { getApiBaseUrl } from '../utils/apiBase';
+
+const API_BASE = `${getApiBaseUrl()}/api/patient-engagement`;
 
 type NavTab = 'dashboard' | 'registration' | 'appointments' | 'billing' | 'queue' | 'reports';
 

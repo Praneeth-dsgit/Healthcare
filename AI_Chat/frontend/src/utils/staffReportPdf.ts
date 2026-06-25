@@ -8,6 +8,12 @@ export interface StaffReportPdfOptions {
   messageId: string;
   timestamp: string | Date;
   sourceFileName?: string;
+  /** Source imaging study shown in the PDF (radiology reports). */
+  referenceImage?: {
+    url?: string;
+    dataUrl?: string;
+    label?: string;
+  };
 }
 
 const REPORT_META: Record<
@@ -55,13 +61,50 @@ function formatTimestamp(ts: string | Date): string {
 }
 
 function stripInlineMarkdown(text: string): string {
-  return text
-    .replace(/\*\*(.+?)\*\*/g, '$1')
-    .replace(/\*(.+?)\*/g, '$1')
-    .replace(/__(.+?)__/g, '$1')
-    .replace(/_(.+?)_/g, '$1')
-    .replace(/`(.+?)`/g, '$1')
-    .trim();
+  return normalizeTextForPdf(
+    text
+      .replace(/\*\*(.+?)\*\*/g, '$1')
+      .replace(/\*(.+?)\*/g, '$1')
+      .replace(/__(.+?)__/g, '$1')
+      .replace(/_(.+?)_/g, '$1')
+      .replace(/`(.+?)`/g, '$1')
+      .trim()
+  );
+}
+
+/**
+ * jsPDF Helvetica only supports WinAnsi/Latin-1. Unicode (μ, en-dash, etc.) causes
+ * garbled output with spaces between every character — normalize before rendering.
+ */
+function normalizeTextForPdf(text: string): string {
+  let s = text.normalize('NFKC');
+
+  const replacements: Array<[RegExp, string]> = [
+    [/[\u03BC\u00B5]/g, 'u'], // μ, µ → u (e.g. uIU/mL)
+    [/[\u2013\u2014\u2212]/g, '-'], // en/em dash, minus
+    [/[\u2018\u2019]/g, "'"],
+    [/[\u201C\u201D]/g, '"'],
+    [/[\u00A0]/g, ' '],
+    [/[\u200B-\u200D\uFEFF]/g, ''], // zero-width
+    [/[\u00B0]/g, ' deg'],
+    [/[\u00B1]/g, '+/-'],
+    [/[\u2264]/g, '<='],
+    [/[\u2265]/g, '>='],
+    [/[\u2192]/g, '->'],
+    [/[\u00D7]/g, 'x'],
+  ];
+
+  for (const [pattern, replacement] of replacements) {
+    s = s.replace(pattern, replacement);
+  }
+
+  // Strip remaining non-WinAnsi characters (decompose accented Latin where possible)
+  s = s.replace(/[^\t\n\r\x20-\x7E\xA0-\xFF]/g, (ch) => {
+    const base = ch.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    return /^[\x20-\x7E]$/.test(base) ? base : '';
+  });
+
+  return s.replace(/[ \t]{2,}/g, ' ').trim();
 }
 
 type Block =
@@ -118,12 +161,81 @@ function ensureSpace(doc: jsPDF, y: number, needed: number): number {
   return y;
 }
 
-/**
- * Renders a standardized clinical interpretation PDF for radiology and laboratory staff chat.
- */
-export function downloadStaffInterpretationPdf(options: StaffReportPdfOptions): void {
+async function resolveReferenceImageDataUrl(
+  referenceImage?: StaffReportPdfOptions['referenceImage']
+): Promise<string | null> {
+  if (!referenceImage) return null;
+  if (referenceImage.dataUrl) return referenceImage.dataUrl;
+  if (!referenceImage.url) return null;
+  try {
+    const res = await fetch(referenceImage.url);
+    const blob = await res.blob();
+    return await new Promise<string | null>((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : null);
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return null;
+  }
+}
+
+function drawReferenceImageSection(
+  doc: jsPDF,
+  y: number,
+  dataUrl: string,
+  label: string | undefined,
+  accent: [number, number, number]
+): number {
+  const format = dataUrl.startsWith('data:image/png') ? 'PNG' : 'JPEG';
+  let props: { width: number; height: number };
+  try {
+    props = doc.getImageProperties(dataUrl);
+  } catch {
+    return y;
+  }
+
+  const maxHmm = 105;
+  let imgWmm = CONTENT_WIDTH;
+  let imgHmm = (props.height * imgWmm) / props.width;
+  if (imgHmm > maxHmm) {
+    imgHmm = maxHmm;
+    imgWmm = (props.width * imgHmm) / props.height;
+  }
+
+  y = ensureSpace(doc, y, imgHmm + 18);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(...accent);
+  doc.text('REFERENCE IMAGE (SOURCE STUDY)', PAGE.margin, y);
+  y += 6;
+
+  if (label) {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(71, 85, 105);
+    const labelLines = doc.splitTextToSize(normalizeTextForPdf(label), CONTENT_WIDTH);
+    doc.text(labelLines, PAGE.margin, y);
+    y += labelLines.length * 4 + 2;
+  }
+
+  doc.setDrawColor(203, 213, 225);
+  doc.setLineWidth(0.3);
+  doc.rect(PAGE.margin, y - 1, imgWmm, imgHmm);
+  doc.addImage(dataUrl, format, PAGE.margin, y, imgWmm, imgHmm, undefined, 'FAST');
+  y += imgHmm + 8;
+
+  doc.setDrawColor(...accent);
+  doc.setLineWidth(0.4);
+  doc.line(PAGE.margin, y, PAGE.width - PAGE.margin, y);
+  y += 8;
+
+  return y;
+}
+
+function renderStaffInterpretationPdf(doc: jsPDF, options: StaffReportPdfOptions, referenceDataUrl: string | null): void {
   const meta = REPORT_META[options.reportType];
-  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   const blocks = parseContentToBlocks(options.content);
   const reportId = options.messageId.slice(0, 12).toUpperCase();
   const generatedAt = formatTimestamp(options.timestamp);
@@ -139,7 +251,7 @@ export function downloadStaffInterpretationPdf(options: StaffReportPdfOptions): 
   doc.text('Acufore Health', PAGE.margin, 12);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
-  doc.text(meta.department, PAGE.margin, 19);
+  doc.text(normalizeTextForPdf(meta.department), PAGE.margin, 19);
   doc.setFontSize(8);
   doc.text(`Report ID: ${reportId}`, PAGE.width - PAGE.margin, 12, { align: 'right' });
   doc.text(generatedAt, PAGE.width - PAGE.margin, 19, { align: 'right' });
@@ -155,7 +267,7 @@ export function downloadStaffInterpretationPdf(options: StaffReportPdfOptions): 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
   doc.setTextColor(71, 85, 105);
-  doc.text(meta.subtitle, PAGE.margin, y);
+  doc.text(normalizeTextForPdf(meta.subtitle), PAGE.margin, y);
   y += 8;
 
   // Metadata box
@@ -179,7 +291,7 @@ export function downloadStaffInterpretationPdf(options: StaffReportPdfOptions): 
     doc.text(`${label}:`, PAGE.margin + 4, metaY);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(30, 41, 59);
-    const valueLines = doc.splitTextToSize(value, CONTENT_WIDTH - 42);
+    const valueLines = doc.splitTextToSize(normalizeTextForPdf(value), CONTENT_WIDTH - 42);
     doc.text(valueLines, PAGE.margin + 38, metaY);
     metaY += Math.max(7, valueLines.length * 4.5);
   }
@@ -190,6 +302,16 @@ export function downloadStaffInterpretationPdf(options: StaffReportPdfOptions): 
   doc.setLineWidth(0.4);
   doc.line(PAGE.margin, y, PAGE.width - PAGE.margin, y);
   y += 8;
+
+  if (options.reportType === 'radiology' && referenceDataUrl) {
+    y = drawReferenceImageSection(
+      doc,
+      y,
+      referenceDataUrl,
+      options.referenceImage?.label || options.sourceFileName,
+      meta.accent
+    );
+  }
 
   // Body
   for (const block of blocks) {
@@ -266,6 +388,55 @@ export function downloadStaffInterpretationPdf(options: StaffReportPdfOptions): 
 
   const dateSlug = new Date(options.timestamp).toISOString().split('T')[0];
   doc.save(`${meta.filenamePrefix}_${dateSlug}_${reportId}.pdf`);
+}
+
+/**
+ * Renders a standardized clinical interpretation PDF for radiology and laboratory staff chat.
+ */
+export function downloadStaffInterpretationPdf(options: StaffReportPdfOptions): void {
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  renderStaffInterpretationPdf(doc, options, null);
+}
+
+/** Async variant — embeds reference imaging for radiology when a source image URL is provided. */
+export async function downloadStaffInterpretationPdfAsync(
+  options: StaffReportPdfOptions
+): Promise<void> {
+  let referenceDataUrl: string | null = null;
+  if (options.reportType === 'radiology' && options.referenceImage) {
+    referenceDataUrl = await resolveReferenceImageDataUrl(options.referenceImage);
+  }
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  renderStaffInterpretationPdf(doc, options, referenceDataUrl);
+}
+
+type MessageWithFile = {
+  id: string;
+  role: string;
+  fileUrl?: string;
+  fileType?: string;
+  fileName?: string;
+  pdfThumbnail?: string;
+};
+
+/** Nearest prior user upload (image or PDF preview) for an assistant interpretation message. */
+export function findReferenceImageForAssistantMessage(
+  messages: MessageWithFile[],
+  assistantMessageId: string
+): { url: string; label?: string } | undefined {
+  const idx = messages.findIndex((m) => m.id === assistantMessageId);
+  if (idx <= 0) return undefined;
+  for (let i = idx - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (m.role !== 'user') continue;
+    if (m.fileUrl && m.fileType?.startsWith('image/')) {
+      return { url: m.fileUrl, label: m.fileName };
+    }
+    if (m.pdfThumbnail) {
+      return { url: m.pdfThumbnail, label: m.fileName };
+    }
+  }
+  return undefined;
 }
 
 export function buildStaffReportPlainText(options: StaffReportPdfOptions): string {

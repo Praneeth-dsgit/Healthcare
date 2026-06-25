@@ -26,6 +26,7 @@ import PatientPortalChat from './patient/PatientPortalChat';
 import Notifications from './patient/Notifications';
 import { patientService } from '../services/patientService';
 import { notificationService, Notification } from '../services/notificationService';
+import { isAuthenticated } from '../services/authService';
 
 
 const PatientPortalLayout: React.FC = () => {
@@ -55,6 +56,7 @@ const PatientPortalLayout: React.FC = () => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotificationPopup, setShowNotificationPopup] = useState(false);
   const [currentNotification, setCurrentNotification] = useState<Notification | null>(null);
+  const [notificationAuthFailed, setNotificationAuthFailed] = useState(false);
   const lastNotificationIdRef = useRef<number | null>(null);
   const pollingIntervalRef = useRef<number | null>(null);
   const profileMenuRef = useRef<HTMLDivElement>(null);
@@ -72,19 +74,25 @@ const PatientPortalLayout: React.FC = () => {
 
   useEffect(() => {
     loadPatientName();
-    loadNotifications();
+    if (isAuthenticated()) {
+      loadNotifications();
+    } else {
+      setNotificationAuthFailed(true);
+    }
     
     // Start polling for new notifications every 10 seconds
-    pollingIntervalRef.current = window.setInterval(() => {
-      checkForNewNotifications();
-    }, 10000);
+    if (!notificationAuthFailed && isAuthenticated()) {
+      pollingIntervalRef.current = window.setInterval(() => {
+        checkForNewNotifications();
+      }, 10000);
+    }
     
     return () => {
       if (pollingIntervalRef.current) {
         clearInterval(pollingIntervalRef.current);
       }
     };
-  }, []);
+  }, [notificationAuthFailed]);
 
   const loadPatientName = async () => {
     setLoadingPatient(true);
@@ -123,6 +131,11 @@ const PatientPortalLayout: React.FC = () => {
   const loadNotifications = async () => {
     try {
       const result = await notificationService.getNotifications(false);
+      if (result.unauthorized) {
+        setNotificationAuthFailed(true);
+        setUnreadCount(0);
+        return;
+      }
       if (result.success && result.notifications) {
         const unread = result.notifications.filter(n => !n.is_read);
         setUnreadCount(unread.length);
@@ -140,6 +153,11 @@ const PatientPortalLayout: React.FC = () => {
   const checkForNewNotifications = async () => {
     try {
       const result = await notificationService.getNotifications(true); // Only unread
+      if (result.unauthorized) {
+        setNotificationAuthFailed(true);
+        setUnreadCount(0);
+        return;
+      }
       if (result.success && result.notifications) {
         // Check if there are new notifications
         const newNotifications = result.notifications.filter(

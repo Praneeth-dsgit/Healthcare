@@ -4,7 +4,8 @@ import ChatMessage from './components/ChatMessage';
 import LoadingDots from './components/LoadingDots';
 import DisclaimerModal from './components/DisclaimerModal';
 import { type Capability } from './services/roleService';
-import { clearAuth } from './services/authService';
+import { clearAuth, authenticatedFetch, getAuthHeaders } from './services/authService';
+import { getApiBaseUrl } from './utils/apiBase';
 import PatientInfoForm from './components/PatientInfoForm';
 import PatientEngagement from './components/PatientEngagement';
 import FrontDeskPortal from './components/FrontDeskPortal';
@@ -308,6 +309,23 @@ const App: FC = () => {
     resetMessage: payload.resetMessage ?? null,
     capability: payload.capability || selectedCapability || 'general',
   });
+
+  const postChatStream = async (
+    body: ReturnType<typeof buildChatStreamBody>,
+    signal?: AbortSignal
+  ) => {
+    const response = await authenticatedFetch(`${getApiBaseUrl()}/api/chat/stream`, {
+      method: 'POST',
+      headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal,
+    });
+    if (!response.ok) {
+      throw new Error(`Chat request failed (${response.status})`);
+    }
+    return response;
+  };
+
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [sessions, setSessions] = useState<any[]>([]);
   const [currentSessionId, setCurrentSessionIdState] = useState<string | null>(null);
@@ -687,22 +705,18 @@ const App: FC = () => {
       const resetContext = shouldResetContext(userMessage.content);
       const isFollowUp = !resetContext;
       const resetMessage = resetContext ? userMessage.content.trim().toLowerCase() : null;
-      const response = await fetch('http://localhost:5000/api/chat/stream', {
-        signal: controller.signal,
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(
-          buildChatStreamBody({
-            message: userMessage.content,
-            patientInfo: info,
-            fileContext: resetContext ? null : lastUploadedFile,
-            fileFindings: resetContext ? null : lastFileFindings,
-            previousAiMessage: isFollowUp ? lastAiMessage : null,
-            resetMessage,
-            capability: selectedCapability || 'general',
-          })
-        ),
-      });
+      const response = await postChatStream(
+        buildChatStreamBody({
+          message: userMessage.content,
+          patientInfo: info,
+          fileContext: resetContext ? null : lastUploadedFile,
+          fileFindings: resetContext ? null : lastFileFindings,
+          previousAiMessage: isFollowUp ? lastAiMessage : null,
+          resetMessage,
+          capability: selectedCapability || 'general',
+        }),
+        controller.signal
+      );
 
       const reader = response.body?.getReader();
       if (!reader) throw new Error('No reader available');
@@ -837,23 +851,17 @@ const App: FC = () => {
           const resetContext = shouldResetContext(editedUserMessage.content);
           const isFollowUp = !resetContext;
           const resetMessage = resetContext ? editedUserMessage.content.trim().toLowerCase() : null;
-          const response = await fetch('http://localhost:5000/api/chat/stream', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(
-              buildChatStreamBody({
-                message: editedUserMessage.content,
-                patientInfo: editedUserMessage.patientInfo,
-                fileContext: resetContext ? null : lastUploadedFile,
-                fileFindings: resetContext ? null : lastFileFindings,
-                previousAiMessage: isFollowUp ? lastAiMessage : null,
-                resetMessage,
-                capability: selectedCapability || 'general',
-              })
-            ),
-          });
+          const response = await postChatStream(
+            buildChatStreamBody({
+              message: editedUserMessage.content,
+              patientInfo: editedUserMessage.patientInfo,
+              fileContext: resetContext ? null : lastUploadedFile,
+              fileFindings: resetContext ? null : lastFileFindings,
+              previousAiMessage: isFollowUp ? lastAiMessage : null,
+              resetMessage,
+              capability: selectedCapability || 'general',
+            })
+          );
           if (!response.ok) throw new Error('Failed to get response from server');
           const reader = response.body?.getReader();
           if (!reader) throw new Error('No reader available');
@@ -944,24 +952,18 @@ const App: FC = () => {
       const resetContext = shouldResetContext(userMessage.content);
       const isFollowUp = !resetContext;
       const resetMessage = resetContext ? userMessage.content.trim().toLowerCase() : null;
-      const response = await fetch('http://localhost:5000/api/chat/stream', {
-        signal: controller.signal,
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(
-          buildChatStreamBody({
-            message: userMessage.content,
-            patientInfo: linkedPatient?.patientInfo ?? patientInfo,
-            fileContext: resetContext ? null : lastUploadedFile,
-            fileFindings: resetContext ? null : lastFileFindings,
-            previousAiMessage: isFollowUp ? lastAiMessage : null,
-            resetMessage,
-            capability: selectedCapability || 'general',
-          })
-        ),
-      });
+      const response = await postChatStream(
+        buildChatStreamBody({
+          message: userMessage.content,
+          patientInfo: linkedPatient?.patientInfo ?? patientInfo,
+          fileContext: resetContext ? null : lastUploadedFile,
+          fileFindings: resetContext ? null : lastFileFindings,
+          previousAiMessage: isFollowUp ? lastAiMessage : null,
+          resetMessage,
+          capability: selectedCapability || 'general',
+        }),
+        controller.signal
+      );
 
       if (!response.ok) throw new Error('Failed to get response from server');
 
@@ -1132,7 +1134,7 @@ const App: FC = () => {
       try {
         await new Promise<void>((resolve, reject) => {
           const xhr = new XMLHttpRequest();
-          xhr.open('POST', 'http://localhost:5000/api/upload');
+          xhr.open('POST', `${getApiBaseUrl()}/api/upload`);
           xhr.upload.onprogress = (event) => {
             if (event.lengthComputable) {
               setUploadProgress(Math.round((event.loaded / event.total) * 100));

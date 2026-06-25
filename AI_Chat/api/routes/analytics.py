@@ -13,6 +13,8 @@ import openai
 from datetime import datetime
 from config import UPLOAD_FOLDER
 from context_manager import context_manager
+from config import db
+from services.condition_trend_service import get_condition_trends
 
 logger = logging.getLogger(__name__)
 
@@ -241,5 +243,35 @@ def get_usage_statistics():
         return jsonify({
             'success': False,
             'error': f'Failed to fetch usage statistics: {str(e)}'
+        }), 500
+
+
+@analytics_bp.route('/analytics/condition-trends', methods=['GET'])
+@require_jwt
+def condition_trends():
+    """Return condition trend and surge analytics for reports dashboard."""
+    try:
+        days = int(request.args.get('days', 30))
+        days = max(7, min(days, 365))
+
+        doctor_id = None
+        if g.user_email:
+            row = db.session.execute(
+                db.text("SELECT doctor_id FROM doctors WHERE email = :email AND is_active = TRUE LIMIT 1"),
+                {"email": g.user_email},
+            ).fetchone()
+            if row:
+                doctor_id = int(row[0])
+
+        payload = get_condition_trends(days=days, doctor_id=doctor_id, top_n=8)
+        return jsonify({"success": True, **payload}), 200
+    except Exception as e:
+        logger.error(f"Error fetching condition trends: {e}")
+        logger.error(traceback.format_exc())
+        return jsonify({
+            "success": False,
+            "error": f"Failed to fetch condition trends: {str(e)}",
+            "trends": [],
+            "surges": [],
         }), 500
 

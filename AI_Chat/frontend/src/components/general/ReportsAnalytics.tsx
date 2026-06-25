@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { BarChart3, TrendingUp, Calendar, FileText, ArrowUp } from 'lucide-react';
+import { BarChart3, TrendingUp, Calendar, FileText, ArrowUp, AlertTriangle, Activity } from 'lucide-react';
 import { appointmentService, Appointment } from '../../services/appointmentService';
 import { doctorService } from '../../services/doctorService';
 import {
@@ -49,6 +49,9 @@ const ReportsAnalytics: React.FC = () => {
   const [prescriptionsChartData, setPrescriptionsChartData] = useState<any[]>([]);
   const [appointmentsByStatus, setAppointmentsByStatus] = useState<any[]>([]);
   const [generatingReport, setGeneratingReport] = useState(false);
+  const [conditionTrends, setConditionTrends] = useState<any[]>([]);
+  const [conditionSurges, setConditionSurges] = useState<any[]>([]);
+  const [conditionSeries, setConditionSeries] = useState<any[]>([]);
 
   useEffect(() => {
     loadAnalytics();
@@ -250,9 +253,15 @@ const ReportsAnalytics: React.FC = () => {
   const loadAnalytics = async () => {
     setLoading(true);
     try {
-      const [appointmentsResult, prescriptionsResult] = await Promise.all([
+      const trendDays = dateRange === 'week' ? 7 : dateRange === 'year' ? 365 : 30;
+      const { authenticatedFetch, getAuthHeaders } = await import('../../services/authService');
+      const [appointmentsResult, prescriptionsResult, conditionTrendResp] = await Promise.all([
         appointmentService.getAppointments(),
         doctorService.getPrescriptions(),
+        authenticatedFetch(`${getApiBaseUrl()}/api/analytics/condition-trends?days=${trendDays}`, {
+          method: 'GET',
+          headers: getAuthHeaders(),
+        }),
       ]);
 
       if (appointmentsResult.success && appointmentsResult.appointments) {
@@ -277,6 +286,26 @@ const ReportsAnalytics: React.FC = () => {
       if (prescriptionsResult.success && prescriptionsResult.prescriptions) {
         setPrescriptions(prescriptionsResult.prescriptions);
         processPrescriptionsData(prescriptionsResult.prescriptions);
+      }
+
+      try {
+        const conditionTrendData = await conditionTrendResp.json();
+        if (conditionTrendData.success) {
+          const trends = conditionTrendData.trends || [];
+          const surges = conditionTrendData.surges || [];
+          setConditionTrends(trends);
+          setConditionSurges(surges);
+          const top = trends[0];
+          setConditionSeries(top?.series || []);
+        } else {
+          setConditionTrends([]);
+          setConditionSurges([]);
+          setConditionSeries([]);
+        }
+      } catch {
+        setConditionTrends([]);
+        setConditionSurges([]);
+        setConditionSeries([]);
       }
     } catch (error) {
       console.error('Error loading analytics:', error);
@@ -521,6 +550,105 @@ const ReportsAnalytics: React.FC = () => {
             </div>
           )}
         </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
+        <div className="rounded-xl border border-slate-700/50 bg-slate-900/30 p-5 xl:col-span-2">
+          <div className="mb-4 flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-slate-100">Condition Trend (Top Rising)</h3>
+            <span className="text-xs text-slate-400">Based on prescription diagnosis capture</span>
+          </div>
+          {conditionSeries.length > 0 ? (
+            <ResponsiveContainer width="100%" height={280}>
+              <LineChart data={conditionSeries}>
+                <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_STROKE} />
+                <XAxis dataKey="date" tick={CHART_TICK} />
+                <YAxis tick={CHART_TICK} />
+                <Tooltip contentStyle={CHART_TOOLTIP_STYLE} />
+                <Legend wrapperStyle={{ color: '#94a3b8' }} />
+                <Line
+                  type="monotone"
+                  dataKey="count"
+                  stroke="#22d3ee"
+                  strokeWidth={3}
+                  name={conditionTrends[0]?.condition_name || 'Condition count'}
+                  dot={{ fill: '#22d3ee', r: 3 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex h-64 items-center justify-center text-slate-500">
+              <div className="text-center">
+                <Activity size={48} className="mx-auto mb-2 text-slate-500" />
+                <p className="text-sm">No diagnosis trend data yet</p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-xl border border-slate-700/50 bg-slate-900/30 p-5">
+          <h3 className="mb-4 text-lg font-semibold text-slate-100">Surge Alerts</h3>
+          {conditionSurges.length > 0 ? (
+            <div className="space-y-3">
+              {conditionSurges.slice(0, 6).map((s, idx) => (
+                <div
+                  key={`${s.condition_code}-${idx}`}
+                  className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3"
+                >
+                  <div className="mb-1 flex items-center justify-between">
+                    <p className="text-sm font-semibold text-amber-200">{s.condition_name}</p>
+                    <span className="rounded-full bg-slate-800/80 px-2 py-0.5 text-[10px] uppercase text-slate-300">
+                      {s.severity}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-300">
+                    Current: {s.current_count} | Previous: {s.previous_count} | WoW: +{s.wow_pct}%
+                  </p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="flex h-64 items-center justify-center text-slate-500">
+              <div className="text-center">
+                <AlertTriangle size={48} className="mx-auto mb-2 text-slate-500" />
+                <p className="text-sm">No active surge alerts</p>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-slate-700/50 bg-slate-900/30 p-5">
+        <div className="mb-3 flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-slate-100">Top Rising Conditions</h3>
+          <span className="text-xs text-slate-400">WoW trend ranking</span>
+        </div>
+        {conditionTrends.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead>
+                <tr className="border-b border-slate-700/60 text-left text-slate-400">
+                  <th className="py-2 pr-4">Condition</th>
+                  <th className="py-2 pr-4">Current</th>
+                  <th className="py-2 pr-4">Previous</th>
+                  <th className="py-2 pr-4">WoW %</th>
+                </tr>
+              </thead>
+              <tbody>
+                {conditionTrends.map((row, idx) => (
+                  <tr key={`${row.condition_code}-${idx}`} className="border-b border-slate-800/70 text-slate-200">
+                    <td className="py-2 pr-4">{row.condition_name}</td>
+                    <td className="py-2 pr-4">{row.current_count}</td>
+                    <td className="py-2 pr-4">{row.prev_count}</td>
+                    <td className="py-2 pr-4 text-emerald-300">+{row.wow_pct}%</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="text-sm text-slate-400">No condition trend records yet. Save prescriptions with diagnosis to start tracking.</p>
+        )}
       </div>
 
     </div>

@@ -12,7 +12,7 @@ from config import db
 from validation_utils import validate_request
 from models import ChatRequest
 from context_manager import context_manager
-from services.ai_service import generate_capability_prompt
+from services.ai_service import generate_capability_prompt, get_chat_stream_system_message
 from utils.jwt_utils import require_jwt
 
 logger = logging.getLogger(__name__)
@@ -47,7 +47,10 @@ def chat_stream():
         logger.info(f"Processing message: '{user_message}' with capability: {capability}, session: {session_id}, user: {user_email}")
 
         capability_str = capability.value if hasattr(capability, 'value') else str(capability)
-        from services.patient_context_service import build_patient_info_from_db
+        from services.patient_context_service import (
+            build_patient_info_from_db,
+            enrich_file_findings_from_stored_records,
+        )
 
         if chat_request.patient_id:
             logger.info(f"Loading patient context from database: {chat_request.patient_id}")
@@ -72,6 +75,19 @@ def chat_stream():
                     )
                 else:
                     logger.warning(f"Could not find patient with identifier: '{patient_identifier}'")
+
+        auto_file_findings = enrich_file_findings_from_stored_records(
+            patient_info,
+            capability_str,
+            user_message,
+            file_findings,
+        )
+        if auto_file_findings:
+            file_findings = auto_file_findings
+            logger.info(
+                "Loaded stored medical record content for AI analysis (%s chars)",
+                len(file_findings),
+            )
 
         # Update context manager with current state and user association
         if patient_info:
@@ -101,54 +117,7 @@ def chat_stream():
                 response = openai.ChatCompletion.create(
                     model="gpt-4.1",
                     messages=[
-                        {"role": "system", "content": f"""
-You are a specialized medical AI assistant for {capability} queries.  
-Your audience is licensed healthcare professionals.  
-Your role is to provide **concise, structured, safe, and clinically useful guidance**.  
-
-⚠️ SAFETY RULES:
-- Stay within the scope of {capability}.
-- Do NOT interpret labs or imaging unless explicitly in that mode; redirect instead.
-- If the query is unclear or unsafe, ask for clarification first.
-- Never provide layperson advice; assume responses are for clinicians.
-
-📐 CRITICAL FORMATTING REQUIREMENTS:
-- Always use **indented hierarchical structure**:
-  - 2 spaces for subsections
-  - 4 spaces for nested details
-- Use **•** for main bullets
-- Use **-** for sub-bullets
-- Use emojis for subsection headers
-- Do NOT bold condition/topic titles
-- Bold ONLY:
-  - Medication names
-  - Dosages
-  - The label "Clinical Notes" and "Disclaimer"
-- If a section is not applicable, include the heading with "None"
-
-📦 MANDATORY OUTPUT TEMPLATE:
-[Condition/Topic Name]
-  [Emoji] [Subsection Title]:
-    • [Main bullet point]
-    • [Main bullet point]
-      - [Nested detail if needed]
-  [Emoji] [Next Subsection]:
-    • [Bullet points...]
-  🩺 Surgical/Procedural Options:
-    • [List if any, else "None"]
-  Clinical Notes:
-    • [Patient-specific considerations]
-    • [Monitoring/follow-up needs]
-    • [Referral recommendations]
-
-⚠️ Disclaimer:
-  • This information is for healthcare professionals only.
-  • It does not replace independent clinical judgment or specialist consultation.
-
-📝 LENGTH CONTROL:
-- Keep responses ≤150 tokens.
-- If the content would be longer, summarize key actions and safety notes first.
-"""},
+                        {"role": "system", "content": get_chat_stream_system_message(capability)},
                         {"role": "user", "content": prompt}
                     ],
                     stream=True,

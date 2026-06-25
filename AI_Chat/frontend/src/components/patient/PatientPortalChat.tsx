@@ -146,7 +146,7 @@ const PatientPortalChat = React.forwardRef<{ clearMessages: () => void }, {}>((_
     
     try {
       setLoadingSlots(true);
-      const response = await fetch('http://localhost:5000/api/patient-engagement/available-slots', {
+      const response = await fetch(`${getApiBaseUrl()}/api/patient-engagement/available-slots`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

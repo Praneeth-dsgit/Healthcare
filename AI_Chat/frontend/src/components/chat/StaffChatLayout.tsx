@@ -9,9 +9,11 @@ import {
   Trash2,
   Stethoscope,
   Square,
+  UserRound,
   X,
 } from 'lucide-react';
 import ChatMessage from '../ChatMessage';
+import { findReferenceImageForAssistantMessage } from '../../utils/staffReportPdf';
 import LoadingDots from '../LoadingDots';
 import FaqDropdown from '../FaqDropdown';
 import VoiceInput from '../VoiceInput';
@@ -288,6 +290,11 @@ const StaffChatLayout: React.FC<StaffChatLayoutProps> = ({
                     reportType={
                       capability === 'radiology' || capability === 'lab' ? capability : 'general'
                     }
+                    referenceImage={
+                      message.role === 'assistant' && capability === 'radiology'
+                        ? findReferenceImageForAssistantMessage(messages, message.id)
+                        : undefined
+                    }
                     message={message}
                     onPreviewClick={handlePreviewClick}
                     onEdit={(id) => {
@@ -337,6 +344,32 @@ const StaffChatLayout: React.FC<StaffChatLayoutProps> = ({
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
             >
+              {linkedPatient && (
+                <div className="mb-2 flex items-center justify-between gap-2 rounded-lg border border-[var(--portal-accent)]/35 bg-[color-mix(in_srgb,var(--portal-accent)_12%,transparent)] px-3 py-2">
+                  <div className="flex min-w-0 items-center gap-2 text-xs text-slate-200">
+                    <UserRound size={14} className="shrink-0 text-[var(--portal-accent)]" />
+                    <span className="truncate">
+                      <span className="font-semibold">{linkedPatient.displayName}</span>
+                      <span className="ml-1 font-mono text-slate-400">· {linkedPatient.patientId}</span>
+                      <span className="ml-1 text-slate-500">
+                        ({linkedPatient.records.length} record
+                        {linkedPatient.records.length === 1 ? '' : 's'} linked — ask to
+                        &quot;analyze the report&quot; to use stored imaging/lab files)
+                      </span>
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => onLinkedPatientChange(null)}
+                    className="shrink-0 rounded p-1 text-slate-400 hover:bg-slate-800 hover:text-slate-200"
+                    title="Unlink patient from chat"
+                    aria-label="Unlink patient"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              )}
+
               {isDragActive && (
                 <div
                   className="pointer-events-none absolute inset-0 z-50 flex items-center justify-center rounded-lg border-2 border-dashed shadow-lg"

@@ -1041,7 +1041,7 @@ def _build_dashboard_health_context(patient_id: str) -> str:
     record_rows = db.session.execute(
         db.text(
             """
-            SELECT record_type, title, description, visit_date
+            SELECT record_type, title, description, visit_date, file_path
             FROM medical_records
             WHERE patient_id = :patient_id AND family_member_id IS NULL
             ORDER BY visit_date DESC, created_at DESC
@@ -1051,10 +1051,17 @@ def _build_dashboard_health_context(patient_id: str) -> str:
         {'patient_id': patient_id},
     ).fetchall()
     if record_rows:
+        from services.medical_record_content_service import enrich_record_dict
+
         parts.append('\nRECENT MEDICAL RECORDS:')
+        file_extractions = 0
         for i, row in enumerate(record_rows, 1):
             r = _sql_row_to_dict(row)
-            desc = _truncate_text(r.get('description'), 250)
+            if file_extractions < 4 and not (r.get('description') or '').strip() and r.get('file_path'):
+                r = enrich_record_dict(r, max_chars=1200, allow_image_vision=True)
+                if r.get('content_from_file'):
+                    file_extractions += 1
+            desc = _truncate_text(r.get('description'), 400)
             line = f"{i}. [{r.get('record_type')}] {r.get('title')} ({r.get('visit_date')})"
             if desc:
                 line += f": {desc}"
@@ -1520,6 +1527,9 @@ def patient_portal_chat():
                 'success': False,
                 'error': 'No patient record for this user'
             }), 400
+
+        from services.medical_record_content_service import augment_patient_portal_context
+        detailed_context = augment_patient_portal_context(patient_id, detailed_context or '')
         
         # Create system prompt for patient portal chat
         system_prompt = """You are a friendly, conversational, and helpful AI health assistant for patients. You have COMPLETE ACCESS to detailed health information for the primary patient and all their family members, including:
@@ -1596,6 +1606,7 @@ ALWAYS use this information to answer questions. When asked about lab results, d
 - Quote or summarize the actual test values, findings, and observations from the medical records
 - Never say you don't have access to lab results, diagnostics, or clinical observations - you DO have access to all this data provided in the context
 - If specific information is not in the context, only then politely explain that specific data point is not available
+- When the context includes a "MEDICAL RECORD FINDINGS" section with Results or Findings text, you MUST summarize those values/findings for the patient — never say findings are "not provided" if that section contains extracted report text
 
 IMPORTANT GUIDELINES:
 - Be conversational, natural, and engaging - like talking to a helpful friend

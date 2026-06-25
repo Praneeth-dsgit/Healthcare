@@ -10,6 +10,7 @@ import { appointmentService, AppointmentBookingData } from '../../services/appoi
 import { doctorService, Doctor } from '../../services/doctorService';
 import { patientService, FamilyMember } from '../../services/patientService';
 import { PortalPageShell, PortalPageHero } from '../patient/portalPageLayout';
+import { getApiBaseUrl } from '../../utils/apiBase';
 
 const AppointmentBooking: React.FC = () => {
   const location = useLocation();
@@ -129,7 +130,7 @@ const AppointmentBooking: React.FC = () => {
 
     try {
       setLoadingSlots(true);
-      const response = await fetch('http://localhost:5000/api/patient-engagement/available-slots', {
+      const response = await fetch(`${getApiBaseUrl()}/api/patient-engagement/available-slots`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

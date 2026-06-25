@@ -8,8 +8,10 @@ import { Upload, Search, FileText, X, CheckCircle, FileEdit, List, Calendar, Use
 import PrescriptionTemplate from './PrescriptionTemplate';
 import SegmentTabs from '../ui/SegmentTabs';
 import { doctorService } from '../../services/doctorService';
+import { recordService } from '../../services/recordService';
 import { getAuthHeaders, authenticatedFetch } from '../../services/authService';
-import { getApiBaseUrl, getApiRoot } from '../../utils/apiBase';
+import { getApiRoot } from '../../utils/apiBase';
+import { LookupMedicineSelection } from './MedicineLookup';
 
 interface Prescription {
   record_id: number;
@@ -29,9 +31,18 @@ interface Prescription {
 
 interface PrescriptionUploadProps {
   initialPatientId?: string;
+  selectedLookupMedicine?: {
+    selection: LookupMedicineSelection;
+    token: number;
+  };
+  onDiagnosisChange?: (diagnosis: string) => void;
 }
 
-const PrescriptionUpload: React.FC<PrescriptionUploadProps> = ({ initialPatientId }) => {
+const PrescriptionUpload: React.FC<PrescriptionUploadProps> = ({
+  initialPatientId,
+  selectedLookupMedicine,
+  onDiagnosisChange,
+}) => {
   const [activeTab, setActiveTab] = useState<'template' | 'upload' | 'list'>('template');
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
   const [loadingPrescriptions, setLoadingPrescriptions] = useState(false);
@@ -97,12 +108,20 @@ const PrescriptionUpload: React.FC<PrescriptionUploadProps> = ({ initialPatientI
     }
   };
 
-  const handleDownload = (fileUrl: string, fileName: string) => {
-    if (fileUrl) {
-      const API_BASE = getApiBaseUrl();
-      const fullUrl = fileUrl.startsWith('http') ? fileUrl : `${API_BASE}${fileUrl}`;
-      window.open(fullUrl, '_blank');
+  const handleDownload = async (recordId: number, title: string) => {
+    const result = await recordService.downloadRecord(recordId);
+    if (!result) {
+      setError('Could not download prescription file');
+      return;
     }
+    const url = window.URL.createObjectURL(result.blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = result.filename || `${title.replace(/\s+/g, '_')}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
   };
 
   const formatDate = (dateString: string) => {
@@ -202,6 +221,8 @@ const PrescriptionUpload: React.FC<PrescriptionUploadProps> = ({ initialPatientI
         <PrescriptionTemplate 
           onPrescriptionSaved={loadPrescriptions}
           initialPatientId={initialPatientId}
+          selectedLookupMedicine={selectedLookupMedicine}
+          onDiagnosisChange={onDiagnosisChange}
         />
       ) : activeTab === 'list' ? (
         <div className="space-y-4">
@@ -266,7 +287,7 @@ const PrescriptionUpload: React.FC<PrescriptionUploadProps> = ({ initialPatientI
                     {prescription.file_url && (
                       <button
                         type="button"
-                        onClick={() => handleDownload(prescription.file_url!, prescription.title)}
+                        onClick={() => handleDownload(prescription.record_id, prescription.title)}
                         className="portal-accent-button ml-4 flex items-center gap-2 rounded-lg px-4 py-2"
                       >
                         <Download size={18} />
