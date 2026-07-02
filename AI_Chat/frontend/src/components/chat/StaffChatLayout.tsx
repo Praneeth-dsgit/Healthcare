@@ -22,6 +22,7 @@ import type { Capability } from '../../services/roleService';
 import type { PortalId } from '../../theme/portalThemes';
 import { getPortalTheme } from '../../theme/portalThemes';
 import type { LinkedPatientState } from './StaffPatientPanel.types';
+import type { MedicalRecord } from '../../services/recordService';
 import StaffPatientsRecordsTab from './StaffPatientsRecordsTab';
 import { linkPatientFromDatabase } from '../../utils/staffLinkPatient';
 import {
@@ -182,12 +183,28 @@ const StaffChatLayout: React.FC<StaffChatLayoutProps> = ({
     const payload = readStaffPatientDragData(e.dataTransfer);
     if (!payload) return;
 
+    const attachRecords: MedicalRecord[] = payload.record
+      ? [
+          {
+            record_id: payload.record.record_id,
+            patient_id: payload.patient_id,
+            record_type: payload.record.record_type as MedicalRecord['record_type'],
+            visit_date: payload.record.visit_date ?? '',
+            title: payload.record.title,
+            created_at: payload.record.created_at ?? '',
+            file_url: payload.record.file_url,
+            file_type: payload.record.file_type,
+          },
+        ]
+      : [];
+
     const { state } = await linkPatientFromDatabase(
       payload.patient_id,
       payload.first_name,
       payload.last_name,
       capability,
-      payload.date_of_birth
+      payload.date_of_birth,
+      attachRecords
     );
     if (!state) return;
 
@@ -352,9 +369,11 @@ const StaffChatLayout: React.FC<StaffChatLayoutProps> = ({
                       <span className="font-semibold">{linkedPatient.displayName}</span>
                       <span className="ml-1 font-mono text-slate-400">· {linkedPatient.patientId}</span>
                       <span className="ml-1 text-slate-500">
-                        ({linkedPatient.records.length} record
-                        {linkedPatient.records.length === 1 ? '' : 's'} linked — ask to
-                        &quot;analyze the report&quot; to use stored imaging/lab files)
+                        {linkedPatient.records.length === 0
+                          ? '(no record attached — click a record in the list, then ask to "analyze the report")'
+                          : linkedPatient.records.length === 1
+                            ? `(attached: ${linkedPatient.records[0].title} — ask to "analyze the report")`
+                            : `(${linkedPatient.records.length} records attached — ask to "analyze the reports")`}
                       </span>
                     </span>
                   </div>

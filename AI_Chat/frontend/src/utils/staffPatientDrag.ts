@@ -1,10 +1,22 @@
 export const STAFF_PATIENT_DRAG_MIME = 'application/x-acufore-patient';
 
+export interface StaffPatientDragRecord {
+  record_id: number;
+  title: string;
+  record_type: string;
+  file_type?: string;
+  file_url?: string;
+  visit_date?: string;
+  created_at?: string;
+}
+
 export interface StaffPatientDragPayload {
   patient_id: string;
   first_name: string;
   last_name: string;
   date_of_birth?: string;
+  /** The specific record being dragged, if any (so the chat attaches just this one). */
+  record?: StaffPatientDragRecord;
 }
 
 export function setStaffPatientDragData(

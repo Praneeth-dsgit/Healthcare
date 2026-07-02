@@ -100,19 +100,55 @@ def _pick_primary_record(records: List[Dict], capability: str) -> Optional[Dict]
     return None
 
 
+def _pick_records_by_ids(
+    records: List[Dict],
+    record_ids: List[int],
+    limit: int = 5,
+) -> List[Dict]:
+    """Return the records (with a file) matching the staff-selected record_ids,
+    preserving the requested order."""
+    wanted: List[int] = []
+    for rid in record_ids:
+        try:
+            wanted.append(int(rid))
+        except (TypeError, ValueError):
+            continue
+    by_id = {}
+    for rec in records:
+        rid = rec.get('record_id')
+        if rid is None:
+            continue
+        try:
+            by_id[int(rid)] = rec
+        except (TypeError, ValueError):
+            continue
+    result = []
+    for rid in wanted:
+        rec = by_id.get(rid)
+        if rec and (rec.get('file_path') or rec.get('file_url')):
+            result.append(rec)
+        if len(result) >= limit:
+            break
+    return result
+
+
 def _extract_text_from_pdf(file_path: str, max_chars: int = 15000) -> str:
     from services.medical_record_content_service import extract_text_from_pdf
     return extract_text_from_pdf(file_path, max_chars=max_chars)
 
 
-def _extract_findings_from_record_file(record: Dict, capability: str) -> Optional[str]:
+def _extract_findings_from_record_file(
+    record: Dict,
+    capability: str,
+    max_chars: int = 15000,
+) -> Optional[str]:
     from services.medical_record_content_service import extract_content_from_record_file
 
     file_path = record.get('file_path') or record.get('file_url')
     if not file_path:
         return None
     record = {**record, 'file_path': file_path}
-    content = extract_content_from_record_file(record, max_chars=15000, allow_image_vision=True)
+    content = extract_content_from_record_file(record, max_chars=max_chars, allow_image_vision=True)
     if not content:
         return None
     title = record.get('title') or 'Medical record'
@@ -124,10 +160,14 @@ def enrich_file_findings_from_stored_records(
     capability: str,
     user_message: str,
     existing_file_findings: Optional[str] = None,
+    record_ids: Optional[List[int]] = None,
 ) -> Optional[str]:
     """
-    When staff asks to analyze a linked patient's report, load the latest stored
-    radiology/lab file from disk into file_findings for the AI prompt.
+    When staff asks to analyze a linked patient's report, load stored
+    radiology/lab file content from disk into file_findings for the AI prompt.
+
+    If the staff selected specific records (record_ids), analyze exactly those
+    files; otherwise fall back to the patient's latest primary record.
     """
     if existing_file_findings:
         return existing_file_findings
@@ -137,6 +177,22 @@ def enrich_file_findings_from_stored_records(
         return None
 
     records = patient_info.get('medicalRecords') or []
+
+    if record_ids:
+        targets = _pick_records_by_ids(records, record_ids)
+        if targets:
+            # Split the budget across the selected files so the prompt stays bounded.
+            per_record = 15000 if len(targets) == 1 else max(2500, 15000 // len(targets))
+            parts = [
+                findings
+                for rec in targets
+                if (findings := _extract_findings_from_record_file(rec, capability, per_record))
+            ]
+            if parts:
+                return "\n\n".join(parts)
+            return None
+        # Selected records weren't in the loaded set; fall back to the primary record.
+
     target = _pick_primary_record(records, capability)
     if not target:
         return None

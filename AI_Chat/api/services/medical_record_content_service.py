@@ -244,17 +244,51 @@ def build_patient_portal_records_context(
     return '\n'.join(s for s in sections if s).strip()
 
 
+MAX_PATIENT_PORTAL_CONTEXT_CHARS = 24000
+
+
+def truncate_patient_portal_context(
+    text: str,
+    max_chars: int = MAX_PATIENT_PORTAL_CONTEXT_CHARS,
+) -> str:
+    """Keep patient-portal chat prompts within a safe size for the model."""
+    if not text or len(text) <= max_chars:
+        return text or ''
+    return (
+        text[:max_chars].rstrip()
+        + '\n\n[Some older record details were shortened to fit. Key patient data above is preserved.]'
+    )
+
+
 def augment_patient_portal_context(patient_id: str, client_context: str) -> str:
     """
     Append server-side record findings so patient chat has PDF/image content
     even when the frontend only sent metadata.
+
+    When the frontend already sends a large record payload, skip vision
+    extractions to avoid duplicating content and exceeding token limits.
     """
-    server_records = build_patient_portal_records_context(patient_id)
+    client = (client_context or '').strip()
+    record_markers = (
+        'PATIENT LAB RESULTS',
+        'PATIENT RADIOLOGY',
+        'PATIENT PRESCRIPTIONS',
+        'MEDICAL RECORD FINDINGS',
+    )
+    if client and any(marker in client for marker in record_markers) and len(client) >= 8000:
+        return truncate_patient_portal_context(client)
+
+    server_records = build_patient_portal_records_context(
+        patient_id,
+        max_records=6,
+        max_file_extractions=2,
+        max_chars_per_record=1200,
+    )
     if not server_records:
-        return client_context or ''
+        return truncate_patient_portal_context(client)
     banner = (
         '\n\n=== MEDICAL RECORD FINDINGS (from stored reports — use for lab/radiology answers) ===\n'
     )
-    if client_context and client_context.strip():
-        return client_context.strip() + banner + server_records
-    return server_records
+    if client:
+        return truncate_patient_portal_context(client + banner + server_records)
+    return truncate_patient_portal_context(server_records)

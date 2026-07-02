@@ -852,12 +852,12 @@ const PatientPortalChat = React.forwardRef<{ clearMessages: () => void }, {}>((_
               
               {/* Display database query results */}
               {message.results && message.results.length > 0 && (
-                <div className="mt-3 bg-white rounded-lg border border-gray-200 overflow-x-auto">
+                <div className="mt-3 bg-slate-800/80 rounded-lg border border-slate-700/60 overflow-x-auto">
                   <table className="w-full text-xs">
-                    <thead className="bg-gray-50">
+                    <thead className="bg-slate-900/60">
                       <tr>
                         {Object.keys(message.results[0]).map((key) => (
-                          <th key={key} className="px-2 py-2 text-left font-medium text-gray-700 border-b">
+                          <th key={key} className="px-2 py-2 text-left font-medium text-slate-300 border-b border-slate-700">
                             {key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
                           </th>
                         ))}
@@ -865,9 +865,9 @@ const PatientPortalChat = React.forwardRef<{ clearMessages: () => void }, {}>((_
                     </thead>
                     <tbody>
                       {message.results.map((row, idx) => (
-                        <tr key={idx} className="border-b hover:bg-gray-50">
+                        <tr key={idx} className="border-b border-slate-700/60 hover:bg-slate-800">
                           {Object.values(row).map((value: any, cellIdx) => (
-                            <td key={cellIdx} className="px-2 py-2 text-gray-900">
+                            <td key={cellIdx} className="px-2 py-2 text-slate-200">
                               {value !== null && value !== undefined ? String(value) : '-'}
                             </td>
                           ))}
@@ -879,11 +879,11 @@ const PatientPortalChat = React.forwardRef<{ clearMessages: () => void }, {}>((_
               )}
               
               {message.showBookingForm && (
-                <div className="mt-4 bg-white rounded-lg p-4 border border-gray-200">
-                  <h3 className="font-semibold mb-3 text-gray-900 text-sm">Book Appointment</h3>
+                <div className="mt-4 bg-slate-800/80 rounded-lg p-4 border border-slate-700/60">
+                  <h3 className="font-semibold mb-3 text-slate-100 text-sm">Book Appointment</h3>
                   <div className="space-y-3">
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Department/Specialty</label>
+                      <label className="block text-xs font-medium text-slate-300 mb-1">Department/Specialty</label>
                       <select
                         value={selectedSpecialtyId || ''}
                         onChange={async (e) => {
@@ -920,7 +920,7 @@ const PatientPortalChat = React.forwardRef<{ clearMessages: () => void }, {}>((_
                             }
                           }
                         }}
-                        className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        className="w-full px-2 py-1.5 text-xs bg-slate-900/60 border border-slate-600 text-slate-100 rounded-lg focus:outline-none focus:ring-1 focus:ring-teal-500 focus:border-teal-500"
                         onFocus={async () => {
                           if (specialties.length === 0) {
                             try {
@@ -943,7 +943,7 @@ const PatientPortalChat = React.forwardRef<{ clearMessages: () => void }, {}>((_
                       </select>
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Doctor <span className="text-red-500">*</span></label>
+                      <label className="block text-xs font-medium text-slate-300 mb-1">Doctor <span className="text-red-500">*</span></label>
                       <select
                         value={bookingData.doctor_id || ''}
                         onChange={async (e) => {
@@ -957,7 +957,7 @@ const PatientPortalChat = React.forwardRef<{ clearMessages: () => void }, {}>((_
                           // Clear available slots when doctor changes
                           setAvailableSlots({});
                         }}
-                        className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        className="w-full px-2 py-1.5 text-xs bg-slate-900/60 border border-slate-600 text-slate-100 rounded-lg focus:outline-none focus:ring-1 focus:ring-teal-500 focus:border-teal-500"
                         onFocus={async () => {
                           if (doctors.length === 0 && !selectedSpecialtyId) {
                             setLoadingDoctors(true);
@@ -983,14 +983,14 @@ const PatientPortalChat = React.forwardRef<{ clearMessages: () => void }, {}>((_
                         ))}
                       </select>
                       {loadingDoctors && (
-                        <p className="text-xs text-gray-500 mt-0.5">Loading doctors...</p>
+                        <p className="text-xs text-slate-400 mt-0.5">Loading doctors...</p>
                       )}
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Date <span className="text-red-500">*</span></label>
+                      <label className="block text-xs font-medium text-slate-300 mb-1">Date <span className="text-red-500">*</span></label>
                       <input
                         type="date"
-                        className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        className="w-full px-2 py-1.5 text-xs bg-slate-900/60 border border-slate-600 text-slate-100 rounded-lg focus:outline-none focus:ring-1 focus:ring-teal-500 focus:border-teal-500"
                         value={bookingData.appointment_date}
                         onChange={async (e) => {
                           const newDate = e.target.value;
@@ -1005,9 +1005,9 @@ const PatientPortalChat = React.forwardRef<{ clearMessages: () => void }, {}>((_
                     </div>
                     {bookingData.doctor_id && bookingData.appointment_date ? (
                       <div>
-                        <label className="block text-xs font-medium text-gray-700 mb-1">Time <span className="text-red-500">*</span></label>
+                        <label className="block text-xs font-medium text-slate-300 mb-1">Time <span className="text-red-500">*</span></label>
                         {loadingSlots ? (
-                          <p className="text-xs text-gray-500 py-2">Loading available slots...</p>
+                          <p className="text-xs text-slate-400 py-2">Loading available slots...</p>
                         ) : availableSlots[bookingData.appointment_date] && availableSlots[bookingData.appointment_date].length > 0 ? (
                           <div className="space-y-2">
                             <div className="grid grid-cols-3 gap-2 max-h-32 overflow-y-auto">
@@ -1028,10 +1028,10 @@ const PatientPortalChat = React.forwardRef<{ clearMessages: () => void }, {}>((_
                                     style={isDisabled ? { pointerEvents: 'none' } : {}}
                                     className={`px-2 py-1.5 text-xs rounded-lg border transition-all duration-200 ${
                                       isDisabled
-                                        ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed opacity-50'
+                                        ? 'bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed opacity-50'
                                         : bookingData.appointment_time === slot.time
-                                        ? 'bg-blue-600 text-white border-blue-600 shadow-md scale-105'
-                                        : 'bg-white text-gray-700 border-gray-300 hover:border-blue-500 hover:bg-blue-50 hover:shadow-md hover:scale-105'
+                                        ? 'bg-teal-600 text-white border-teal-600 shadow-md scale-105'
+                                        : 'bg-slate-900/60 text-slate-200 border-slate-600 hover:border-teal-500 hover:bg-teal-500/10 hover:shadow-md hover:scale-105'
                                   }`}
                                 >
                                   {slot.displayTime}
@@ -1040,23 +1040,23 @@ const PatientPortalChat = React.forwardRef<{ clearMessages: () => void }, {}>((_
                               })}
                             </div>
                             {!bookingData.appointment_time && (
-                              <p className="text-xs text-gray-500">Please select a time slot</p>
+                              <p className="text-xs text-slate-400">Please select a time slot</p>
                             )}
                           </div>
                         ) : (
-                          <p className="text-xs text-red-500 py-2">No available slots for this date. Please select another date.</p>
+                          <p className="text-xs text-red-400 py-2">No available slots for this date. Please select another date.</p>
                         )}
                       </div>
                     ) : (
                       <div>
-                        <label className="block text-xs font-medium text-gray-700 mb-1">Time <span className="text-red-500">*</span></label>
-                        <p className="text-xs text-gray-500 py-2">Please select a doctor and date first</p>
+                        <label className="block text-xs font-medium text-slate-300 mb-1">Time <span className="text-red-500">*</span></label>
+                        <p className="text-xs text-slate-400 py-2">Please select a doctor and date first</p>
                       </div>
                     )}
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Reason</label>
+                      <label className="block text-xs font-medium text-slate-300 mb-1">Reason</label>
                       <textarea
-                        className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        className="w-full px-2 py-1.5 text-xs bg-slate-900/60 border border-slate-600 text-slate-100 rounded-lg focus:outline-none focus:ring-1 focus:ring-teal-500 focus:border-teal-500"
                         rows={2}
                         value={bookingData.reason}
                         onChange={(e) => setBookingData({ ...bookingData, reason: e.target.value })}
@@ -1065,14 +1065,14 @@ const PatientPortalChat = React.forwardRef<{ clearMessages: () => void }, {}>((_
                     </div>
                     {familyMembers.length > 0 && (
                       <div>
-                        <label className="block text-xs font-medium text-gray-700 mb-1">Book for</label>
+                        <label className="block text-xs font-medium text-slate-300 mb-1">Book for</label>
                         <select
                           value={bookingData.family_member_id || 'self'}
                           onChange={(e) => setBookingData({ 
                             ...bookingData, 
                             family_member_id: e.target.value === 'self' ? undefined : parseInt(e.target.value) 
                           })}
-                          className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          className="w-full px-2 py-1.5 text-xs bg-slate-900/60 border border-slate-600 text-slate-100 rounded-lg focus:outline-none focus:ring-1 focus:ring-teal-500 focus:border-teal-500"
                         >
                           <option value="self">Myself</option>
                           {familyMembers.map((member) => (
@@ -1087,7 +1087,7 @@ const PatientPortalChat = React.forwardRef<{ clearMessages: () => void }, {}>((_
                       <button
                         onClick={handleBookAppointment}
                         disabled={isLoading || !bookingData.doctor_id || !bookingData.appointment_date || !bookingData.appointment_time}
-                        className="flex-1 bg-blue-600 hover:bg-blue-700 hover:shadow-lg hover:scale-105 text-white px-3 py-1.5 text-xs rounded-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:shadow-none transition-all duration-200"
+                        className="flex-1 bg-teal-600 hover:bg-teal-700 hover:shadow-lg hover:scale-105 text-white px-3 py-1.5 text-xs rounded-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:shadow-none transition-all duration-200"
                       >
                         {isLoading ? 'Booking...' : 'Book Appointment'}
                       </button>
@@ -1105,7 +1105,7 @@ const PatientPortalChat = React.forwardRef<{ clearMessages: () => void }, {}>((_
                           setDoctors([]);
                           setAvailableSlots({});
                         }}
-                        className="px-3 py-1.5 text-xs border border-gray-300 rounded-lg hover:bg-gray-50 hover:shadow-md hover:scale-105 transition-all duration-200"
+                        className="px-3 py-1.5 text-xs border border-slate-600 text-slate-300 rounded-lg hover:bg-slate-700/50 hover:shadow-md hover:scale-105 transition-all duration-200"
                       >
                         Cancel
                       </button>

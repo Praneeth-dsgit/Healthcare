@@ -1045,24 +1045,27 @@ def download_medical_record(record_id):
         from flask import send_file
         from config import UPLOAD_FOLDER
         
-        patient_id = g.patient_id
-        if not patient_id:
-            return jsonify({
-                'success': False,
-                'error': 'No patient record for this user'
-            }), 400
-        
-        # Get the record and verify it belongs to the patient
+        # Fetch the record first, then authorize: the owning patient OR clinical
+        # staff (doctors/lab/radiology/admin) may download it. Doctors have no
+        # g.patient_id, so a patient-only filter would wrongly block them.
         result = db.session.execute(
             db.text("""
                 SELECT mr.file_path, mr.file_type, mr.title, mr.patient_id
                 FROM medical_records mr
-                WHERE mr.record_id = :record_id AND mr.patient_id = :patient_id
+                WHERE mr.record_id = :record_id
             """),
-            {"record_id": record_id, "patient_id": patient_id}
+            {"record_id": record_id}
         ).fetchone()
-        
+
         if not result:
+            return jsonify({
+                'success': False,
+                'error': 'Record not found or access denied'
+            }), 404
+
+        record_patient_id = result._mapping['patient_id'] if hasattr(result, '_mapping') else result[3]
+        is_owner = bool(g.patient_id) and g.patient_id == record_patient_id
+        if not is_owner and not _is_clinical_staff_user():
             return jsonify({
                 'success': False,
                 'error': 'Record not found or access denied'
@@ -1070,7 +1073,15 @@ def download_medical_record(record_id):
         
         record = dict(result._mapping) if hasattr(result, '_mapping') else dict(zip(result.keys(), result))
         file_path = record.get('file_path')
-        
+
+        # Stored paths are relative (e.g. "uploads\\file.pdf") and only resolve if
+        # the server cwd is the api/ dir. Fall back to UPLOAD_FOLDER + basename so
+        # downloads work regardless of where the process was started.
+        if file_path and not os.path.exists(file_path):
+            candidate = os.path.join(UPLOAD_FOLDER, os.path.basename(file_path))
+            if os.path.exists(candidate):
+                file_path = candidate
+
         if not file_path or not os.path.exists(file_path):
             return jsonify({
                 'success': False,

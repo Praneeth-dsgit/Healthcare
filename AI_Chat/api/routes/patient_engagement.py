@@ -16,6 +16,8 @@ from db_read_agent import DatabaseAgent
 
 logger = logging.getLogger(__name__)
 
+PATIENT_PORTAL_CHAT_MODEL = "gpt-4.1"
+
 # Create blueprint
 patient_engagement_bp = Blueprint('patient_engagement', __name__, url_prefix='/api/patient-engagement')
 
@@ -1147,7 +1149,7 @@ PATIENT DATA:
 """
 
         response = openai.ChatCompletion.create(
-            model='gpt-4',
+            model=PATIENT_PORTAL_CHAT_MODEL,
             messages=[
                 {
                     'role': 'system',
@@ -1339,7 +1341,7 @@ Return ONLY the JSON, no other text."""
         
         try:
             response = openai.ChatCompletion.create(
-                model="gpt-4",
+                model=PATIENT_PORTAL_CHAT_MODEL,
                 messages=[
                     {"role": "system", "content": "You are a helpful assistant that extracts appointment booking details from natural language. Return only valid JSON."},
                     {"role": "user", "content": prompt}
@@ -1528,7 +1530,10 @@ def patient_portal_chat():
                 'error': 'No patient record for this user'
             }), 400
 
-        from services.medical_record_content_service import augment_patient_portal_context
+        from services.medical_record_content_service import (
+            augment_patient_portal_context,
+            truncate_patient_portal_context,
+        )
         detailed_context = augment_patient_portal_context(patient_id, detailed_context or '')
         
         # Create system prompt for patient portal chat
@@ -1682,12 +1687,14 @@ Format your responses in a clear, easy-to-read manner with simple bullet points 
         
         context += "\nREMEMBER: All the data you need is provided in the context above. Use it to answer the query comprehensively. Never respond with only a clarifying question when you can provide useful general health information.\n"
 
+        context = truncate_patient_portal_context(context)
+
         # Build messages array with conversation history
         messages_array = [{"role": "system", "content": context}]
         
-        # Add conversation history (last 10 messages for context)
+        # Add conversation history (last 6 messages for context)
         if conversation_history:
-            for hist_msg in conversation_history:
+            for hist_msg in conversation_history[-6:]:
                 # Only include user and assistant messages, skip system messages
                 if hist_msg.get('role') in ['user', 'assistant']:
                     messages_array.append({
@@ -1700,7 +1707,7 @@ Format your responses in a clear, easy-to-read manner with simple bullet points 
 
         # Use OpenAI to generate response
         response = openai.ChatCompletion.create(
-            model="gpt-4",
+            model=PATIENT_PORTAL_CHAT_MODEL,
             messages=messages_array,
             max_tokens=500,
             temperature=0.8  # Slightly higher temperature for more conversational responses
@@ -1719,6 +1726,23 @@ Format your responses in a clear, easy-to-read manner with simple bullet points 
             'response': ai_response
         }), 200
 
+    except openai.error.InvalidRequestError as e:
+        err = str(e).lower()
+        if 'context_length' in err or 'maximum context' in err:
+            logger.error(f"Patient portal chat context too large: {e}")
+            return jsonify({
+                'success': False,
+                'error': (
+                    'Your health records are too large for one message. '
+                    'Try asking about a specific topic (e.g. a single lab result or appointment).'
+                ),
+            }), 400
+        logger.error(f"Error in patient portal chat: {e}")
+        logger.error(traceback.format_exc())
+        return jsonify({
+            'success': False,
+            'error': f'Failed to process chat message: {str(e)}'
+        }), 500
     except Exception as e:
         logger.error(f"Error in patient portal chat: {e}")
         logger.error(traceback.format_exc())

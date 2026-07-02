@@ -81,6 +81,7 @@ def chat_stream():
             capability_str,
             user_message,
             file_findings,
+            record_ids=chat_request.record_ids,
         )
         if auto_file_findings:
             file_findings = auto_file_findings

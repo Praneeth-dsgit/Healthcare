@@ -73,7 +73,8 @@ const StaffPatientsRecordsTab: React.FC<StaffPatientsRecordsTabProps> = ({
 
   const linkPatientById = async (
     patientId: string,
-    hint?: { first_name: string; last_name: string; date_of_birth?: string }
+    hint?: { first_name: string; last_name: string; date_of_birth?: string },
+    attachRecords: MedicalRecord[] = []
   ) => {
     const fromRecord = records.find((r) => r.patient_id === patientId);
     const first = fromRecord?.first_name ?? hint?.first_name ?? '';
@@ -86,7 +87,8 @@ const StaffPatientsRecordsTab: React.FC<StaffPatientsRecordsTabProps> = ({
       first,
       last,
       capability,
-      dob
+      dob,
+      attachRecords
     );
     setLinkingId(null);
     if (state) {
@@ -97,8 +99,30 @@ const StaffPatientsRecordsTab: React.FC<StaffPatientsRecordsTabProps> = ({
     }
   };
 
+  // Strip the staff-directory-only fields so we attach a clean MedicalRecord.
+  const toMedicalRecord = (row: StaffRecordRow): MedicalRecord => {
+    const { first_name: _f, last_name: _l, date_of_birth: _d, ...record } = row;
+    void _f;
+    void _l;
+    void _d;
+    return record;
+  };
+
   const handleSelectRecord = async (record: StaffRecordRow) => {
-    await linkPatientById(record.patient_id, record);
+    const attached = toMedicalRecord(record);
+
+    // Same patient already linked: toggle this record in/out of the attached set.
+    if (linkedPatient && linkedPatient.patientId === record.patient_id) {
+      const exists = linkedPatient.records.some((r) => r.record_id === record.record_id);
+      const nextRecords = exists
+        ? linkedPatient.records.filter((r) => r.record_id !== record.record_id)
+        : [...linkedPatient.records, attached];
+      onLinkedPatientChange({ ...linkedPatient, records: nextRecords });
+      return;
+    }
+
+    // Different/no patient: link this patient and attach only this record.
+    await linkPatientById(record.patient_id, record, [attached]);
   };
 
   const handleDeleteRecord = async (record: StaffRecordRow, e: React.MouseEvent) => {
@@ -121,19 +145,15 @@ const StaffPatientsRecordsTab: React.FC<StaffPatientsRecordsTabProps> = ({
 
     await loadRecords();
 
-    if (linkedPatient?.patientId === record.patient_id) {
-      const nameParts = linkedPatient.displayName.trim().split(/\s+/);
-      const { state } = await linkPatientFromDatabase(
-        linkedPatient.patientId,
-        nameParts[0] ?? '',
-        nameParts.slice(1).join(' '),
-        capability
-      );
-      if (state) {
-        onLinkedPatientChange(state);
-      } else {
-        onLinkedPatientChange(null);
-      }
+    // Drop the deleted record from the attached set if it was selected.
+    if (
+      linkedPatient?.patientId === record.patient_id &&
+      linkedPatient.records.some((r) => r.record_id === record.record_id)
+    ) {
+      onLinkedPatientChange({
+        ...linkedPatient,
+        records: linkedPatient.records.filter((r) => r.record_id !== record.record_id),
+      });
     }
   };
 
@@ -178,8 +198,8 @@ const StaffPatientsRecordsTab: React.FC<StaffPatientsRecordsTabProps> = ({
           className="form-field w-full py-1.5 text-sm"
         />
         <p className="mt-1.5 text-[10px] leading-snug text-slate-500">
-          {records.length} record{records.length === 1 ? '' : 's'}. Drag into the chat box or click
-          to link the patient.
+          {records.length} record{records.length === 1 ? '' : 's'}. Click to attach a record (click
+          more to add); drag into the chat box to attach. Click again to remove.
         </p>
       </div>
 
@@ -196,7 +216,9 @@ const StaffPatientsRecordsTab: React.FC<StaffPatientsRecordsTabProps> = ({
         ) : (
           <ul className="space-y-1">
             {records.map((record) => {
-              const isActive = linkedPatient?.patientId === record.patient_id;
+              const isActive =
+                linkedPatient?.patientId === record.patient_id &&
+                linkedPatient.records.some((r) => r.record_id === record.record_id);
               const isLinking = linkingId === record.patient_id;
               const isDeleting = deletingId === record.record_id;
               const recordDate = record.visit_date?.slice(0, 10) || record.created_at?.slice(0, 10);
@@ -213,6 +235,15 @@ const StaffPatientsRecordsTab: React.FC<StaffPatientsRecordsTabProps> = ({
                         first_name: record.first_name,
                         last_name: record.last_name,
                         date_of_birth: record.date_of_birth,
+                        record: {
+                          record_id: record.record_id,
+                          title: record.title,
+                          record_type: record.record_type,
+                          file_type: record.file_type,
+                          file_url: record.file_url,
+                          visit_date: record.visit_date,
+                          created_at: record.created_at,
+                        },
                       });
                     }}
                     onKeyDown={(e) => {

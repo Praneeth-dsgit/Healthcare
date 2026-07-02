@@ -1,5 +1,5 @@
 import { patientService } from '../services/patientService';
-import { recordService, MedicalRecord } from '../services/recordService';
+import { MedicalRecord } from '../services/recordService';
 import { PatientInfo } from '../types';
 import type { Capability } from '../services/roleService';
 import type { LinkedPatientState } from '../components/chat/StaffPatientPanel.types';
@@ -41,31 +41,28 @@ export function profileToPatientInfo(
   };
 }
 
+/**
+ * Link a patient for staff chat context. `attachRecords` are the specific
+ * records the staff selected to attach (the chat analyzes exactly these). Pass
+ * an empty array to link the patient for profile context only.
+ */
 export async function linkPatientFromDatabase(
   patientId: string,
   firstName: string,
   lastName: string,
   capability: Capability,
-  dateOfBirth?: string
+  dateOfBirth?: string,
+  attachRecords: MedicalRecord[] = []
 ): Promise<{ state: LinkedPatientState | null; error?: string }> {
-  const staffCapability =
-    capability === 'lab' || capability === 'radiology' ? capability : 'general';
+  // capability retained for signature compatibility with callers/drag handlers
+  void capability;
   const displayName = `${firstName} ${lastName}`.trim();
 
-  const [profileResult, recordsResult] = await Promise.all([
-    patientService.getPatientById(patientId),
-    recordService.getRecordsForPatient(patientId, {
-      capability: staffCapability === 'general' ? undefined : staffCapability,
-      limit: 40,
-    }),
-  ]);
+  const profileResult = await patientService.getPatientById(patientId);
 
   if (!profileResult.success || !profileResult.patient) {
     return { state: null, error: profileResult.error || 'Patient not found' };
   }
-
-  const records: MedicalRecord[] =
-    recordsResult.success && recordsResult.records ? recordsResult.records : [];
 
   return {
     state: {
@@ -75,8 +72,7 @@ export async function linkPatientFromDatabase(
         { ...profileResult.patient, date_of_birth: profileResult.patient.date_of_birth || dateOfBirth },
         displayName
       ),
-      records,
+      records: attachRecords,
     },
-    error: recordsResult.success ? undefined : recordsResult.error,
   };
 }

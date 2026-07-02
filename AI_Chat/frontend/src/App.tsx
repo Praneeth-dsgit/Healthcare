@@ -302,6 +302,9 @@ const App: FC = () => {
     message: payload.message,
     userEmail: sessionStorage.getItem('userEmail') || 'anonymous',
     patient_id: linkedPatient?.patientId ?? undefined,
+    record_ids: linkedPatient?.records?.length
+      ? linkedPatient.records.map((r) => r.record_id)
+      : undefined,
     patientInfo: linkedPatient ? undefined : payload.patientInfo ?? undefined,
     fileContext: payload.fileContext ?? null,
     fileFindings: payload.fileFindings ?? null,
