@@ -10,6 +10,7 @@ import {
   Stethoscope,
   Square,
   UserRound,
+  Paperclip,
   X,
 } from 'lucide-react';
 import ChatMessage from '../ChatMessage';
@@ -17,13 +18,14 @@ import { findReferenceImageForAssistantMessage } from '../../utils/staffReportPd
 import LoadingDots from '../LoadingDots';
 import FaqDropdown from '../FaqDropdown';
 import VoiceInput from '../VoiceInput';
-import { Message } from '../../types';
+import { Message, AttachedRecordPreview } from '../../types';
 import type { Capability } from '../../services/roleService';
 import type { PortalId } from '../../theme/portalThemes';
 import { getPortalTheme } from '../../theme/portalThemes';
 import type { LinkedPatientState } from './StaffPatientPanel.types';
 import type { MedicalRecord } from '../../services/recordService';
 import StaffPatientsRecordsTab from './StaffPatientsRecordsTab';
+import RecordThumbnail from './RecordThumbnail';
 import { linkPatientFromDatabase } from '../../utils/staffLinkPatient';
 import {
   formatPatientInputTag,
@@ -158,6 +160,53 @@ const StaffChatLayout: React.FC<StaffChatLayoutProps> = ({
   const theme = getPortalTheme(portal);
   const ThemeIcon = theme.icon;
   const [patientDropActive, setPatientDropActive] = useState(false);
+
+  const renderRecordCards = (
+    records: AttachedRecordPreview[],
+    heading: string,
+    onRemove?: (recordId: number) => void
+  ) => {
+    if (!records || records.length === 0) return null;
+    return (
+      <div className="flex justify-end">
+        <div className="max-w-[85%] rounded-lg rounded-tr-none border border-[var(--portal-accent)]/40 bg-[color-mix(in_srgb,var(--portal-accent)_10%,transparent)] p-3 shadow-md">
+          <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-slate-200">
+            <Paperclip size={12} className="text-[var(--portal-accent)]" />
+            {heading}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {records.map((record) => (
+              <div
+                key={record.record_id}
+                className="group relative w-32 overflow-hidden rounded-lg border border-slate-700/50 bg-slate-950/40"
+              >
+                <div className="h-28 w-full overflow-hidden">
+                  <RecordThumbnail record={record} />
+                </div>
+                <p
+                  className="truncate px-1.5 py-1 text-[10px] text-slate-300"
+                  title={record.title}
+                >
+                  {record.title}
+                </p>
+                {onRemove && (
+                  <button
+                    type="button"
+                    onClick={() => onRemove(record.record_id)}
+                    className="absolute right-1 top-1 rounded bg-slate-950/70 p-0.5 text-slate-300 opacity-0 transition-opacity hover:bg-red-500/70 hover:text-white group-hover:opacity-100"
+                    title="Remove attachment"
+                    aria-label={`Remove ${record.title}`}
+                  >
+                    <X size={12} />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   const handlePatientDragOver = (e: React.DragEvent) => {
     if (!isStaffPatientDragEvent(e.dataTransfer)) return;
@@ -301,8 +350,8 @@ const StaffChatLayout: React.FC<StaffChatLayoutProps> = ({
                 </div>
               ) : (
                 messages.map((message) => (
+                  <React.Fragment key={message.id}>
                   <ChatMessage
-                    key={message.id}
                     variant="staff"
                     reportType={
                       capability === 'radiology' || capability === 'lab' ? capability : 'general'
@@ -335,8 +384,24 @@ const StaffChatLayout: React.FC<StaffChatLayoutProps> = ({
                       message.role === 'user'
                     }
                   />
+                  {message.role === 'user' &&
+                    message.attachedRecords &&
+                    renderRecordCards(message.attachedRecords, 'Attached for analysis')}
+                  </React.Fragment>
                 ))
               )}
+
+              {linkedPatient &&
+                renderRecordCards(
+                  linkedPatient.records,
+                  `Attaching for analysis · ${linkedPatient.displayName}`,
+                  (recordId) =>
+                    onLinkedPatientChange({
+                      ...linkedPatient,
+                      records: linkedPatient.records.filter((r) => r.record_id !== recordId),
+                    })
+                )}
+
               {(isLoading || analyzing) && (
                 <div className="flex items-start space-x-3">
                   <div

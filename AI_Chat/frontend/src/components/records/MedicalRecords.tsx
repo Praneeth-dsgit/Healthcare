@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { FileText, Download, Calendar, Search, Stethoscope, User } from 'lucide-react';
+import { FileText, Download, Calendar, Search, Stethoscope, User, List, LayoutGrid } from 'lucide-react';
 import { recordService, MedicalRecord } from '../../services/recordService';
 import { patientService, FamilyMember, Patient } from '../../services/patientService';
 import {
@@ -14,6 +14,9 @@ import {
   portalInputClass,
 } from '../patient/portalPageLayout';
 import { getMedicalRecordDownloadName } from '../../utils/medicalRecordDownload';
+import RecordThumbnail from '../chat/RecordThumbnail';
+
+type ViewMode = 'list' | 'tiles';
 
 // Component to format prescription description
 const PrescriptionDescription: React.FC<{ 
@@ -190,6 +193,7 @@ const MedicalRecords: React.FC = () => {
   const [selectedPerson, setSelectedPerson] = useState<string>('all'); // 'all', 'self', or family_member_id
   const [patient, setPatient] = useState<Patient | null>(null);
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
+  const [viewMode, setViewMode] = useState<ViewMode>('list');
 
   useEffect(() => {
     loadPatientData();
@@ -324,11 +328,105 @@ const MedicalRecords: React.FC = () => {
           }
         />
 
-        {/* Records List */}
+        {/* View toggle */}
+        <div className="flex justify-end">
+          <div className="flex shrink-0 rounded-lg border border-slate-600/50 bg-slate-800/40 p-0.5">
+            <button
+              type="button"
+              onClick={() => setViewMode('list')}
+              className={`rounded-md p-1.5 transition-colors ${
+                viewMode === 'list'
+                  ? 'bg-teal-500/25 text-teal-100'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+              title="List view"
+              aria-label="List view"
+              aria-pressed={viewMode === 'list'}
+            >
+              <List className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('tiles')}
+              className={`rounded-md p-1.5 transition-colors ${
+                viewMode === 'tiles'
+                  ? 'bg-teal-500/25 text-teal-100'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+              title="Tiles view"
+              aria-label="Tiles view"
+              aria-pressed={viewMode === 'tiles'}
+            >
+              <LayoutGrid className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Records */}
         {filteredRecords.length === 0 ? (
           <div className="premium-card p-12 text-center">
             <FileText className="h-16 w-16 mx-auto mb-4 text-gray-400" />
             <p className="text-gray-600">No medical records found</p>
+          </div>
+        ) : viewMode === 'tiles' ? (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {filteredRecords.map((record) => {
+              const personLabel = record.family_member_id
+                ? record.family_member_first_name && record.family_member_last_name
+                  ? `${record.family_member_first_name} ${record.family_member_last_name}`
+                  : 'Family Member'
+                : patient
+                  ? `${patient.first_name} ${patient.last_name}`
+                  : 'My Record';
+              const canDownload = record.file_url || record.record_type === 'prescription';
+              return (
+                <div
+                  key={record.record_id}
+                  className="premium-card flex flex-col overflow-hidden transition-all duration-300 hover:shadow-lg"
+                >
+                  <div className="h-40 w-full overflow-hidden bg-slate-950/40">
+                    <RecordThumbnail record={record} />
+                  </div>
+                  <div className="flex flex-1 flex-col p-4">
+                    <h3 className="truncate text-base font-bold text-gray-900" title={record.title}>
+                      {record.title}
+                    </h3>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium capitalize text-gray-700">
+                        {record.record_type.replace('_', ' ')}
+                      </span>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                          record.family_member_id
+                            ? 'bg-purple-100 text-purple-700'
+                            : 'bg-blue-100 text-blue-700'
+                        }`}
+                      >
+                        {personLabel}
+                      </span>
+                    </div>
+                    <div className="mt-2 flex items-center gap-1 text-xs text-gray-500">
+                      <Calendar className="h-3.5 w-3.5" />
+                      {new Date(record.visit_date).toLocaleDateString('en-GB', {
+                        day: 'numeric',
+                        month: 'numeric',
+                        year: 'numeric',
+                      })}
+                    </div>
+                    {canDownload && (
+                      <button
+                        onClick={() => handleDownload(record)}
+                        className="mt-4 flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white transition-all duration-200 hover:scale-105 hover:bg-blue-700 hover:shadow-lg"
+                        title="Download record"
+                      >
+                        <Download className="h-4 w-4" />
+                        Download
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-4">

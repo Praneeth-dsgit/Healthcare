@@ -769,20 +769,35 @@ Return only the formatted sentences, one per line, without any additional format
             elif 'medication' in question_lower or 'medicine' in question_lower:
                 return self.handle_medication_reminder(patient_identifier, question)
             else:
-                # Generic notification
+                # Generic notification via multi-channel engagement orchestrator
                 message = self.extract_custom_message(question) or "This is a reminder from your healthcare provider."
-                result = whatsapp_notifier.send_custom_notification(patient_identifier, message)
-                
-                if result['success']:
+                patient_info = self.get_patient_by_identifier(patient_identifier)
+                patient_id = (patient_info or {}).get('id') or (patient_info or {}).get('patient_id') or patient_identifier
+                try:
+                    from services import engagement_orchestrator as orchestrator
+                    result = orchestrator.create_event(
+                        str(patient_id),
+                        'manual',
+                        send_now=True,
+                        message=message,
+                        payload={'custom_message': message},
+                    )
+                    ok = bool(result.get('success'))
+                except Exception:
+                    result = whatsapp_notifier.send_custom_notification(patient_identifier, message)
+                    ok = bool(result.get('success'))
+
+                if ok:
                     return {
                         'success': True,
                         'results': [{
                             'action': 'notification_sent',
                             'patient': patient_identifier,
                             'message': message,
-                            'status': 'success'
+                            'status': 'success',
+                            'channels': result.get('channels'),
                         }],
-                        'natural_results': [f"Notification sent successfully to {patient_identifier}."]
+                        'natural_results': [f"Multi-channel notification sent successfully to {patient_identifier}."]
                     }
                 else:
                     return {
@@ -1117,7 +1132,7 @@ Return only the formatted sentences, one per line, without any additional format
         """Handle medication reminder for a patient with database data"""
         try:
             from whatsapp_integration import whatsapp_notifier
-            
+
             # Get patient info
             patient_info = self.get_patient_by_identifier(patient_identifier)
             if not patient_info:
@@ -1126,25 +1141,48 @@ Return only the formatted sentences, one per line, without any additional format
                     'error': f'Patient {patient_identifier} not found',
                     'results': []
                 }
-            
-            # Check if specific medication was mentioned in the question
+
+            patient_id = patient_info.get('id') or patient_info.get('patient_id')
             medication_info = self.extract_medication_info(question)
-            
-            if medication_info and medication_info.get('name') != 'medication':
-                # Use specific medication details from the question
-                result = whatsapp_notifier.send_medication_reminder(
-                    patient_info['id'],
-                    medication_info['name'],
-                    medication_info['dosage'],
-                    medication_info['time']
-                )
-                medication_desc = f"{medication_info['name']} ({medication_info['dosage']}) at {medication_info['time']}"
-            else:
-                # Send reminder for all current medications from database
-                result = whatsapp_notifier.send_medication_reminder(patient_info['id'])
-                medication_desc = "all current medications"
-            
-            if result['success']:
+
+            try:
+                from services import engagement_orchestrator as orchestrator
+                if medication_info and medication_info.get('name') != 'medication':
+                    result = orchestrator.create_event(
+                        str(patient_id),
+                        'medication_reminder',
+                        send_now=True,
+                        payload={
+                            'medication_name': medication_info['name'],
+                            'dosage': medication_info.get('dosage'),
+                            'time': medication_info.get('time'),
+                        },
+                    )
+                    medication_desc = f"{medication_info['name']} ({medication_info.get('dosage')}) at {medication_info.get('time')}"
+                else:
+                    result = orchestrator.create_event(
+                        str(patient_id),
+                        'medication_reminder',
+                        send_now=True,
+                        payload={'medication_name': 'your current medications'},
+                    )
+                    medication_desc = "all current medications"
+                ok = bool(result.get('success'))
+            except Exception:
+                if medication_info and medication_info.get('name') != 'medication':
+                    result = whatsapp_notifier.send_medication_reminder(
+                        patient_info['id'],
+                        medication_info['name'],
+                        medication_info['dosage'],
+                        medication_info['time']
+                    )
+                    medication_desc = f"{medication_info['name']} ({medication_info['dosage']}) at {medication_info['time']}"
+                else:
+                    result = whatsapp_notifier.send_medication_reminder(patient_info['id'])
+                    medication_desc = "all current medications"
+                ok = bool(result.get('success'))
+
+            if ok:
                 return {
                     'success': True,
                     'results': [{

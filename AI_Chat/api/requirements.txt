@@ -21,3 +21,12 @@ pydantic[email]
 # pip install tiktoken  # uncomment or install separately if you need accurate token counts
 reportlab==4.0.7
 PyJWT==2.8.0
+APScheduler==3.10.4
+# Optional SMS channel: pip install twilio
+# twilio
+
+# MedGemma local inference (optional — install when using MEDGEMMA_LOCAL=true)
+# RTX 50-series (sm_120) needs CUDA 12.8 PyTorch wheels, e.g.:
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
+# transformers
+# accelerate

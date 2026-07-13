@@ -3,9 +3,7 @@
  * No session cookies. Use Authorization: Bearer <accessToken> for API calls.
  */
 
-import { getApiBaseUrl } from '../utils/apiBase';
-
-const API_BASE = getApiBaseUrl();
+import { getApiRoot } from '../utils/apiBase';
 
 const KEY_ACCESS = 'accessToken';
 const KEY_REFRESH = 'refreshToken';
@@ -39,10 +37,24 @@ export function clearAuth(): void {
   sessionStorage.removeItem(KEY_EMAIL);
   sessionStorage.removeItem(KEY_PATIENT_ID);
   sessionStorage.removeItem(KEY_AUTH);
+  sessionStorage.removeItem('patient_health_summary');
 }
 
 export function isAuthenticated(): boolean {
   return sessionStorage.getItem(KEY_AUTH) === 'true' && !!getAccessToken();
+}
+
+function redirectToLoginAfterAuthFailure(): void {
+  if (typeof window === 'undefined') return;
+  const path = window.location.pathname;
+  if (path.startsWith('/login') || path.startsWith('/signup')) return;
+  const returnTo = encodeURIComponent(path + window.location.search);
+  window.location.href = `/login?session=expired&returnTo=${returnTo}`;
+}
+
+export function handleAuthFailure(): void {
+  clearAuth();
+  redirectToLoginAfterAuthFailure();
 }
 
 export function getAuthHeaders(): HeadersInit {
@@ -63,17 +75,20 @@ let refreshPromise: Promise<string | null> | null = null;
  */
 export async function refreshAccessToken(): Promise<string | null> {
   const refresh = getRefreshToken();
-  if (!refresh) return null;
+  if (!refresh) {
+    handleAuthFailure();
+    return null;
+  }
   if (refreshPromise) return refreshPromise;
   refreshPromise = (async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/refresh`, {
+      const res = await fetch(`${getApiRoot()}/refresh`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refreshToken: refresh }),
       });
       if (!res.ok) {
-        clearAuth();
+        handleAuthFailure();
         return null;
       }
       const data = await res.json();
@@ -84,7 +99,7 @@ export async function refreshAccessToken(): Promise<string | null> {
       }
       return null;
     } catch {
-      clearAuth();
+      handleAuthFailure();
       return null;
     } finally {
       refreshPromise = null;
@@ -103,7 +118,13 @@ export async function authenticatedFetch(
   const headers = new Headers(options.headers);
   if (!headers.has('Authorization')) {
     const token = getAccessToken();
-    if (token) headers.set('Authorization', `Bearer ${token}`);
+    if (!token) {
+      return new Response(JSON.stringify({ error: 'Not authenticated' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    headers.set('Authorization', `Bearer ${token}`);
   }
   // Don't set Content-Type for FormData - browser must set multipart boundary
   if (!headers.has('Content-Type') && !(options.body instanceof FormData)) {

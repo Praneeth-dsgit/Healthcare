@@ -68,3 +68,32 @@ def send_otp_email(email, otp, subject_prefix=''):
         logger.error(traceback.format_exc())
         return False, f'Failed to send OTP: {str(e)}. Please check your email configuration in .env file. See EMAIL_SETUP_INSTRUCTIONS.md for setup instructions.'
 
+
+def send_engagement_email(email, subject, body):
+    """Send a patient engagement email (reminders, follow-ups, campaigns)."""
+    try:
+        smtp_server = SMTP_SERVER.strip() if SMTP_SERVER else None
+        smtp_port = SMTP_PORT
+        smtp_user = SMTP_USER.strip() if SMTP_USER else None
+        smtp_pass = SMTP_PASS.replace(' ', '').strip() if SMTP_PASS else None
+
+        if not smtp_user or not smtp_pass:
+            logger.error('SMTP credentials not configured for engagement email')
+            return False, 'Email service not configured'
+
+        msg = MIMEText(body or '')
+        msg['Subject'] = subject or 'Acufore Health'
+        msg['From'] = smtp_user
+        msg['To'] = email
+
+        with smtplib.SMTP(smtp_server, smtp_port, timeout=10) as server:
+            server.starttls()
+            server.login(smtp_user, smtp_pass)
+            server.sendmail(smtp_user, [email], msg.as_string())
+        logger.info('Engagement email sent to %s', email)
+        return True, None
+    except Exception as e:
+        logger.error('Failed to send engagement email: %s', e)
+        logger.error(traceback.format_exc())
+        return False, str(e)
+

@@ -11,6 +11,13 @@ export interface PatientInfo {
   patientName?: string;
 }
 
+export interface AttachedRecordPreview {
+  record_id: number;
+  title: string;
+  file_type?: string;
+  file_url?: string;
+}
+
 export interface Message {
   id: string;
   role: 'user' | 'assistant';
@@ -23,6 +30,8 @@ export interface Message {
   fileType?: string;
   fileName?: string;
   pdfThumbnail?: string;
+  /** Medical records that were attached to this (user) message when sent. */
+  attachedRecords?: AttachedRecordPreview[];
 }
 
 // Web Speech API types

@@ -8,14 +8,15 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Calendar, Scan, FileText, CreditCard,
-  User, Users, LogOut, X, Stethoscope, Building2, Minus, Maximize2, Bell, ChevronDown, Menu
-}from 'lucide-react';
+  User, Users, LogOut, X, Stethoscope, Building2, Minus, Maximize2, Bell, ChevronDown, Menu, Video, Pill, Sparkles
+} from 'lucide-react';
 import AiAssistantIcon from '../assets/ai_assistant_icon.png';  
 import PatientDashboard from './patient/PatientDashboard';
 import PatientProfile from './patient/PatientProfile';
 import FamilyMembers from './patient/FamilyMembers';
 import Doctors from './patient/Doctors';
 import Facilities from './patient/Facilities';
+import Pharmacies from './patient/Pharmacies';
 import AppointmentList from './appointments/AppointmentList';
 import AppointmentBooking from './appointments/AppointmentBooking';
 import RadiologyBooking from './radiology/RadiologyBooking';
@@ -24,10 +25,16 @@ import MedicalRecords from './records/MedicalRecords';
 import BillingDashboard from './billing/BillingDashboard';
 import PatientPortalChat from './patient/PatientPortalChat';
 import Notifications from './patient/Notifications';
+import TelemedicineLobby from './telemedicine/TelemedicineLobby';
+import TelemedicineRoom from './telemedicine/TelemedicineRoom';
+import EngagementHub from './patient/EngagementHub';
+import SDOHScreening from './patient/SDOHScreening';
+import DecisionAidFlow from './patient/DecisionAidFlow';
+import { resolveTelemedicineVisitId } from '../services/telemedicinePeerService';
 import { patientService } from '../services/patientService';
 import { notificationService, Notification } from '../services/notificationService';
 import { isAuthenticated } from '../services/authService';
-
+import SydneyLocationSelector from './ui/SydneyLocationSelector';
 
 const PatientPortalLayout: React.FC = () => {
   const navigate = useNavigate();
@@ -208,9 +215,12 @@ const PatientPortalLayout: React.FC = () => {
     { path: '/portal/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { path: '/portal/profile', icon: User, label: 'Profile' },
     { path: '/portal/family', icon: Users, label: 'Your Family' },
+    { path: '/portal/engagement', icon: Sparkles, label: 'Engagement Hub' },
     { path: '/portal/doctors', icon: Stethoscope, label: 'Doctors' },
+    { path: '/portal/pharmacies', icon: Pill, label: 'Pharmacies' },
     { path: '/portal/facilities', icon: Building2, label: 'Facilities' },
     { path: '/portal/appointments', icon: Calendar, label: 'Appointments' },
+    { path: '/portal/telemedicine', icon: Video, label: 'Telemedicine' },
     { path: '/portal/radiology', icon: Scan, label: 'Radiology' },
     { path: '/portal/records', icon: FileText, label: 'Medical Records' },
     { path: '/portal/billing', icon: CreditCard, label: 'Billing' },
@@ -222,6 +232,15 @@ const PatientPortalLayout: React.FC = () => {
       ? `Welcome, ${patientFirstName || ''} ${patientLastName || ''}!`.trim()
       : 'Welcome to Your Patient Portal!';
   };
+
+  if (location.pathname.startsWith('/portal/telemedicine/visit/')) {
+    const portalVisitId = resolveTelemedicineVisitId(location.pathname);
+    return (
+      <div className="h-screen" data-portal="patient">
+        <TelemedicineRoom role="patient" visitId={portalVisitId} />
+      </div>
+    );
+  }
 
   return (
     <div className="app-shell flex h-screen flex-col text-slate-100" data-portal="patient">
@@ -253,8 +272,9 @@ const PatientPortalLayout: React.FC = () => {
                   Patient ID: <span className="rounded-md bg-slate-800/80 px-2 py-0.5 font-mono text-xs font-semibold text-slate-200">{patientId || 'Loading...'}</span>
                 </p>
               </div>
-              {/* Top Right: Notifications and Profile */}
+              {/* Top Right: Location, Notifications and Profile */}
               <div className="flex items-center gap-3">
+                <SydneyLocationSelector compact showLabel={false} />
                 {/* Notification Bell Button */}
                 <button
                   onClick={() => navigate('/portal/notifications')}
@@ -372,7 +392,10 @@ const PatientPortalLayout: React.FC = () => {
               (item.path === '/portal/appointments' && location.pathname.startsWith('/portal/appointments')) ||
               (item.path === '/portal/radiology' && location.pathname.startsWith('/portal/radiology')) ||
               (item.path === '/portal/doctors' && location.pathname.startsWith('/portal/doctors')) ||
+              (item.path === '/portal/pharmacies' && location.pathname.startsWith('/portal/pharmacies')) ||
               (item.path === '/portal/facilities' && location.pathname.startsWith('/portal/facilities')) ||
+              (item.path === '/portal/telemedicine' && location.pathname.startsWith('/portal/telemedicine')) ||
+              (item.path === '/portal/engagement' && location.pathname.startsWith('/portal/engagement')) ||
               (item.path === '/portal/notifications' && location.pathname === '/portal/notifications');
 
             return (
@@ -418,7 +441,9 @@ const PatientPortalLayout: React.FC = () => {
                 (item.path === '/portal/appointments' && location.pathname.startsWith('/portal/appointments')) ||
                 (item.path === '/portal/radiology' && location.pathname.startsWith('/portal/radiology')) ||
                 (item.path === '/portal/doctors' && location.pathname.startsWith('/portal/doctors')) ||
-                (item.path === '/portal/facilities' && location.pathname.startsWith('/portal/facilities'));
+                (item.path === '/portal/pharmacies' && location.pathname.startsWith('/portal/pharmacies')) ||
+                (item.path === '/portal/facilities' && location.pathname.startsWith('/portal/facilities')) ||
+                (item.path === '/portal/telemedicine' && location.pathname.startsWith('/portal/telemedicine'));
 
               return (
                 <button
@@ -449,14 +474,24 @@ const PatientPortalLayout: React.FC = () => {
             <PatientProfile />
           ) : location.pathname === '/portal/family' ? (
             <FamilyMembers />
+          ) : location.pathname === '/portal/engagement/sdoh' ? (
+            <SDOHScreening />
+          ) : location.pathname === '/portal/engagement/decisions' ? (
+            <DecisionAidFlow />
+          ) : location.pathname === '/portal/engagement' ? (
+            <EngagementHub />
           ) : location.pathname === '/portal/doctors' ? (
             <Doctors />
+          ) : location.pathname === '/portal/pharmacies' ? (
+            <Pharmacies />
           ) : location.pathname === '/portal/facilities' ? (
             <Facilities />
           ) : location.pathname === '/portal/appointments/book' ? (
             <AppointmentBooking />
           ) : location.pathname === '/portal/appointments' ? (
             <AppointmentList />
+          ) : location.pathname === '/portal/telemedicine' ? (
+            <TelemedicineLobby />
           ) : location.pathname === '/portal/radiology/book' ? (
             <RadiologyBooking />
           ) : location.pathname === '/portal/radiology' ? (

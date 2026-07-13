@@ -21,6 +21,7 @@ export interface PrescriptionPdfOptions {
   doctorQualification: string;
   doctorLicense: string;
   recipientLabel?: string;
+  clinicalSummary?: string;
 }
 
 const PAGE = { margin: 18, width: 210, height: 297, footerY: 282 };
@@ -211,6 +212,12 @@ export function buildPrescriptionPdf(options: PrescriptionPdfOptions): jsPDF {
       }
       y += 24;
     }
+  }
+
+  // Clinical summary (AI-assisted visit summary)
+  if (options.clinicalSummary?.trim()) {
+    y = drawSectionHeading(doc, y, 'Clinical Summary');
+    y = drawBodyText(doc, y, options.clinicalSummary.trim());
   }
 
   // Additional notes

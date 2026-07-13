@@ -4,25 +4,32 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Calendar, FileText, Search, BarChart3, User, LogOut, ChevronDown, Users } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { Calendar, FileText, Search, BarChart3, User, LogOut, ChevronDown, Share2, Network, FolderOpen } from 'lucide-react';
+import { useNavigate, useParams } from 'react-router-dom';
 import DoctorAppointments from './DoctorAppointments';
+import DoctorTelemedicinePanel from './DoctorTelemedicinePanel';
 import PrescriptionUpload from './PrescriptionUpload';
+import DoctorMedicalRecords from './DoctorMedicalRecords';
 import MedicineLookup, { LookupMedicineSelection } from './MedicineLookup';
 import ReportsAnalytics from './ReportsAnalytics';
+import ReferralsWorkspace from '../referrals/ReferralsWorkspace';
+import DoctorNetworkHub from '../network/DoctorNetworkHub';
+import TelemedicineRoom from '../telemedicine/TelemedicineRoom';
 import SegmentTabs from '../ui/SegmentTabs';
-import StatCard from '../ui/StatCard';
+import SydneyLocationSelector from '../ui/SydneyLocationSelector';
 import { doctorService, Doctor } from '../../services/doctorService';
 import { roleService } from '../../services/roleService';
 
-type TabType = 'appointments' | 'prescriptions' | 'analytics';
+type TabType = 'appointments' | 'prescriptions' | 'medical_records' | 'analytics' | 'referrals' | 'network';
 
 const GeneralPractitionerDashboard: React.FC = () => {
+  const { visitId } = useParams<{ visitId?: string }>();
   const [activeTab, setActiveTab] = useState<TabType>('appointments');
   const [doctor, setDoctor] = useState<Doctor | null>(null);
   const [loadingDoctor, setLoadingDoctor] = useState(true);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [prescriptionPatientId, setPrescriptionPatientId] = useState<string | null>(null);
+  const [recordsPatientId, setRecordsPatientId] = useState<string | null>(null);
   const [selectedLookupMedicine, setSelectedLookupMedicine] = useState<{
     selection: LookupMedicineSelection;
     token: number;
@@ -33,6 +40,9 @@ const GeneralPractitionerDashboard: React.FC = () => {
   const mainTabs = [
     { id: 'appointments' as TabType, label: 'Appointments', icon: Calendar },
     { id: 'prescriptions' as TabType, label: 'Prescriptions', icon: FileText },
+    { id: 'medical_records' as TabType, label: 'Medical Records', icon: FolderOpen },
+    { id: 'referrals' as TabType, label: 'Referrals', icon: Share2 },
+    { id: 'network' as TabType, label: 'Network', icon: Network },
     { id: 'analytics' as TabType, label: 'Reports & Analytics', icon: BarChart3 },
   ];
 
@@ -65,6 +75,14 @@ const GeneralPractitionerDashboard: React.FC = () => {
     : 'Doctor';
   const doctorSpecialty = doctor?.specialty_name || 'General Practitioner';
 
+  if (visitId) {
+    return (
+      <div className="h-screen" data-portal="doctor">
+        <TelemedicineRoom role="doctor" onExit={() => navigate('/app/general')} />
+      </div>
+    );
+  }
+
   return (
     <div className="app-shell flex h-screen flex-col overflow-hidden" data-portal="doctor">
       <div className="app-topbar z-30 shrink-0">
@@ -84,7 +102,9 @@ const GeneralPractitionerDashboard: React.FC = () => {
             </div>
           </div>
 
-          <div className="relative">
+          <div className="flex items-center gap-3">
+            <SydneyLocationSelector compact showLabel={false} />
+            <div className="relative">
             <button
               onClick={() => setShowProfileMenu(!showProfileMenu)}
               className="ghost-button flex items-center gap-3 rounded-xl px-3 py-2"
@@ -120,29 +140,19 @@ const GeneralPractitionerDashboard: React.FC = () => {
               </>
             )}
           </div>
+          </div>
         </div>
       </div>
 
       <div className="flex-1 overflow-auto">
-        <div className="mx-auto flex max-w-[1600px] flex-col gap-5 px-4 py-5 sm:px-6 lg:px-8 xl:flex-row xl:items-start">
+        <div
+          className={`mx-auto flex max-w-[1600px] flex-col gap-5 px-4 py-5 sm:px-6 lg:px-8 ${
+            activeTab === 'appointments' || activeTab === 'prescriptions'
+              ? 'xl:flex-row xl:items-start'
+              : ''
+          }`}
+        >
           <div className="min-w-0 flex-1 space-y-5">
-            <div className="flex justify-start">
-              <div className="grid w-full max-w-md grid-cols-2 gap-3 animate-stagger-children sm:w-auto">
-                <StatCard
-                  label="Today's Appointments"
-                  value="—"
-                  icon={Calendar}
-                  accentClass="text-sky-300 bg-sky-500/15"
-                />
-                <StatCard
-                  label="Patients Seen"
-                  value="—"
-                  icon={Users}
-                  accentClass="text-sky-300 bg-sky-500/15"
-                />
-              </div>
-            </div>
-
             <SegmentTabs
               tabs={mainTabs}
               activeTab={activeTab}
@@ -156,6 +166,10 @@ const GeneralPractitionerDashboard: React.FC = () => {
                     setPrescriptionPatientId(patientId);
                     setActiveTab('prescriptions');
                   }}
+                  onViewRecords={(patientId) => {
+                    setRecordsPatientId(patientId);
+                    setActiveTab('medical_records');
+                  }}
                 />
               )}
               {activeTab === 'prescriptions' && (
@@ -165,29 +179,43 @@ const GeneralPractitionerDashboard: React.FC = () => {
                   onDiagnosisChange={setDiagnosisForLookup}
                 />
               )}
+              {activeTab === 'medical_records' && (
+                <DoctorMedicalRecords initialPatientId={recordsPatientId || undefined} />
+              )}
               {activeTab === 'analytics' && <ReportsAnalytics />}
+              {activeTab === 'referrals' && <ReferralsWorkspace />}
+              {activeTab === 'network' && <DoctorNetworkHub />}
             </div>
           </div>
 
-          <aside className="premium-card flex h-[min(560px,calc(100vh-8rem))] max-h-[calc(100vh-8rem)] w-full shrink-0 flex-col overflow-hidden xl:sticky xl:top-5 xl:h-[calc(100vh-7rem)] xl:w-[min(100%,420px)]">
-            <div className="shrink-0 border-b border-sky-500/20 px-4 py-3 sm:px-5">
-              <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-100">
-                <Search className="h-4 w-4 text-sky-400" />
-                Medicine Lookup
-              </h2>
-              <p className="mt-0.5 text-xs text-slate-400">Search diseases, symptoms, and treatments</p>
-            </div>
-            <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-4 sm:p-5">
-              <MedicineLookup
-                embedded
-                diagnosisQuery={diagnosisForLookup}
-                onSelectMedicine={(selection) => {
-                  setSelectedLookupMedicine({ selection, token: Date.now() });
-                  setActiveTab('prescriptions');
-                }}
+          {activeTab === 'appointments' && (
+            <aside className="premium-card flex h-[min(560px,calc(100vh-8rem))] max-h-[calc(100vh-8rem)] w-full shrink-0 flex-col overflow-hidden xl:sticky xl:top-5 xl:h-[calc(100vh-7rem)] xl:w-[min(100%,420px)]">
+              <DoctorTelemedicinePanel
+                onStartVisit={(id) => navigate(`/app/general/visit/${id}`)}
               />
-            </div>
-          </aside>
+            </aside>
+          )}
+
+          {activeTab === 'prescriptions' && (
+            <aside className="premium-card flex h-[min(560px,calc(100vh-8rem))] max-h-[calc(100vh-8rem)] w-full shrink-0 flex-col overflow-hidden xl:sticky xl:top-5 xl:h-[calc(100vh-7rem)] xl:w-[min(100%,420px)]">
+              <div className="shrink-0 border-b border-sky-500/20 px-4 py-3 sm:px-5">
+                <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-100">
+                  <Search className="h-4 w-4 text-sky-400" />
+                  Medicine Lookup
+                </h2>
+                <p className="mt-0.5 text-xs text-slate-400">Search diseases, symptoms, and treatments</p>
+              </div>
+              <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-4 sm:p-5">
+                <MedicineLookup
+                  embedded
+                  diagnosisQuery={diagnosisForLookup}
+                  onSelectMedicine={(selection) => {
+                    setSelectedLookupMedicine({ selection, token: Date.now() });
+                  }}
+                />
+              </div>
+            </aside>
+          )}
         </div>
       </div>
     </div>

@@ -5,10 +5,17 @@
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Calendar, Clock, User, MapPin, Plus, X, Edit2, Filter, ChevronLeft, ChevronRight, Check } from 'lucide-react';
+import { Calendar, Clock, User, MapPin, Plus, X, Edit2, Filter, ChevronLeft, ChevronRight, Check, Video } from 'lucide-react';
 import { appointmentService, Appointment } from '../../services/appointmentService';
+import { telemedicineService, type TelemedicineVisit, isDemoVisitId } from '../../services/telemedicineService';
 import { patientService, FamilyMember } from '../../services/patientService';
 import { getApiBaseUrl } from '../../utils/apiBase';
+import {
+  PortalPageShell,
+  PortalPageHero,
+  PortalLoading,
+} from '../patient/portalPageLayout';
+
 function appointmentStatusPillClass(status: string): string {
   const pills: Record<string, string> = {
     scheduled: 'bg-sky-500/15 text-sky-300',
@@ -20,18 +27,18 @@ function appointmentStatusPillClass(status: string): string {
   };
   return pills[status] ?? 'bg-slate-500/15 text-slate-400';
 }
-import {
-  PortalPageShell,
-  PortalPageHero,
-  PortalLoading,
-} from '../patient/portalPageLayout';
+
+function formatAppointmentType(type: string): string {
+  if (type === 'video') return 'Telemedicine';
+  return type.replace(/_/g, ' ');
+}
 
 const AppointmentList: React.FC = () => {
   const navigate = useNavigate();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<'upcoming' | 'past'>('upcoming');
+  const [filter, setFilter] = useState<'upcoming' | 'past' | 'telemedicine'>('upcoming');
   const [selectedMonth, setSelectedMonth] = useState<string>('all');
   const [showMonthFilter, setShowMonthFilter] = useState(false);
   const [rescheduleAppointment, setRescheduleAppointment] = useState<Appointment | null>(null);
@@ -42,6 +49,7 @@ const AppointmentList: React.FC = () => {
   const [rescheduleDate, setRescheduleDate] = useState<string>('');
   const [rescheduleTime, setRescheduleTime] = useState<string>('');
   const [rescheduling, setRescheduling] = useState(false);
+  const [videoVisits, setVideoVisits] = useState<TelemedicineVisit[]>([]);
 
   useEffect(() => {
     loadData();
@@ -75,9 +83,10 @@ const AppointmentList: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [appointmentsResult, familyResult] = await Promise.all([
+      const [appointmentsResult, familyResult, visitsResult] = await Promise.all([
         appointmentService.getAppointments(),
         patientService.getFamilyMembers(),
+        telemedicineService.getVisits(),
       ]);
 
       if (appointmentsResult.success && appointmentsResult.appointments) {
@@ -86,6 +95,11 @@ const AppointmentList: React.FC = () => {
       if (familyResult.success && familyResult.family_members) {
         setFamilyMembers(familyResult.family_members);
       }
+      setVideoVisits(
+        visitsResult.visits.filter(
+          (v) => v.status !== 'completed' && v.canJoin && !isDemoVisitId(v.id)
+        )
+      );
     } catch (error) {
       console.error('Error loading appointments:', error);
     } finally {
@@ -276,7 +290,16 @@ const AppointmentList: React.FC = () => {
     return [{ value: 'all', label: 'All Months' }, ...monthOptions];
   };
 
+  const tabActiveClass = 'bg-teal-500/20 text-teal-200 ring-1 ring-teal-500/40';
+  const tabInactiveClass = 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200';
+
+  const telemedicineAppointments = appointments.filter((a) => a.appointment_type === 'video');
+
   const filteredAppointments = appointments.filter(apt => {
+    if (filter === 'telemedicine') {
+      return apt.appointment_type === 'video';
+    }
+
     const appointmentDate = new Date(apt.appointment_date);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -300,6 +323,11 @@ const AppointmentList: React.FC = () => {
 
     return matchesTimeFilter && matchesMonthFilter;
   }).sort((a, b) => {
+    if (filter === 'telemedicine') {
+      const dateA = new Date(`${a.appointment_date}T${a.appointment_time}`);
+      const dateB = new Date(`${b.appointment_date}T${b.appointment_time}`);
+      return dateB.getTime() - dateA.getTime();
+    }
     const dateA = new Date(`${a.appointment_date}T${a.appointment_time}`);
     const dateB = new Date(`${b.appointment_date}T${b.appointment_time}`);
     return filter === 'upcoming' ? dateA.getTime() - dateB.getTime() : dateB.getTime() - dateA.getTime();
@@ -314,7 +342,11 @@ const AppointmentList: React.FC = () => {
         <PortalPageHero
           eyebrow="Scheduling"
           title="My Appointments"
-          subtitle="View upcoming visits, past history, and manage bookings."
+          subtitle={
+            filter === 'telemedicine'
+              ? 'Telemedicine visits booked with video-enabled doctors.'
+              : 'View upcoming visits, past history, and manage bookings.'
+          }
           icon={<Calendar />}
           badges={
             <span className="rounded-full bg-sky-500/15 px-3 py-1 text-sm font-semibold text-sky-200">
@@ -333,9 +365,30 @@ const AppointmentList: React.FC = () => {
           }
         />
 
+        {filter === 'upcoming' && videoVisits.length > 0 && (
+          <div className="premium-card mb-6 border border-teal-500/30 p-4">
+            <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-teal-200">
+              <Video className="h-4 w-4" /> Ready to join — telemedicine
+            </h3>
+            <div className="flex flex-wrap gap-3">
+              {videoVisits.map((v) => (
+                <button
+                  key={v.id}
+                  type="button"
+                  onClick={() => navigate(`/portal/telemedicine/visit/${v.id}`)}
+                  className="portal-accent-button flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-bold"
+                >
+                  <Video className="h-4 w-4" />
+                  Join {v.doctorName}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Filter Tabs */}
         <div className="content-panel mb-6 p-2 transition-all duration-300">
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <div
               role="button"
               tabIndex={0}
@@ -352,10 +405,8 @@ const AppointmentList: React.FC = () => {
                   setShowMonthFilter(false);
                 }
               }}
-              className={`flex flex-1 items-center justify-between rounded-lg px-4 py-3 text-sm font-semibold transition-colors ${
-                filter === 'upcoming'
-                  ? 'bg-sky-500/20 text-sky-200 ring-1 ring-sky-500/40'
-                  : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'
+              className={`flex min-w-[7rem] flex-1 items-center justify-between rounded-lg px-4 py-3 text-sm font-semibold transition-colors ${
+                filter === 'upcoming' ? tabActiveClass : tabInactiveClass
               }`}
             >
               <span>
@@ -430,10 +481,8 @@ const AppointmentList: React.FC = () => {
                   setShowMonthFilter(false);
                 }
               }}
-              className={`flex flex-1 items-center justify-between rounded-lg px-4 py-3 text-sm font-semibold transition-colors ${
-                filter === 'past'
-                  ? 'bg-sky-500/20 text-sky-200 ring-1 ring-sky-500/40'
-                  : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'
+              className={`flex min-w-[7rem] flex-1 items-center justify-between rounded-lg px-4 py-3 text-sm font-semibold transition-colors ${
+                filter === 'past' ? tabActiveClass : tabInactiveClass
               }`}
             >
               <span>
@@ -491,6 +540,29 @@ const AppointmentList: React.FC = () => {
                 </div>
               )}
             </div>
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => {
+                setFilter('telemedicine');
+                setSelectedMonth('all');
+                setShowMonthFilter(false);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  setFilter('telemedicine');
+                  setSelectedMonth('all');
+                  setShowMonthFilter(false);
+                }
+              }}
+              className={`flex min-w-[7rem] flex-1 items-center justify-center gap-2 rounded-lg px-4 py-3 text-sm font-semibold transition-colors ${
+                filter === 'telemedicine' ? tabActiveClass : tabInactiveClass
+              }`}
+            >
+              <Video className="h-4 w-4 shrink-0" />
+              <span>Telemedicine ({telemedicineAppointments.length})</span>
+            </div>
           </div>
         </div>
 
@@ -499,14 +571,22 @@ const AppointmentList: React.FC = () => {
           <div className="premium-card p-12 text-center transition-all duration-300">
             <Calendar className="mx-auto mb-4 h-16 w-16 text-slate-500" />
             <p className="mb-4 text-slate-400">
-              {filter === 'upcoming' ? 'No upcoming appointments' : 'No past appointments'}
+              {filter === 'upcoming'
+                ? 'No upcoming appointments'
+                : filter === 'past'
+                  ? 'No past appointments'
+                  : 'No telemedicine appointments yet'}
             </p>
-            {filter === 'upcoming' && (
+            {(filter === 'upcoming' || filter === 'telemedicine') && (
               <button
-                onClick={() => navigate('/portal/appointments/book')}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg"
+                onClick={() =>
+                  navigate('/portal/appointments/book', {
+                    state: filter === 'telemedicine' ? { visitMode: 'video' } : undefined,
+                  })
+                }
+                className="portal-accent-button rounded-lg px-6 py-2 text-sm font-bold"
               >
-                Book Appointment
+                {filter === 'telemedicine' ? 'Book Telemedicine' : 'Book Appointment'}
               </button>
             )}
           </div>
@@ -516,7 +596,10 @@ const AppointmentList: React.FC = () => {
               const bookedFor = getBookedFor(apt);
               const doctorName = getDoctorName(apt);
               const appointmentDateTime = new Date(`${apt.appointment_date}T${apt.appointment_time}`);
-              const isUpcoming = filter === 'upcoming' && apt.status !== 'completed' && apt.status !== 'cancelled';
+              const isUpcoming =
+                (filter === 'upcoming' || filter === 'telemedicine') &&
+                apt.status !== 'completed' &&
+                apt.status !== 'cancelled';
               const statusLabel =
                 (apt.status as string) === 'confirmed' ? 'Scheduled' : apt.status;
 
@@ -572,7 +655,7 @@ const AppointmentList: React.FC = () => {
                       {apt.appointment_type && (
                         <div className="flex items-center gap-2 capitalize">
                           <Clock className="h-4 w-4 shrink-0 text-slate-500" />
-                          <span>{apt.appointment_type.replace('_', ' ')}</span>
+                          <span>{formatAppointmentType(apt.appointment_type)}</span>
                         </div>
                       )}
                     </div>
@@ -583,7 +666,21 @@ const AppointmentList: React.FC = () => {
                   </div>
 
                   {isUpcoming && (
-                    <div className="mt-auto flex gap-2">
+                    <div className="mt-auto flex flex-col gap-2">
+                      {(apt.appointment_type === 'video' ||
+                        (apt.reason && apt.reason.toLowerCase().includes('video'))) && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            navigate(`/portal/telemedicine/visit/visit-${apt.appointment_id}`)
+                          }
+                          className="flex w-full items-center justify-center gap-2 rounded-lg border border-teal-500/40 bg-teal-500/15 py-2.5 text-sm font-bold text-teal-300"
+                        >
+                          <Video className="h-4 w-4" />
+                          Join Telemedicine
+                        </button>
+                      )}
+                      <div className="flex gap-2">
                       <button
                         type="button"
                         onClick={() => handleRescheduleClick(apt)}
@@ -600,6 +697,7 @@ const AppointmentList: React.FC = () => {
                         <X className="h-4 w-4" />
                         Cancel
                       </button>
+                      </div>
                     </div>
                   )}
                 </article>

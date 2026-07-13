@@ -298,13 +298,17 @@ const App: FC = () => {
     previousAiMessage?: string | null;
     resetMessage?: string | null;
     capability?: Capability | string | null;
+    recordIds?: number[];
   }) => ({
     message: payload.message,
     userEmail: sessionStorage.getItem('userEmail') || 'anonymous',
     patient_id: linkedPatient?.patientId ?? undefined,
-    record_ids: linkedPatient?.records?.length
-      ? linkedPatient.records.map((r) => r.record_id)
-      : undefined,
+    record_ids:
+      payload.recordIds?.length
+        ? payload.recordIds
+        : linkedPatient?.records?.length
+          ? linkedPatient.records.map((r) => r.record_id)
+          : undefined,
     patientInfo: linkedPatient ? undefined : payload.patientInfo ?? undefined,
     fileContext: payload.fileContext ?? null,
     fileFindings: payload.fileFindings ?? null,
@@ -940,12 +944,26 @@ const App: FC = () => {
       role: 'user',
       content: input.trim(),
       timestamp: new Date().toISOString(),
-      patientInfo: patientInfo
+      patientInfo: patientInfo,
+      attachedRecords: linkedPatient?.records?.length
+        ? linkedPatient.records.map((r) => ({
+            record_id: r.record_id,
+            title: r.title,
+            file_type: r.file_type,
+            file_url: r.file_url,
+          }))
+        : undefined,
     };
 
     setMessages(prev => [...prev, userMessage]);
     setInput('');
     setIsLoading(true);
+
+    // Attachments are consumed by this message; clear the pending set so the
+    // next attachment starts fresh (patient stays linked).
+    if (linkedPatient?.records?.length) {
+      setLinkedPatient(prev => (prev ? { ...prev, records: [] } : prev));
+    }
 
     // Create abort controller for this request
     const controller = new AbortController();
@@ -959,6 +977,7 @@ const App: FC = () => {
         buildChatStreamBody({
           message: userMessage.content,
           patientInfo: linkedPatient?.patientInfo ?? patientInfo,
+          recordIds: userMessage.attachedRecords?.map((r) => r.record_id),
           fileContext: resetContext ? null : lastUploadedFile,
           fileFindings: resetContext ? null : lastFileFindings,
           previousAiMessage: isFollowUp ? lastAiMessage : null,
@@ -1569,6 +1588,13 @@ const App: FC = () => {
       {/* Redirect /app to /app/general */}
       <Route path="/app" element={<Navigate to="/app/general" replace />} />
       {/* General Practitioner Dashboard - New route for /app/general */}
+      <Route path="/app/general/visit/:visitId" element={
+        <ProtectedRoute>
+          <RoleBasedRoute capability="general" fallbackPath="/app/engagement" isAuthenticated={isAuthenticated}>
+            <GeneralPractitionerDashboard />
+          </RoleBasedRoute>
+        </ProtectedRoute>
+      } />
       <Route path="/app/general" element={
         <ProtectedRoute>
           <RoleBasedRoute capability="general" fallbackPath="/app/engagement" isAuthenticated={isAuthenticated}>

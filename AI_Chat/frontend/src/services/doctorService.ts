@@ -3,7 +3,7 @@
  * Protected routes use JWT (Authorization: Bearer).
  */
 
-import { getAuthHeaders, authenticatedFetch } from './authService';
+import { getAuthHeaders, authenticatedFetch, isAuthenticated } from './authService';
 
 import { getApiRoot } from '../utils/apiBase';
 
@@ -32,6 +32,8 @@ export interface Doctor {
   facility_address?: string;
   facility_city?: string;
   facility_type?: string;
+  facility_lat?: number;
+  facility_lng?: number;
 }
 
 export interface Specialty {
@@ -103,11 +105,17 @@ class DoctorService {
   }
 
   async getCurrentDoctor(): Promise<{ success: boolean; doctor?: Doctor; error?: string }> {
+    if (!isAuthenticated()) {
+      return { success: false, error: 'Not authenticated' };
+    }
     try {
       const response = await authenticatedFetch(`${API_BASE}/doctors/me`, {
         method: 'GET',
         headers: getAuthHeaders(),
       });
+      if (response.status === 401) {
+        return { success: false, error: 'Session expired' };
+      }
       const data = await response.json();
       return data;
     } catch (error) {

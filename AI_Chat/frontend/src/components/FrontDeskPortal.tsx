@@ -10,10 +10,15 @@ import {
   FileText,
   LogOut,
   AlertCircle,
+  Sparkles,
+  BarChart3,
 } from 'lucide-react';
 import StaffPortalShell from './ui/StaffPortalShell';
+import SydneyLocationSelector from './ui/SydneyLocationSelector';
 import FrontDeskDashboard from './FrontDeskDashboard';
 import PatientEngagement from './PatientEngagement';
+import FrontDeskEngagementConsole from './FrontDeskEngagementConsole';
+import EngagementAnalytics from './EngagementAnalytics';
 
 type FrontDeskSection =
   | 'dashboard'
@@ -23,7 +28,9 @@ type FrontDeskSection =
   | 'registration'
   | 'billing'
   | 'queue'
-  | 'reports';
+  | 'reports'
+  | 'engagement'
+  | 'analytics';
 
 interface FrontDeskPortalProps {
   sessionId?: string | null;
@@ -35,6 +42,8 @@ const NAV_ITEMS: { id: FrontDeskSection; label: string; icon: React.ElementType 
   { id: 'appointments', label: 'Appointments', icon: Calendar },
   { id: 'book', label: 'Book Appointment', icon: CalendarPlus },
   { id: 'query', label: 'Query Results', icon: BrainCircuit },
+  { id: 'engagement', label: 'Engagement Console', icon: Sparkles },
+  { id: 'analytics', label: 'Engagement Analytics', icon: BarChart3 },
   { id: 'registration', label: 'Registration', icon: UserPlus },
   { id: 'billing', label: 'Billing', icon: CreditCard },
   { id: 'queue', label: 'Queue', icon: ListOrdered },
@@ -98,6 +107,12 @@ const FrontDeskPortal: React.FC<FrontDeskPortalProps> = ({ sessionId, onLogout }
         </div>
       );
     }
+    if (activeSection === 'engagement') {
+      return <FrontDeskEngagementConsole />;
+    }
+    if (activeSection === 'analytics') {
+      return <EngagementAnalytics />;
+    }
 
     const deskTabMap: Record<string, 'dashboard' | 'registration' | 'billing' | 'queue' | 'reports'> = {
       dashboard: 'dashboard',
@@ -132,6 +147,7 @@ const FrontDeskPortal: React.FC<FrontDeskPortalProps> = ({ sessionId, onLogout }
                 <p className="text-sm text-slate-400">Manage appointments, billing, and patient engagement</p>
               </div>
             </div>
+            <SydneyLocationSelector compact showLabel={false} />
           </div>
         </div>
       }

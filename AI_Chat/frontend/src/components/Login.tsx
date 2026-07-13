@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Eye, EyeOff, UserPlus, AlertCircle } from 'lucide-react';
 import UsageStatisticsModal from './UsageStatisticsModal';
 import { roleService } from '../services/roleService';
@@ -24,6 +24,14 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, onNavigateToSignup, redir
   const [showUserNotFoundDialog, setShowUserNotFoundDialog] = useState(false);
   const [userNotFoundEmail, setUserNotFoundEmail] = useState('');
   const [showUsageStats, setShowUsageStats] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('session') === 'expired') {
+      setMessage('Your session expired. Please sign in again.');
+      setMessageType('error');
+    }
+  }, []);
 
   // Note: Removed auto-redirect for already authenticated users
   // Users can always access the login page to switch accounts or re-authenticate
@@ -71,7 +79,12 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, onNavigateToSignup, redir
         setTokens(accessToken, refreshToken, email, data.patient_id ?? null);
 
         roleService.getDefaultRoute().then((defaultRoute) => {
-          if (redirectPath) {
+          const returnTo = new URLSearchParams(window.location.search).get('returnTo');
+          if (returnTo && returnTo.startsWith('/')) {
+            setTimeout(() => {
+              window.location.href = returnTo;
+            }, 500);
+          } else if (redirectPath) {
             setTimeout(() => {
               window.location.href = redirectPath;
             }, 500);

@@ -17,70 +17,143 @@ notifications_bp = Blueprint('notifications', __name__, url_prefix='/api/notific
 
 @notifications_bp.route('/send', methods=['POST'])
 def send_notification():
-    """Send a custom notification to a patient"""
+    """Send a custom notification to a patient (orchestrated multi-channel when patient_id provided)."""
     try:
-        data = request.get_json()
-        patient_identifier = data.get('patient_identifier')  # ID or name
+        data = request.get_json() or {}
+        patient_identifier = data.get('patient_identifier') or data.get('patient_id')
         message = data.get('message')
-        
+        channels = data.get('channels')
+
         if not patient_identifier or not message:
             return jsonify({'error': 'Patient identifier and message are required'}), 400
-        
+
+        # Prefer engagement orchestrator when channels requested or patient_id looks like PAT*
+        if channels or str(patient_identifier).startswith('PAT') or data.get('use_orchestrator'):
+            try:
+                from services import engagement_orchestrator as orchestrator
+                result = orchestrator.create_event(
+                    str(patient_identifier),
+                    data.get('event_type') or 'manual',
+                    channels=channels,
+                    message=message,
+                    send_now=True,
+                    payload={'custom_message': message},
+                )
+                if result.get('success'):
+                    return jsonify({'message': 'Notification sent successfully', 'result': result}), 200
+                return jsonify({'error': result.get('error', 'Send failed'), 'result': result}), 400
+            except Exception as orch_exc:
+                logger.warning('Orchestrator send failed, falling back to WhatsApp: %s', orch_exc)
+
         from whatsapp_integration import whatsapp_notifier
         result = whatsapp_notifier.send_custom_notification(patient_identifier, message)
-        
+
         if result['success']:
             return jsonify({'message': 'Notification sent successfully', 'result': result}), 200
         else:
             return jsonify({'error': result['error']}), 400
-        
+
     except Exception as e:
         logger.error(f"Send notification error: {e}")
         return jsonify({'error': 'Internal server error'}), 500
 
+
 @notifications_bp.route('/appointment-reminder', methods=['POST'])
 def send_appointment_reminder():
-    """Send appointment reminder to a patient"""
+    """Send appointment reminder to a patient via engagement orchestrator (+ WhatsApp fallback)."""
     try:
-        data = request.get_json()
+        data = request.get_json() or {}
         appointment_id = data.get('appointment_id')
-        
+
         if not appointment_id:
             return jsonify({'error': 'Appointment ID is required'}), 400
-        
+
+        row = db.session.execute(
+            db.text(
+                """
+                SELECT a.appointment_id, a.patient_id, a.appointment_date, a.appointment_time,
+                       CONCAT(d.first_name, ' ', d.last_name) AS doctor_name
+                FROM appointments a
+                LEFT JOIN doctors d ON a.doctor_id = d.doctor_id
+                WHERE a.appointment_id = :aid
+                """
+            ),
+            {'aid': appointment_id},
+        ).fetchone()
+        if row:
+            from services import engagement_orchestrator as orchestrator
+            appt = dict(row._mapping) if hasattr(row, '_mapping') else {
+                'appointment_id': row[0],
+                'patient_id': row[1],
+                'appointment_date': row[2],
+                'appointment_time': row[3],
+                'doctor_name': row[4] if len(row) > 4 else None,
+            }
+            result = orchestrator.create_event(
+                appt['patient_id'],
+                'appointment_reminder',
+                send_now=True,
+                related_appointment_id=appointment_id,
+                payload={
+                    'appointment_date': str(appt.get('appointment_date') or ''),
+                    'appointment_time': str(appt.get('appointment_time') or '')[:8],
+                    'doctor_name': appt.get('doctor_name'),
+                },
+            )
+            if result.get('success'):
+                return jsonify({'message': 'Appointment reminder sent successfully', 'result': result}), 200
+
         from whatsapp_integration import whatsapp_notifier
         result = whatsapp_notifier.send_appointment_reminder(appointment_id)
-        
+
         if result['success']:
             return jsonify({'message': 'Appointment reminder sent successfully', 'result': result}), 200
         else:
             return jsonify({'error': result['error']}), 400
-        
+
     except Exception as e:
         logger.error(f"Appointment reminder error: {e}")
         return jsonify({'error': 'Internal server error'}), 500
 
+
 @notifications_bp.route('/medication-reminder', methods=['POST'])
 def send_medication_reminder():
-    """Send medication reminder to a patient"""
+    """Send medication reminder via orchestrator with WhatsApp fallback."""
     try:
-        data = request.get_json()
+        data = request.get_json() or {}
         patient_id = data.get('patient_id')
         medication_name = data.get('medication_name')
         dosage = data.get('dosage')
         time = data.get('time')
-        
+
         if not all([patient_id, medication_name, dosage, time]):
             return jsonify({'error': 'Patient ID, medication name, dosage, and time are required'}), 400
-        
+
+        try:
+            from services import engagement_orchestrator as orchestrator
+            result = orchestrator.create_event(
+                str(patient_id),
+                'medication_reminder',
+                send_now=True,
+                payload={
+                    'medication_name': medication_name,
+                    'dosage': dosage,
+                    'time': time,
+                },
+            )
+            if result.get('success'):
+                return jsonify({'message': 'Medication reminder sent successfully', 'result': result}), 200
+        except Exception as orch_exc:
+            logger.warning('Orchestrator medication reminder failed: %s', orch_exc)
+
         from whatsapp_integration import whatsapp_notifier
         result = whatsapp_notifier.send_medication_reminder(patient_id, medication_name, dosage, time)
-        
+
         if result['success']:
             return jsonify({'message': 'Medication reminder sent successfully', 'result': result}), 200
         else:
             return jsonify({'error': result['error']}), 400
-        
+
     except Exception as e:
         logger.error(f"Medication reminder error: {e}")
         return jsonify({'error': 'Internal server error'}), 500

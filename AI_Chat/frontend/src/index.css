@@ -1188,6 +1188,40 @@ select option {
   background: rgba(14, 165, 233, 0.1) !important;
 }
 
+.patient-portal-page .bg-teal-50,
+[data-portal="doctor"] .bg-teal-50 {
+  background: rgba(45, 212, 191, 0.12) !important;
+}
+
+.patient-portal-page .bg-teal-100,
+[data-portal="doctor"] .bg-teal-100 {
+  background: rgba(45, 212, 191, 0.18) !important;
+}
+
+.patient-portal-page .text-teal-600,
+[data-portal="doctor"] .text-teal-600,
+.patient-portal-page .text-teal-300,
+[data-portal="doctor"] .text-teal-300 {
+  color: #5eead4 !important;
+}
+
+.patient-portal-page .border-teal-500,
+[data-portal="doctor"] .border-teal-500 {
+  border-color: rgba(45, 212, 191, 0.55) !important;
+}
+
+.patient-portal-page .ring-teal-200,
+[data-portal="doctor"] .ring-teal-200 {
+  --tw-ring-color: rgba(45, 212, 191, 0.35) !important;
+}
+
+.patient-portal-page .hover\:border-teal-300:hover,
+[data-portal="doctor"] .hover\:border-teal-300:hover,
+.patient-portal-page .hover\:border-teal-500\/40:hover,
+[data-portal="doctor"] .hover\:border-teal-500\/40:hover {
+  border-color: rgba(45, 212, 191, 0.45) !important;
+}
+
 .patient-portal-page .bg-amber-50,
 [data-portal="doctor"] .bg-amber-50 {
   background: rgba(251, 191, 36, 0.1) !important;
@@ -1285,4 +1319,29 @@ select option {
   color: #94a3b8 !important;
 }
 
+/* Telemedicine Jitsi: zoom + clip to de-emphasize external branding */
+.telemedicine-jitsi-zoom {
+  overflow: hidden;
+  border-radius: 1rem;
+  background: #0f172a;
+}
+
+.telemedicine-jitsi-zoom .telemedicine-jitsi-host {
+  position: absolute;
+  left: -7%;
+  top: -5%;
+  width: 114%;
+  height: 112%;
+}
+
+.telemedicine-jitsi-zoom .telemedicine-jitsi-host > div {
+  height: 100% !important;
+  width: 100% !important;
+}
+
+.telemedicine-jitsi-zoom .telemedicine-jitsi-host iframe {
+  width: 100% !important;
+  height: 100% !important;
+  border: 0;
+}
 

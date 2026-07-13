@@ -72,6 +72,7 @@ interface AppointmentFormData {
   departmentId: string;
   appointmentDate: string;
   appointmentTime: string;
+  visitType: 'in_person' | 'video';
   reason?: string;
 }
 
@@ -110,6 +111,7 @@ const PatientEngagement: React.FC<PatientEngagementProps> = ({ sessionId, forced
     departmentId: '',
     appointmentDate: '',
     appointmentTime: '',
+    visitType: 'in_person',
     reason: ''
   });
   const [isSubmittingAppointment, setIsSubmittingAppointment] = useState(false);
@@ -1011,6 +1013,19 @@ const PatientEngagement: React.FC<PatientEngagementProps> = ({ sessionId, forced
           </div>
         </div>
         <div className={`grid grid-cols-2 ${gridGap}`}>
+          <div>
+            <label className={labelCls}>Visit type</label>
+            <select
+              value={appointmentFormData.visitType}
+              onChange={(e) =>
+                handleAppointmentFormChange('visitType', e.target.value as 'in_person' | 'video')
+              }
+              className={fieldCls}
+            >
+              <option value="in_person">In-person</option>
+              <option value="video">Telemedicine</option>
+            </select>
+          </div>
           <div>
             <label className={labelCls}>
               Doctor <span className="text-red-400">*</span>

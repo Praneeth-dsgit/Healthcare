@@ -15,6 +15,8 @@ import json
 
 # Load environment variables
 load_dotenv()
+# Silence harmless Windows symlink cache warning from huggingface_hub
+os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
 
 # Configure logging first, before any other operations
 logging.basicConfig(
@@ -144,12 +146,55 @@ if SMTP_USER and SMTP_PASS:
 else:
     logger.warning("SMTP credentials not configured. OTP emails will not work. Please set SMTP_USER and SMTP_PASS in .env file")
 
-# JWT Configuration (stateless auth; no session cookies)
+# MedGemma / radiology vision configuration
+HF_API_TOKEN = os.getenv('HF_API_TOKEN') or os.getenv('HUGGINGFACE_API_TOKEN')
+MEDGEMMA_MODEL_ID = os.getenv('MEDGEMMA_MODEL_ID', 'google/medgemma-1.5-4b-it')
+MEDGEMMA_MAX_TOKENS = int(os.getenv('MEDGEMMA_MAX_TOKENS', '2000'))
+MEDGEMMA_LOCAL_DIR = os.getenv(
+    'MEDGEMMA_LOCAL_DIR',
+    os.path.join(os.path.dirname(__file__), 'models', 'medgemma-1.5-4b-it'),
+)
+MEDGEMMA_LOCAL = os.getenv('MEDGEMMA_LOCAL', 'false').lower() in ('1', 'true', 'yes')
+GOOGLE_CLOUD_PROJECT = os.getenv('GOOGLE_CLOUD_PROJECT') or os.getenv('GCP_PROJECT_ID')
+GOOGLE_CLOUD_LOCATION = os.getenv('GOOGLE_CLOUD_LOCATION', 'us-central1')
+MEDGEMMA_VERTEX = os.getenv('MEDGEMMA_VERTEX', 'false').lower() in ('1', 'true', 'yes')
+# auto | local | vertex | hf
+MEDGEMMA_PROVIDER = os.getenv('MEDGEMMA_PROVIDER', 'auto').lower()
+_medgemma_available = MEDGEMMA_LOCAL or MEDGEMMA_VERTEX or HF_API_TOKEN or GOOGLE_CLOUD_PROJECT
+_default_radiology_vision = 'medgemma' if _medgemma_available else 'openai'
+RADIOLOGY_VISION_PROVIDER = os.getenv('RADIOLOGY_VISION_PROVIDER', _default_radiology_vision).lower()
+if RADIOLOGY_VISION_PROVIDER == 'medgemma' and not _medgemma_available:
+    logger.warning(
+        "RADIOLOGY_VISION_PROVIDER=medgemma but no MedGemma backend is configured. "
+        "Set MEDGEMMA_LOCAL=true, MEDGEMMA_VERTEX=true + GOOGLE_CLOUD_PROJECT, or HF_API_TOKEN. "
+        "Radiology images will fall back to OpenAI GPT-4o."
+    )
+
 JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY')
 if not JWT_SECRET_KEY:
     import secrets
-    JWT_SECRET_KEY = secrets.token_hex(32)
-    logger.warning("JWT_SECRET_KEY not set in .env; using a random key (tokens will not persist across restarts). Set JWT_SECRET_KEY for production.")
+    _jwt_dev_file = os.path.join(os.path.dirname(__file__), '.jwt_secret_dev')
+    try:
+        if os.path.isfile(_jwt_dev_file):
+            with open(_jwt_dev_file, encoding='utf-8') as _f:
+                JWT_SECRET_KEY = _f.read().strip()
+        if not JWT_SECRET_KEY:
+            JWT_SECRET_KEY = secrets.token_hex(32)
+            with open(_jwt_dev_file, 'w', encoding='utf-8') as _f:
+                _f.write(JWT_SECRET_KEY)
+            logger.info("Created persistent dev JWT secret at %s", _jwt_dev_file)
+    except OSError as exc:
+        JWT_SECRET_KEY = secrets.token_hex(32)
+        logger.warning(
+            "JWT_SECRET_KEY not set and could not persist dev secret (%s); "
+            "tokens will not survive API restarts.",
+            exc,
+        )
+    if not os.getenv('JWT_SECRET_KEY'):
+        logger.warning(
+            "JWT_SECRET_KEY not set in .env; using dev file secret. "
+            "Set JWT_SECRET_KEY in production."
+        )
 JWT_ACCESS_EXPIRY_MINUTES = int(os.getenv('JWT_ACCESS_EXPIRY_MINUTES', '15'))
 JWT_REFRESH_EXPIRY_DAYS = int(os.getenv('JWT_REFRESH_EXPIRY_DAYS', '7'))
 JWT_ALGORITHM = 'HS256'

@@ -7,6 +7,7 @@ import HelpModal from './HelpModal';
 import UsageStatisticsModal from './UsageStatisticsModal';
 import { doctorService } from '../services/doctorService';
 import { getApiBaseUrl } from '../utils/apiBase';
+import SydneyLocationSelector from './ui/SydneyLocationSelector';
 
 interface HeaderProps {
   sessions: any[];
@@ -374,6 +375,9 @@ const Header: React.FC<HeaderProps> = ({
             </div>
             <nav>
               <ul className="flex items-center gap-2">
+                <li>
+                  <SydneyLocationSelector compact showLabel={false} />
+                </li>
                 <li className="relative">
                   <div ref={moreOptionsDropdownRef}>
                     <button

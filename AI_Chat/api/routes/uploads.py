@@ -111,7 +111,7 @@ def upload_file():
             
             # Add debugging
             try:
-                logger.info(f"Calling OpenAI Vision API for {capability} mode...")
+                logger.info(f"Calling vision API ({capability})...")
                 result = interpret_image_with_openai(img_bytes, image_format=ext, capability=capability)
                 logger.info(f"Successfully received analysis result. Result length: {len(result) if result else 0} characters")
             except Exception as img_error:

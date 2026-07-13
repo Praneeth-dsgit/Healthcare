@@ -2,6 +2,7 @@
  * Billing Service - API calls for billing and payments
  */
 
+import { getAuthHeaders, authenticatedFetch } from './authService';
 import { getApiRoot } from '../utils/apiBase';
 
 const API_BASE = getApiRoot();
@@ -57,11 +58,9 @@ class BillingService {
     return sessionStorage.getItem('patient_id');
   }
 
-  private getAuthHeaders(): HeadersInit {
+  private getHeaders(): HeadersInit {
+    const headers = { ...getAuthHeaders() } as Record<string, string>;
     const patientId = this.getPatientId();
-    const headers: HeadersInit = {
-      'Content-Type': 'application/json',
-    };
     if (patientId) {
       headers['X-Patient-ID'] = patientId;
     }
@@ -80,9 +79,9 @@ class BillingService {
       if (params?.end_date) queryParams.append('end_date', params.end_date);
 
       const url = `${API_BASE}/patient/billing${queryParams.toString() ? `?${queryParams}` : ''}`;
-      const response = await fetch(url, {
+      const response = await authenticatedFetch(url, {
         method: 'GET',
-        headers: this.getAuthHeaders(),
+        headers: this.getHeaders(),
       });
       const data = await response.json();
       return data;
@@ -93,9 +92,9 @@ class BillingService {
 
   async getBill(billingId: number): Promise<{ success: boolean; bill?: Billing; error?: string }> {
     try {
-      const response = await fetch(`${API_BASE}/patient/billing/${billingId}`, {
+      const response = await authenticatedFetch(`${API_BASE}/patient/billing/${billingId}`, {
         method: 'GET',
-        headers: this.getAuthHeaders(),
+        headers: this.getHeaders(),
       });
       const data = await response.json();
       return data;
@@ -106,9 +105,9 @@ class BillingService {
 
   async makePayment(paymentData: PaymentData): Promise<{ success: boolean; payment?: Payment; error?: string }> {
     try {
-      const response = await fetch(`${API_BASE}/patient/billing/payments`, {
+      const response = await authenticatedFetch(`${API_BASE}/patient/billing/payments`, {
         method: 'POST',
-        headers: this.getAuthHeaders(),
+        headers: this.getHeaders(),
         body: JSON.stringify(paymentData),
       });
       const data = await response.json();
@@ -120,12 +119,12 @@ class BillingService {
 
   async getPaymentHistory(billingId?: number): Promise<{ success: boolean; payments?: Payment[]; error?: string }> {
     try {
-      const url = billingId 
+      const url = billingId
         ? `${API_BASE}/patient/billing/payments?billing_id=${billingId}`
         : `${API_BASE}/patient/billing/payments`;
-      const response = await fetch(url, {
+      const response = await authenticatedFetch(url, {
         method: 'GET',
-        headers: this.getAuthHeaders(),
+        headers: this.getHeaders(),
       });
       const data = await response.json();
       return data;
@@ -136,9 +135,9 @@ class BillingService {
 
   async downloadInvoice(billingId: number): Promise<Blob | null> {
     try {
-      const response = await fetch(`${API_BASE}/patient/billing/${billingId}/invoice`, {
+      const response = await authenticatedFetch(`${API_BASE}/patient/billing/${billingId}/invoice`, {
         method: 'GET',
-        headers: this.getAuthHeaders(),
+        headers: this.getHeaders(),
       });
       if (response.ok) {
         return await response.blob();
@@ -151,4 +150,3 @@ class BillingService {
 }
 
 export const billingService = new BillingService();
-

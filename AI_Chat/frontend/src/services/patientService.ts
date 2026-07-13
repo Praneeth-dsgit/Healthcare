@@ -8,6 +8,39 @@ import { getAuthHeaders, authenticatedFetch } from './authService';
 import { getApiRoot } from '../utils/apiBase';
 
 const API_BASE = getApiRoot();
+const HEALTH_SUMMARY_CACHE_KEY = 'patient_health_summary';
+
+interface HealthSummaryCache {
+  patientId: string;
+  summary: string;
+  generated_at?: string;
+}
+
+function readHealthSummaryCache(): HealthSummaryCache | null {
+  try {
+    const raw = sessionStorage.getItem(HEALTH_SUMMARY_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as HealthSummaryCache;
+    if (!parsed?.patientId || !parsed?.summary) return null;
+    const currentPatientId = sessionStorage.getItem('patient_id');
+    if (!currentPatientId || currentPatientId !== parsed.patientId) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function writeHealthSummaryCache(entry: HealthSummaryCache): void {
+  sessionStorage.setItem(HEALTH_SUMMARY_CACHE_KEY, JSON.stringify(entry));
+}
+
+export function clearHealthSummaryCache(): void {
+  sessionStorage.removeItem(HEALTH_SUMMARY_CACHE_KEY);
+}
+
+export function peekHealthSummaryCache(): HealthSummaryCache | null {
+  return readHealthSummaryCache();
+}
 
 export interface Patient {
   patient_id: string;
@@ -189,6 +222,18 @@ class PatientService {
     generated_at?: string;
     error?: string;
   }> {
+    const patientId = sessionStorage.getItem('patient_id') || '';
+    if (!refresh) {
+      const cached = readHealthSummaryCache();
+      if (cached) {
+        return {
+          success: true,
+          summary: cached.summary,
+          generated_at: cached.generated_at,
+        };
+      }
+    }
+
     try {
       const url = `${API_BASE}/patient-portal/health-summary${refresh ? '?refresh=1' : ''}`;
       const response = await authenticatedFetch(url, {
@@ -198,6 +243,13 @@ class PatientService {
       const data = await response.json();
       if (!response.ok) {
         return { success: false, error: data.error || 'Failed to load health summary' };
+      }
+      if (data.success && data.summary && patientId) {
+        writeHealthSummaryCache({
+          patientId,
+          summary: data.summary,
+          generated_at: data.generated_at,
+        });
       }
       return data;
     } catch (error) {

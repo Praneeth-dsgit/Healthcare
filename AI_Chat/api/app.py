@@ -25,6 +25,12 @@ try:
     from routes.analytics import analytics_bp
     from routes.patient_engagement import patient_engagement_bp, patient_portal_bp
     from routes.admin import admin_bp
+    from routes.telemedicine import telemedicine_bp
+    
+    from routes.referrals import referrals_bp
+    from routes.doctor_network import doctor_network_bp
+    from routes.engagement import engagement_bp
+    from routes.billing import billing_bp
     
     app.register_blueprint(auth_bp)
     app.register_blueprint(health_bp)
@@ -40,6 +46,17 @@ try:
     app.register_blueprint(patient_engagement_bp)
     app.register_blueprint(patient_portal_bp)
     app.register_blueprint(admin_bp)
+    app.register_blueprint(telemedicine_bp)
+    app.register_blueprint(referrals_bp)
+    app.register_blueprint(doctor_network_bp)
+    app.register_blueprint(engagement_bp)
+    app.register_blueprint(billing_bp)
+
+    try:
+        from services.engagement_scheduler import start_engagement_scheduler
+        start_engagement_scheduler(app)
+    except Exception as sched_exc:
+        logger.warning('Engagement scheduler not started: %s', sched_exc)
 
     # CORS preflight: OPTIONS for any path returns 200 with CORS headers (ensures preflight always succeeds)
     from flask import make_response, request
@@ -64,7 +81,7 @@ try:
             "docs": "Use /api/health for health check, /api/login for auth.",
         }), 200
     
-    logger.info("✅ Registered blueprints: auth, health, chat, uploads, patients, appointments, doctors, radiology, notifications, faqs, analytics, patient_engagement, patient_portal, admin")
+    logger.info("✅ Registered blueprints: auth, health, chat, uploads, patients, appointments, doctors, radiology, notifications, faqs, analytics, patient_engagement, patient_portal, admin, engagement, billing")
 except ImportError as e:
     logger.error(f"❌ Could not import blueprints: {e}")
     logger.error("Please ensure all route modules exist in the routes/ directory")

@@ -2,7 +2,7 @@
  * Facilities Component - Search facilities and find doctors in preferred facilities
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Search,
@@ -16,10 +16,12 @@ import {
   Calendar,
   User,
   Scan,
+  Navigation,
   ArrowLeft,
 } from 'lucide-react';
 import { facilityService, Facility } from '../../services/facilityService';
 import { doctorService, Doctor } from '../../services/doctorService';
+import { useLocationContext } from '../../context/LocationContext';
 import {
   PortalPageShell,
   PortalPageHero,
@@ -28,6 +30,7 @@ import {
 
 const Facilities: React.FC = () => {
   const navigate = useNavigate();
+  const { coords, location: selectedLocation, locationId } = useLocationContext();
   const [facilities, setFacilities] = useState<Facility[]>([]);
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [loading, setLoading] = useState(false);
@@ -36,23 +39,19 @@ const Facilities: React.FC = () => {
   const [selectedFacility, setSelectedFacility] = useState<number | null>(null);
   const [showDoctors, setShowDoctors] = useState(false);
 
-  useEffect(() => {
-    loadInitialData();
-  }, []);
+  const [maxDistance, setMaxDistance] = useState<number | undefined>(25);
 
-  useEffect(() => {
-    if (selectedFacility) {
-      loadDoctorsForFacility(selectedFacility);
-    } else {
-      setDoctors([]);
-      setShowDoctors(false);
-    }
-  }, [selectedFacility]);
-
-  const loadInitialData = async () => {
+  const loadFacilities = useCallback(async () => {
     setLoading(true);
     try {
-      const result = await facilityService.searchFacilities({});
+      const result = await facilityService.searchFacilitiesGeo({
+        lat: coords.lat,
+        lng: coords.lng,
+        locationId,
+        maxDistanceKm: maxDistance,
+        type: selectedFacilityType || undefined,
+        search: searchTerm || undefined,
+      });
       if (result.success) {
         setFacilities(result.facilities || []);
       }
@@ -61,29 +60,24 @@ const Facilities: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleSearch = async () => {
-    setLoading(true);
-    try {
-      const result = await facilityService.searchFacilities({
-        search: searchTerm || undefined,
-        type: selectedFacilityType || undefined,
-      });
-      if (result.success) {
-        setFacilities(result.facilities || []);
-      }
-    } catch (error) {
-      console.error('Error searching facilities:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [coords.lat, coords.lng, locationId, maxDistance, selectedFacilityType, searchTerm]);
 
   useEffect(() => {
-    handleSearch();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedFacilityType]);
+    void loadFacilities();
+  }, [loadFacilities]);
+
+  useEffect(() => {
+    if (selectedFacility) {
+      void loadDoctorsForFacility(selectedFacility);
+    } else {
+      setDoctors([]);
+      setShowDoctors(false);
+    }
+  }, [selectedFacility]);
+
+  const handleSearch = () => {
+    void loadFacilities();
+  };
 
   const loadDoctorsForFacility = async (facilityId: number) => {
     setLoading(true);
@@ -148,7 +142,7 @@ const Facilities: React.FC = () => {
         subtitle={
           showDoctors && selectedFacility
             ? 'Browse doctors at this location and book an appointment.'
-            : 'Search hospitals and clinics, then view doctors available at each location.'
+            : `Hospitals and clinics near ${selectedLocation.name}, Sydney NSW`
         }
         icon={<Building2 />}
         badges={
@@ -177,6 +171,16 @@ const Facilities: React.FC = () => {
                 />
               </div>
               <select
+                value={maxDistance ?? ''}
+                onChange={(e) => setMaxDistance(e.target.value ? Number(e.target.value) : undefined)}
+                className={`${portalInputClass} w-full shrink-0 py-2 text-sm xl:w-32`}
+              >
+                <option value="">Any distance</option>
+                <option value="10">≤ 10 km</option>
+                <option value="25">≤ 25 km</option>
+                <option value="50">≤ 50 km</option>
+              </select>
+              <select
                 value={selectedFacilityType}
                 onChange={(e) => setSelectedFacilityType(e.target.value)}
                 className={`${portalInputClass} w-full shrink-0 py-2 text-sm xl:w-48`}
@@ -185,7 +189,6 @@ const Facilities: React.FC = () => {
                 <option value="hospital">Hospitals</option>
                 <option value="clinic">Clinics</option>
                 <option value="diagnostic_center">Radiology / diagnostic</option>
-                <option value="pharmacy">Pharmacies</option>
                 <option value="other">Other</option>
               </select>
               <button
@@ -330,6 +333,12 @@ const Facilities: React.FC = () => {
                 </div>
 
                 <div className="space-y-2 mb-4">
+                  {facility.distanceKm != null && (
+                    <div className="flex items-center gap-2 text-sm text-gray-600">
+                      <Navigation size={16} className="text-teal-500" />
+                      <span>{facility.distanceKm} km away</span>
+                    </div>
+                  )}
                   <div className="flex items-start gap-2 text-sm text-gray-600">
                     <MapPin size={16} className="text-gray-400 mt-0.5" />
                     <span>{facility.address}, {facility.city}, {facility.state} {facility.zip_code}</span>

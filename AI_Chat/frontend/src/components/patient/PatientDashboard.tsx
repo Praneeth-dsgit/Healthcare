@@ -8,7 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import { 
   User, Calendar, FileText, Users, 
   Clock, ArrowRight, Plus, Scan, Stethoscope, Brain, 
-  Baby, Eye, Pill, Wind, Sparkles, RefreshCw
+  Baby, Eye, Pill, Wind, Sparkles, RefreshCw, MapPin
 } from 'lucide-react';
 import { 
   Cardiology,
@@ -17,7 +17,7 @@ import {
   Orthopaedics,
   SkinCancer
 } from 'healthicons-react';
-import { patientService, Patient, FamilyMember } from '../../services/patientService';
+import { patientService, Patient, FamilyMember, peekHealthSummaryCache } from '../../services/patientService';
 import { appointmentService, Appointment } from '../../services/appointmentService';
 import { radiologyService, RadiologyBooking } from '../../services/radiologyService';
 import { doctorService, Specialty } from '../../services/doctorService';
@@ -33,7 +33,9 @@ const PatientDashboard: React.FC = () => {
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
   const [loadingFamilyMembers, setLoadingFamilyMembers] = useState(false);
   const [specialties, setSpecialties] = useState<Specialty[]>([]);
-  const [healthSummary, setHealthSummary] = useState<string | null>(null);
+  const [healthSummary, setHealthSummary] = useState<string | null>(
+    () => peekHealthSummaryCache()?.summary ?? null
+  );
   const [healthSummaryLoading, setHealthSummaryLoading] = useState(false);
   const [healthSummaryError, setHealthSummaryError] = useState<string | null>(null);
 
@@ -42,6 +44,15 @@ const PatientDashboard: React.FC = () => {
   }, []);
 
   const loadHealthSummary = async (refresh = false) => {
+    if (!refresh) {
+      const cached = peekHealthSummaryCache();
+      if (cached?.summary) {
+        setHealthSummary(cached.summary);
+        setHealthSummaryError(null);
+        return;
+      }
+    }
+
     setHealthSummaryLoading(true);
     setHealthSummaryError(null);
     try {
@@ -258,8 +269,22 @@ const PatientDashboard: React.FC = () => {
 
               <div className="mt-3 flex flex-wrap gap-2">
                 <button
-                  onClick={() => navigate('/portal/appointments/book')}
+                  onClick={() => navigate('/portal/engagement')}
                   className="healthcare-button inline-flex items-center gap-2 px-4 py-2 text-sm"
+                >
+                  <Sparkles className="h-4 w-4" />
+                  Engagement Hub
+                </button>
+                <button
+                  onClick={() => navigate('/portal/doctors?near=1')}
+                  className="ghost-button inline-flex items-center gap-2 px-4 py-2 text-sm font-bold"
+                >
+                  <MapPin className="h-4 w-4" />
+                  Find doctors near me
+                </button>
+                <button
+                  onClick={() => navigate('/portal/appointments/book')}
+                  className="ghost-button inline-flex items-center gap-2 px-4 py-2 text-sm font-bold"
                 >
                   <Calendar className="h-4 w-4" />
                   Book Appointment

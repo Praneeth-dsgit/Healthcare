@@ -17,7 +17,7 @@ export interface Appointment {
   facility_id: number;
   appointment_date: string;
   appointment_time: string;
-  appointment_type: 'consultation' | 'follow_up' | 'emergency' | 'routine';
+  appointment_type: 'consultation' | 'follow_up' | 'emergency' | 'routine' | 'video';
   reason?: string;
   status: 'scheduled' | 'pending' | 'completed' | 'cancelled';
   notes?: string;
@@ -39,7 +39,7 @@ export interface AppointmentBookingData {
   facility_id: number;
   appointment_date: string;
   appointment_time: string;
-  appointment_type?: 'consultation' | 'follow_up' | 'emergency' | 'routine';
+  appointment_type?: 'consultation' | 'follow_up' | 'emergency' | 'routine' | 'video';
   reason?: string;
 }
 

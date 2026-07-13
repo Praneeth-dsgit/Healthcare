@@ -61,6 +61,44 @@ def verify_token(token: str, expected_type: str = TOKEN_TYPE_ACCESS) -> dict:
     return payload
 
 
+def get_doctor_id_for_user(user_id: int, email: str | None = None) -> int | None:
+    """Resolve doctor_id for a user (doctors only). Returns None for patients/admins."""
+    try:
+        # Prefer join via users.id — handles case differences on email
+        result = db.session.execute(
+            db.text(
+                """
+                SELECT d.doctor_id
+                FROM doctors d
+                INNER JOIN users u ON LOWER(TRIM(d.email)) = LOWER(TRIM(u.email))
+                WHERE u.id = :user_id AND d.is_active = TRUE
+                LIMIT 1
+                """
+            ),
+            {"user_id": user_id},
+        ).fetchone()
+        if result:
+            return int(result[0])
+
+        if email:
+            result = db.session.execute(
+                db.text(
+                    """
+                    SELECT doctor_id FROM doctors
+                    WHERE LOWER(TRIM(email)) = LOWER(TRIM(:email)) AND is_active = TRUE
+                    LIMIT 1
+                    """
+                ),
+                {"email": email},
+            ).fetchone()
+            if result:
+                return int(result[0])
+        return None
+    except Exception as e:
+        logger.warning("Failed to resolve doctor_id for user %s: %s", user_id, e)
+        return None
+
+
 def get_patient_id_for_user(user_id: int, email: str | None = None) -> str | None:
     """Resolve patient_id for a user (patients only). Returns None for doctors/admins."""
     try:
@@ -114,6 +152,7 @@ def require_jwt(f):
         g.user_id = payload["sub"]
         g.user_email = payload["email"]
         g.patient_id = get_patient_id_for_user(g.user_id, g.user_email)
+        g.doctor_id = get_doctor_id_for_user(g.user_id, g.user_email)
         return f(*args, **kwargs)
 
     return decorated

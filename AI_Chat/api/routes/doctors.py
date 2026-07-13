@@ -54,7 +54,9 @@ def search_doctors():
                 f.name as facility_name,
                 f.address as facility_address,
                 f.city as facility_city,
-                f.type as facility_type
+                f.type as facility_type,
+                f.latitude as facility_lat,
+                f.longitude as facility_lng
             FROM doctors d
             LEFT JOIN specialties s ON d.specialty_id = s.specialty_id
             LEFT JOIN doctor_facilities df ON d.doctor_id = df.doctor_id AND df.is_primary = TRUE AND df.is_active = TRUE
@@ -715,7 +717,7 @@ def get_current_doctor():
                 'error': 'User not found'
             }), 404
         
-        # Try to find doctor by email (doctors table has email field)
+        # Try to find doctor by email (case-insensitive, joined via users)
         doctor_result = db.session.execute(
             db.text("""
                 SELECT 
@@ -727,14 +729,50 @@ def get_current_doctor():
                     d.consultation_fee,
                     d.bio,
                     s.name as specialty_name,
-                    s.specialty_id
+                    s.specialty_id,
+                    (
+                        SELECT f.name FROM doctor_facilities df
+                        JOIN facilities f ON f.facility_id = df.facility_id
+                        WHERE df.doctor_id = d.doctor_id AND df.is_active = TRUE
+                        ORDER BY df.is_primary DESC, f.name ASC
+                        LIMIT 1
+                    ) AS facility_name
                 FROM doctors d
                 LEFT JOIN specialties s ON d.specialty_id = s.specialty_id
-                WHERE d.email = :email AND d.is_active = TRUE
+                INNER JOIN users u ON LOWER(TRIM(d.email)) = LOWER(TRIM(u.email))
+                WHERE u.id = :user_id AND d.is_active = TRUE
                 LIMIT 1
             """),
-            {"email": user_email}
+            {"user_id": user_result[0]}
         ).fetchone()
+
+        if not doctor_result:
+            doctor_result = db.session.execute(
+                db.text("""
+                    SELECT 
+                        d.doctor_id,
+                        d.first_name,
+                        d.last_name,
+                        d.qualification,
+                        d.experience_years,
+                        d.consultation_fee,
+                        d.bio,
+                        s.name as specialty_name,
+                        s.specialty_id,
+                        (
+                            SELECT f.name FROM doctor_facilities df
+                            JOIN facilities f ON f.facility_id = df.facility_id
+                            WHERE df.doctor_id = d.doctor_id AND df.is_active = TRUE
+                            ORDER BY df.is_primary DESC, f.name ASC
+                            LIMIT 1
+                        ) AS facility_name
+                    FROM doctors d
+                    LEFT JOIN specialties s ON d.specialty_id = s.specialty_id
+                    WHERE LOWER(TRIM(d.email)) = LOWER(TRIM(:email)) AND d.is_active = TRUE
+                    LIMIT 1
+                """),
+                {"email": user_email}
+            ).fetchone()
         
         if not doctor_result:
             # If no doctor found, return empty (doctor can manually enter info)

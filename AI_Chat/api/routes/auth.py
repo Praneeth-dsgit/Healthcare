@@ -416,7 +416,7 @@ def get_user_role():
                 else:
                     logger.warning(f"⚠️ User {user_email} has role '{user_role}' which doesn't match any explicit role, continuing to doctor/patient checks")
             else:
-                logger.info(f"ℹ️ User {user_email} has no role in users table, continuing to doctor/patient checks")
+                logger.info(f"User {user_email} has no role in users table, continuing to doctor/patient checks")
         except Exception as role_check_error:
             # If role column doesn't exist, continue to doctor/patient checks
             logger.warning(f"⚠️ Role column check failed for user {user_email}: {role_check_error}")

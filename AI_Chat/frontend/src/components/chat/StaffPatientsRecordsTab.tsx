@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { FileStack, Loader2, RefreshCw, Trash2, FileText, ImageIcon } from 'lucide-react';
+import { FileStack, Loader2, RefreshCw, Trash2, ChevronRight, ArrowLeft, User } from 'lucide-react';
 import { recordService, MedicalRecord } from '../../services/recordService';
 import { linkPatientFromDatabase } from '../../utils/staffLinkPatient';
 import type { Capability } from '../../services/roleService';
 import type { LinkedPatientState } from './StaffPatientPanel.types';
 import { setStaffPatientDragData } from '../../utils/staffPatientDrag';
 import StaffMedicalRecordUpload from './StaffMedicalRecordUpload';
+import RecordThumbnail from './RecordThumbnail';
 
 type StaffRecordRow = MedicalRecord & {
   first_name: string;
@@ -24,6 +25,7 @@ const StaffPatientsRecordsTab: React.FC<StaffPatientsRecordsTabProps> = ({
   linkedPatient,
   onLinkedPatientChange,
 }) => {
+  const [selectedDirectoryPatientId, setSelectedDirectoryPatientId] = useState<string | null>(null);
   const [records, setRecords] = useState<StaffRecordRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [linkingId, setLinkingId] = useState<string | null>(null);
@@ -57,19 +59,68 @@ const StaffPatientsRecordsTab: React.FC<StaffPatientsRecordsTabProps> = ({
     return () => clearTimeout(timer);
   }, [loadRecords, filter]);
 
-  const directoryPatients = useMemo(() => {
-    const map = new Map<string, { patient_id: string; first_name: string; last_name: string }>();
+  const patientGroups = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        patient_id: string;
+        first_name: string;
+        last_name: string;
+        date_of_birth?: string;
+        record_count: number;
+        latest_date?: string;
+      }
+    >();
     for (const r of records) {
-      if (!map.has(r.patient_id)) {
+      const existing = map.get(r.patient_id);
+      const rDate = r.visit_date?.slice(0, 10) || r.created_at?.slice(0, 10);
+      if (existing) {
+        existing.record_count += 1;
+        if (rDate && (!existing.latest_date || rDate > existing.latest_date)) {
+          existing.latest_date = rDate;
+        }
+      } else {
         map.set(r.patient_id, {
           patient_id: r.patient_id,
           first_name: r.first_name,
           last_name: r.last_name,
+          date_of_birth: r.date_of_birth,
+          record_count: 1,
+          latest_date: rDate,
         });
       }
     }
-    return Array.from(map.values());
+    return Array.from(map.values()).sort((a, b) =>
+      `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`)
+    );
   }, [records]);
+
+  const directoryPatients = useMemo(
+    () =>
+      patientGroups.map((p) => ({
+        patient_id: p.patient_id,
+        first_name: p.first_name,
+        last_name: p.last_name,
+      })),
+    [patientGroups]
+  );
+
+  const selectedPatient = useMemo(
+    () => patientGroups.find((p) => p.patient_id === selectedDirectoryPatientId) || null,
+    [patientGroups, selectedDirectoryPatientId]
+  );
+
+  const selectedPatientRecords = useMemo(
+    () => records.filter((r) => r.patient_id === selectedDirectoryPatientId),
+    [records, selectedDirectoryPatientId]
+  );
+
+  // If the selected patient disappears after a refresh/filter, return to the list.
+  useEffect(() => {
+    if (selectedDirectoryPatientId && !selectedPatient) {
+      setSelectedDirectoryPatientId(null);
+    }
+  }, [selectedDirectoryPatientId, selectedPatient]);
 
   const linkPatientById = async (
     patientId: string,
@@ -157,7 +208,10 @@ const StaffPatientsRecordsTab: React.FC<StaffPatientsRecordsTabProps> = ({
     }
   };
 
-  const title =
+  const recordsLabel =
+    capability === 'lab' ? 'lab records' : capability === 'radiology' ? 'imaging records' : 'records';
+
+  const listTitle =
     capability === 'lab'
       ? 'Patients with lab records'
       : capability === 'radiology'
@@ -166,20 +220,156 @@ const StaffPatientsRecordsTab: React.FC<StaffPatientsRecordsTabProps> = ({
 
   const showRecordUpload = capability === 'lab' || capability === 'radiology';
 
-  const fileIcon = (record: StaffRecordRow) => {
-    const ft = record.file_type || '';
-    if (ft.startsWith('image/')) return <ImageIcon size={14} className="shrink-0 text-sky-400" />;
-    return <FileText size={14} className="shrink-0 text-amber-400" />;
+  const renderPatientList = () => {
+    if (loading && records.length === 0) {
+      return (
+        <div className="flex items-center justify-center gap-2 py-8 text-sm text-slate-500">
+          <Loader2 size={18} className="animate-spin" />
+          Loading…
+        </div>
+      );
+    }
+    if (error && records.length === 0) {
+      return <p className="py-4 text-center text-xs text-red-400">{error}</p>;
+    }
+    if (patientGroups.length === 0) {
+      return <p className="py-6 text-center text-xs text-slate-500">No patients found.</p>;
+    }
+    return (
+      <ul className="space-y-1">
+        {patientGroups.map((p) => (
+          <li key={p.patient_id}>
+            <button
+              type="button"
+              onClick={() => setSelectedDirectoryPatientId(p.patient_id)}
+              className="flex w-full items-center gap-2 rounded-xl border border-slate-700/40 bg-slate-900/30 px-3 py-2.5 text-left transition-colors hover:border-slate-600 hover:bg-slate-800/60"
+            >
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-800 text-[var(--portal-accent)]">
+                <User size={16} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold text-slate-100">
+                  {p.first_name} {p.last_name}
+                </p>
+                <p className="truncate font-mono text-[10px] text-slate-500">{p.patient_id}</p>
+                <p className="mt-0.5 text-[10px] text-slate-400">
+                  {p.record_count} {p.record_count === 1 ? 'record' : 'records'}
+                  {p.latest_date ? ` · latest ${p.latest_date}` : ''}
+                </p>
+              </div>
+              <ChevronRight size={16} className="shrink-0 text-slate-500" />
+            </button>
+          </li>
+        ))}
+      </ul>
+    );
+  };
+
+  const renderRecordTiles = () => {
+    if (selectedPatientRecords.length === 0) {
+      return (
+        <p className="py-6 text-center text-xs text-slate-500">
+          No {recordsLabel} for this patient.
+        </p>
+      );
+    }
+    return (
+      <div className="grid grid-cols-2 gap-2">
+        {selectedPatientRecords.map((record) => {
+          const isActive =
+            linkedPatient?.patientId === record.patient_id &&
+            linkedPatient.records.some((r) => r.record_id === record.record_id);
+          const isLinking = linkingId === record.patient_id;
+          const isDeleting = deletingId === record.record_id;
+          const recordDate = record.visit_date?.slice(0, 10) || record.created_at?.slice(0, 10);
+
+          return (
+            <div
+              key={record.record_id}
+              role="button"
+              tabIndex={0}
+              draggable={!isLinking && !isDeleting}
+              onDragStart={(e) => {
+                setStaffPatientDragData(e.dataTransfer, {
+                  patient_id: record.patient_id,
+                  first_name: record.first_name,
+                  last_name: record.last_name,
+                  date_of_birth: record.date_of_birth,
+                  record: {
+                    record_id: record.record_id,
+                    title: record.title,
+                    record_type: record.record_type,
+                    file_type: record.file_type,
+                    file_url: record.file_url,
+                    visit_date: record.visit_date,
+                    created_at: record.created_at,
+                  },
+                });
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  handleSelectRecord(record);
+                }
+              }}
+              onClick={() => !isLinking && !isDeleting && handleSelectRecord(record)}
+              className={`group relative cursor-grab overflow-hidden rounded-xl border transition-colors active:cursor-grabbing ${
+                isActive
+                  ? 'border-[var(--portal-accent)] bg-[color-mix(in_srgb,var(--portal-accent)_18%,transparent)]'
+                  : 'border-slate-700/40 bg-slate-900/30 hover:border-slate-600 hover:bg-slate-800/60'
+              } ${isLinking || isDeleting ? 'pointer-events-none opacity-60' : ''}`}
+            >
+              <div className="aspect-square w-full overflow-hidden bg-slate-950/40">
+                <RecordThumbnail record={record} />
+              </div>
+              <button
+                type="button"
+                onClick={(e) => handleDeleteRecord(record, e)}
+                disabled={isDeleting}
+                className="absolute right-1 top-1 rounded-lg bg-slate-950/70 p-1 text-slate-300 opacity-0 transition-opacity hover:bg-red-500/70 hover:text-white group-hover:opacity-100 disabled:opacity-50"
+                title="Delete record"
+                aria-label={`Delete ${record.title}`}
+              >
+                {isDeleting ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+              </button>
+              {isLinking && (
+                <span className="absolute left-1 top-1 rounded-lg bg-slate-950/70 p-1 text-slate-300">
+                  <Loader2 size={12} className="animate-spin" />
+                </span>
+              )}
+              <div className="px-2 py-1.5">
+                <p className="truncate text-[11px] font-semibold text-slate-100">{record.title}</p>
+                {recordDate && <p className="text-[10px] text-slate-500">{recordDate}</p>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
   };
 
   return (
     <div className="premium-card flex w-72 shrink-0 flex-col overflow-hidden xl:w-80">
       <div className="border-b border-slate-700/50 px-3 py-2.5">
         <div className="mb-2 flex items-center justify-between gap-2">
-          <h2 className="section-heading flex items-center gap-1.5 text-sm text-slate-200">
-            <FileStack size={16} className="text-[var(--portal-accent)]" />
-            {title}
-          </h2>
+          {selectedPatient ? (
+            <button
+              type="button"
+              onClick={() => setSelectedDirectoryPatientId(null)}
+              className="flex min-w-0 items-center gap-1.5 text-sm text-slate-200 hover:text-white"
+              title="Back to patients"
+            >
+              <ArrowLeft size={16} className="shrink-0 text-[var(--portal-accent)]" />
+              <span className="truncate font-semibold">
+                {selectedPatient.first_name} {selectedPatient.last_name}
+              </span>
+            </button>
+          ) : (
+            <h2 className="section-heading flex items-center gap-1.5 text-sm text-slate-200">
+              <FileStack size={16} className="text-[var(--portal-accent)]" />
+              {listTitle}
+            </h2>
+          )}
           <button
             type="button"
             onClick={() => loadRecords()}
@@ -198,106 +388,14 @@ const StaffPatientsRecordsTab: React.FC<StaffPatientsRecordsTabProps> = ({
           className="form-field w-full py-1.5 text-sm"
         />
         <p className="mt-1.5 text-[10px] leading-snug text-slate-500">
-          {records.length} record{records.length === 1 ? '' : 's'}. Click to attach a record (click
-          more to add); drag into the chat box to attach. Click again to remove.
+          {selectedPatient
+            ? `${selectedPatientRecords.length} ${recordsLabel}. Click a tile to attach (click more to add); drag into the chat box. Click again to remove.`
+            : `${patientGroups.length} patient${patientGroups.length === 1 ? '' : 's'}. Select a patient to view their ${recordsLabel}.`}
         </p>
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto hide-scrollbar p-2">
-        {loading && records.length === 0 ? (
-          <div className="flex items-center justify-center gap-2 py-8 text-sm text-slate-500">
-            <Loader2 size={18} className="animate-spin" />
-            Loading…
-          </div>
-        ) : error && records.length === 0 ? (
-          <p className="py-4 text-center text-xs text-red-400">{error}</p>
-        ) : records.length === 0 ? (
-          <p className="py-6 text-center text-xs text-slate-500">No medical records found.</p>
-        ) : (
-          <ul className="space-y-1">
-            {records.map((record) => {
-              const isActive =
-                linkedPatient?.patientId === record.patient_id &&
-                linkedPatient.records.some((r) => r.record_id === record.record_id);
-              const isLinking = linkingId === record.patient_id;
-              const isDeleting = deletingId === record.record_id;
-              const recordDate = record.visit_date?.slice(0, 10) || record.created_at?.slice(0, 10);
-
-              return (
-                <li key={record.record_id}>
-                  <div
-                    role="button"
-                    tabIndex={0}
-                    draggable={!isLinking && !isDeleting}
-                    onDragStart={(e) => {
-                      setStaffPatientDragData(e.dataTransfer, {
-                        patient_id: record.patient_id,
-                        first_name: record.first_name,
-                        last_name: record.last_name,
-                        date_of_birth: record.date_of_birth,
-                        record: {
-                          record_id: record.record_id,
-                          title: record.title,
-                          record_type: record.record_type,
-                          file_type: record.file_type,
-                          file_url: record.file_url,
-                          visit_date: record.visit_date,
-                          created_at: record.created_at,
-                        },
-                      });
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        handleSelectRecord(record);
-                      }
-                    }}
-                    onClick={() => !isLinking && !isDeleting && handleSelectRecord(record)}
-                    className={`w-full cursor-grab rounded-xl border px-3 py-2.5 text-left transition-colors active:cursor-grabbing ${
-                      isActive
-                        ? 'border-[var(--portal-accent)] bg-[color-mix(in_srgb,var(--portal-accent)_18%,transparent)]'
-                        : 'border-slate-700/40 bg-slate-900/30 hover:border-slate-600 hover:bg-slate-800/60'
-                    } ${isLinking || isDeleting ? 'pointer-events-none opacity-60' : ''}`}
-                  >
-                    <div className="flex items-start gap-2">
-                      <span className="mt-0.5">{fileIcon(record)}</span>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold text-slate-100">{record.title}</p>
-                        <p className="mt-0.5 truncate text-[11px] text-slate-300">
-                          {record.first_name} {record.last_name}
-                        </p>
-                        <p className="truncate font-mono text-[10px] text-slate-500">{record.patient_id}</p>
-                        {recordDate && (
-                          <p className="mt-1 text-[10px] text-slate-500">{recordDate}</p>
-                        )}
-                      </div>
-                      <div className="flex shrink-0 flex-col items-end gap-1">
-                        {isLinking ? (
-                          <Loader2 size={14} className="animate-spin text-slate-400" />
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={(e) => handleDeleteRecord(record, e)}
-                            disabled={isDeleting}
-                            className="rounded p-1 text-slate-500 hover:bg-red-500/15 hover:text-red-400 disabled:opacity-50"
-                            title="Delete record"
-                            aria-label={`Delete ${record.title}`}
-                          >
-                            {isDeleting ? (
-                              <Loader2 size={14} className="animate-spin" />
-                            ) : (
-                              <Trash2 size={14} />
-                            )}
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        )}
+        {selectedPatient ? renderRecordTiles() : renderPatientList()}
 
         {error && records.length > 0 && (
           <p className="mt-2 text-center text-xs text-red-400">{error}</p>

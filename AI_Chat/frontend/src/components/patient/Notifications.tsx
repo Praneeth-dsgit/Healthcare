@@ -5,8 +5,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, Check, CheckCheck, Calendar, Clock, ExternalLink, Trash2, X, User, MapPin } from 'lucide-react';
+import { Bell, Check, CheckCheck, Calendar, Clock, ExternalLink, Trash2, X, User, MapPin, Shield } from 'lucide-react';
 import { notificationService, Notification } from '../../services/notificationService';
+import { referralService, type ReferralNotification } from '../../services/referralService';
 import { appointmentService, Appointment } from '../../services/appointmentService';
 import { getAppointmentStatusColor, getAppointmentStatusContainer } from '../../utils/appointmentStatusColors';
 import {
@@ -22,6 +23,7 @@ const Notifications: React.FC = () => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const [loadingAppointment, setLoadingAppointment] = useState(false);
+  const [referralNotifs, setReferralNotifs] = useState<ReferralNotification[]>([]);
 
   useEffect(() => {
     loadNotifications();
@@ -30,17 +32,26 @@ const Notifications: React.FC = () => {
   const loadNotifications = async () => {
     setLoading(true);
     try {
-      const result = await notificationService.getNotifications(false);
+      const [result, refResult] = await Promise.all([
+        notificationService.getNotifications(false),
+        referralService.getReferralNotifications(),
+      ]);
       if (result.success && result.notifications) {
         setNotifications(result.notifications);
         const unread = result.notifications.filter(n => !n.is_read);
-        setUnreadCount(unread.length);
+        setUnreadCount(unread.length + refResult.notifications.filter((n) => n.status === 'pending').length);
       }
+      setReferralNotifs(refResult.notifications);
     } catch (error) {
       console.error('Error loading notifications:', error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleReferralConsent = async (id: string, approved: boolean) => {
+    await referralService.respondToConsent(id, approved);
+    loadNotifications();
   };
 
   const handleMarkAsRead = async (notificationId: number) => {
@@ -96,15 +107,29 @@ const Notifications: React.FC = () => {
     switch (type) {
       case 'appointment_update':
       case 'appointment_status':
+      case 'appointment_reminder':
+      case 'appointment_confirmation':
+      case 'appointment_no_show':
         return <Calendar className="w-5 h-5" />;
+      case 'medication_reminder':
+        return <Clock className="w-5 h-5" />;
       default:
         return <Bell className="w-5 h-5" />;
     }
   };
 
+  const getChannelBadge = (type: string) => {
+    if (type.includes('appointment')) return 'Appointments';
+    if (type.includes('medication')) return 'Medications';
+    if (type.includes('preventive') || type.includes('care_gap') || type.includes('follow')) return 'Care tasks';
+    return 'Engagement';
+  };
+
   const isAppointmentNotification = (notification: Notification): boolean => {
     return notification.notification_type === 'appointment_update' || 
-           notification.notification_type === 'appointment_status';
+           notification.notification_type === 'appointment_status' ||
+           notification.notification_type === 'appointment_reminder' ||
+           notification.notification_type === 'appointment_confirmation';
   };
 
   const handleNotificationClick = async (notification: Notification) => {
@@ -136,6 +161,18 @@ const Notifications: React.FC = () => {
         // If no appointment_id, navigate to appointments page
         navigate('/portal/appointments');
       }
+    } else if (
+      notification.notification_type.includes('medication') ||
+      notification.notification_type.includes('preventive') ||
+      notification.notification_type.includes('care_gap') ||
+      notification.notification_type.includes('follow') ||
+      notification.notification_type === 'engagement' ||
+      notification.notification_type === 'manual'
+    ) {
+      if (!notification.is_read) {
+        handleMarkAsRead(notification.notification_id);
+      }
+      navigate('/portal/engagement');
     }
   };
 
@@ -217,8 +254,44 @@ const Notifications: React.FC = () => {
         }
       />
 
+      {referralNotifs.length > 0 && (
+        <div className="space-y-3">
+          <h3 className="flex items-center gap-2 text-sm font-bold text-slate-300">
+            <Shield className="h-4 w-4 text-teal-400" /> Referral consent
+          </h3>
+          {referralNotifs.map((n) => (
+            <div key={n.id} className="premium-card border border-teal-500/25 p-4">
+              <p className="font-semibold text-slate-100">{n.title}</p>
+              <p className="mt-1 text-sm text-slate-400">{n.message}</p>
+              {n.status === 'pending' ? (
+                <div className="mt-3 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleReferralConsent(n.id, true)}
+                    className="primary-button rounded-lg px-4 py-2 text-sm font-semibold"
+                  >
+                    Approve
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleReferralConsent(n.id, false)}
+                    className="ghost-button rounded-lg px-4 py-2 text-sm font-semibold text-red-300"
+                  >
+                    Decline
+                  </button>
+                </div>
+              ) : (
+                <p className="mt-2 text-xs font-semibold capitalize text-slate-500">
+                  Status: {n.status}
+                </p>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Notifications List */}
-      {notifications.length === 0 ? (
+      {notifications.length === 0 && referralNotifs.length === 0 ? (
         <div className="premium-card py-12 text-center">
           <Bell className="mx-auto mb-4 h-16 w-16 text-slate-600" />
           <h3 className="mb-2 text-lg font-semibold text-slate-100">No notifications</h3>
@@ -262,7 +335,7 @@ const Notifications: React.FC = () => {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1 min-w-0">
-                      <div className="mb-1 flex items-center gap-2">
+                      <div className="mb-1 flex flex-wrap items-center gap-2">
                         <h3
                           className={`font-semibold ${
                             notification.is_read ? 'text-slate-300' : 'text-slate-100'
@@ -270,6 +343,9 @@ const Notifications: React.FC = () => {
                         >
                           {notification.title}
                         </h3>
+                        <span className="rounded-full bg-slate-800 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                          {getChannelBadge(notification.notification_type)}
+                        </span>
                         {!notification.is_read && (
                           <span className="h-2 w-2 shrink-0 rounded-full bg-sky-400" aria-hidden />
                         )}

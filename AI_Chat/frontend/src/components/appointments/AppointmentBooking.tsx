@@ -5,17 +5,28 @@
 
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Search, MapPin, Check, Calendar, ChevronLeft, ChevronRight, X, ArrowLeft } from 'lucide-react';
+import { Search, MapPin, Check, Calendar, ChevronLeft, ChevronRight, X, ArrowLeft, Video } from 'lucide-react';
 import { appointmentService, AppointmentBookingData } from '../../services/appointmentService';
 import { doctorService, Doctor } from '../../services/doctorService';
 import { patientService, FamilyMember } from '../../services/patientService';
+import { telemedicineService } from '../../services/telemedicineService';
 import { PortalPageShell, PortalPageHero } from '../patient/portalPageLayout';
 import { getApiBaseUrl } from '../../utils/apiBase';
+import { useLocationContext } from '../../context/LocationContext';
 
 const AppointmentBooking: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const [step, setStep] = useState(1);
+  const { coords } = useLocationContext();
+  const locationState = (location.state || {}) as {
+    specialtyId?: number;
+    familyMemberId?: number;
+    visitMode?: 'video';
+    doctorId?: number;
+    preselectedDoctor?: Doctor;
+  };
+  const skipVisitTypeStep = locationState.visitMode === 'video';
+  const [step, setStep] = useState(skipVisitTypeStep ? 2 : 1);
   const [loading, setLoading] = useState(false);
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
@@ -35,28 +46,77 @@ const AppointmentBooking: React.FC = () => {
   });
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSpecialty, setSelectedSpecialty] = useState<number | null>(
-    (location.state as any)?.specialtyId || null
+    locationState.specialtyId || null
   );
   const [specialties, setSpecialties] = useState<any[]>([]);
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
   // Initialize bookingFor from location state if family member ID is provided
   const [bookingFor, setBookingFor] = useState<'self' | number>(
-    (location.state as any)?.familyMemberId || 'self'
+    locationState.familyMemberId || 'self'
+  );
+  const [visitMode, setVisitMode] = useState<'in_person' | 'video'>(
+    locationState.visitMode === 'video' ? 'video' : 'in_person'
   );
   const [success, setSuccess] = useState(false);
 
+  const mergePresetDoctor = (list: Doctor[]): Doctor[] => {
+    const preset = locationState.preselectedDoctor;
+    if (!preset) return list;
+    if (list.some((d) => d.doctor_id === preset.doctor_id)) return list;
+    return [...list, preset];
+  };
+
+  const mapTelemedicineDoctors = (tmDoctors: Awaited<ReturnType<typeof telemedicineService.getTelemedicineDoctors>>['doctors']) =>
+    (tmDoctors || []).map((d) => ({
+      doctor_id: d.doctor_id,
+      first_name: d.first_name,
+      last_name: d.last_name,
+      specialty_id: 0,
+      qualification: d.qualification || '',
+      experience_years: d.experience_years ?? 0,
+      consultation_fee: d.consultation_fee ?? 0,
+      is_available: d.is_available ?? true,
+      is_active: true,
+      facility_id: d.facility_id,
+      facility_name: d.facility_name,
+      facility_city: d.facility_city,
+      specialty_name: d.specialty_name,
+    }));
+
   useEffect(() => {
-    // If specialty ID was passed, set it as the selected specialty
-    const specialtyId = (location.state as any)?.specialtyId;
+    const specialtyId = locationState.specialtyId;
     if (specialtyId && selectedSpecialty !== specialtyId) {
       setSelectedSpecialty(specialtyId);
     }
-    // If family member ID was passed, set it as the booking target
-    if ((location.state as any)?.familyMemberId) {
-      setBookingFor((location.state as any).familyMemberId);
+    if (locationState.familyMemberId) {
+      setBookingFor(locationState.familyMemberId);
     }
     loadInitialData(specialtyId || selectedSpecialty || null);
   }, [location.state]);
+
+  useEffect(() => {
+    const doctorId = locationState.doctorId;
+    if (!doctorId || doctors.length === 0) return;
+    const doc = doctors.find((d) => d.doctor_id === doctorId);
+    if (!doc || selectedDoctor?.doctor_id === doctorId) return;
+
+    setSelectedDoctor(doc);
+    if (doc.facility_id) {
+      setFormData((prev) => ({
+        ...prev,
+        doctor_id: doc.doctor_id,
+        facility_id: doc.facility_id!,
+      }));
+    } else {
+      setFormData((prev) => ({ ...prev, doctor_id: doc.doctor_id }));
+    }
+
+    // Only skip visit-type when arriving from telemedicine lobby (explicit video intent)
+    if (locationState.visitMode === 'video' && skipVisitTypeStep) {
+      setVisitMode('video');
+      setStep(3);
+    }
+  }, [doctors, locationState.doctorId, locationState.visitMode, selectedDoctor?.doctor_id, skipVisitTypeStep]);
 
   // Trigger search when selectedSpecialty changes (after initial load)
   useEffect(() => {
@@ -70,17 +130,36 @@ const AppointmentBooking: React.FC = () => {
   const loadInitialData = async (initialSpecialtyId: number | null = null) => {
     setLoading(true);
     try {
-      const [doctorsResult, familyResult, specialtiesResult] = await Promise.all([
-        doctorService.searchDoctors({
-          specialty_id: initialSpecialtyId || undefined,
-        }),
-        patientService.getFamilyMembers(),
-        doctorService.getSpecialties(),
-      ]);
+      if (visitMode === 'video') {
+        const [tmResult, familyResult, specialtiesResult] = await Promise.all([
+          telemedicineService.getTelemedicineDoctors({
+            lat: coords.lat,
+            lng: coords.lng,
+            maxKm: 50,
+          }),
+          patientService.getFamilyMembers(),
+          doctorService.getSpecialties(),
+        ]);
+        if (tmResult.success) {
+          setDoctors(mergePresetDoctor(mapTelemedicineDoctors(tmResult.doctors)));
+        }
+        if (familyResult.success) setFamilyMembers(familyResult.family_members || []);
+        if (specialtiesResult.success) setSpecialties(specialtiesResult.specialties || []);
+      } else {
+        const [doctorsResult, familyResult, specialtiesResult] = await Promise.all([
+          doctorService.searchDoctors({
+            specialty_id: initialSpecialtyId || undefined,
+          }),
+          patientService.getFamilyMembers(),
+          doctorService.getSpecialties(),
+        ]);
 
-      if (doctorsResult.success) setDoctors(doctorsResult.doctors || []);
-      if (familyResult.success) setFamilyMembers(familyResult.family_members || []);
-      if (specialtiesResult.success) setSpecialties(specialtiesResult.specialties || []);
+        if (doctorsResult.success) {
+          setDoctors(mergePresetDoctor(doctorsResult.doctors || []));
+        }
+        if (familyResult.success) setFamilyMembers(familyResult.family_members || []);
+        if (specialtiesResult.success) setSpecialties(specialtiesResult.specialties || []);
+      }
       
       setInitialLoadComplete(true);
     } catch (error) {
@@ -93,12 +172,33 @@ const AppointmentBooking: React.FC = () => {
   const handleSearch = async () => {
     setLoading(true);
     try {
-      const result = await doctorService.searchDoctors({
-        search: searchTerm || undefined,
-        specialty_id: selectedSpecialty || undefined,
-      });
-      if (result.success) {
-        setDoctors(result.doctors || []);
+      if (visitMode === 'video') {
+        const result = await telemedicineService.getTelemedicineDoctors({
+          lat: coords.lat,
+          lng: coords.lng,
+          maxKm: 50,
+          search: searchTerm || undefined,
+          specialty: selectedSpecialty
+            ? specialties.find((s) => s.specialty_id === selectedSpecialty)?.name
+            : undefined,
+        });
+        if (result.success) {
+          setDoctors(
+            mergePresetDoctor(
+              visitMode === 'video'
+                ? mapTelemedicineDoctors(result.doctors || [])
+                : result.doctors || []
+            )
+          );
+        }
+      } else {
+        const result = await doctorService.searchDoctors({
+          search: searchTerm || undefined,
+          specialty_id: selectedSpecialty || undefined,
+        });
+        if (result.success) {
+          setDoctors(mergePresetDoctor(result.doctors || []));
+        }
       }
     } catch (error) {
       console.error('Error searching doctors:', error);
@@ -119,7 +219,56 @@ const AppointmentBooking: React.FC = () => {
     } else {
       setFormData({ ...formData, doctor_id: doctor.doctor_id });
     }
-    // Skip facility selection, go directly to date & time (step 2)
+    // Skip facility selection, go directly to date & time (step 3)
+    setStep(3);
+  };
+
+  const handleVisitTypeContinue = async () => {
+    const doctorId = locationState.doctorId;
+    const preset = locationState.preselectedDoctor;
+
+    if (doctorId) {
+      setLoading(true);
+      try {
+        let list: Doctor[] = [];
+
+        if (visitMode === 'video') {
+          const result = await telemedicineService.getTelemedicineDoctors({
+            lat: coords.lat,
+            lng: coords.lng,
+            maxKm: 50,
+          });
+          if (result.success) {
+            list = mergePresetDoctor(mapTelemedicineDoctors(result.doctors));
+          }
+        } else {
+          const result = await doctorService.searchDoctors({});
+          if (result.success) {
+            list = mergePresetDoctor(result.doctors || []);
+          }
+        }
+
+        if (list.length > 0) {
+          setDoctors(list);
+        }
+
+        let doc = list.find((d) => d.doctor_id === doctorId) ?? preset ?? null;
+        if (!doc) {
+          const fetched = await doctorService.getDoctor(doctorId);
+          if (fetched.success && fetched.doctor) {
+            doc = fetched.doctor;
+          }
+        }
+
+        if (doc) {
+          handleDoctorSelect(doc);
+          return;
+        }
+      } finally {
+        setLoading(false);
+      }
+    }
+
     setStep(2);
   };
 
@@ -231,7 +380,7 @@ const AppointmentBooking: React.FC = () => {
   };
 
   useEffect(() => {
-    if (selectedDoctor && step === 2) {
+    if (selectedDoctor && step === 3) {
       fetchAvailableSlots();
     }
   }, [selectedDoctor, step]);
@@ -241,14 +390,29 @@ const AppointmentBooking: React.FC = () => {
     try {
       const bookingData: AppointmentBookingData = {
         ...formData,
+        appointment_type: visitMode === 'video' ? 'video' : formData.appointment_type,
         family_member_id: bookingFor !== 'self' ? bookingFor : undefined,
       };
-      const result = await appointmentService.bookAppointment(bookingData);
+      const result =
+        visitMode === 'video'
+          ? await telemedicineService.bookTelemedicineAppointment(bookingData)
+          : await appointmentService.bookAppointment(bookingData);
       if (result.success) {
+        if (visitMode === 'video' && !('visit' in result && result.visit) && selectedDoctor) {
+          const scheduledAt = `${formData.appointment_date}T${formData.appointment_time}`;
+          await telemedicineService.createVideoVisit({
+            doctorName: `Dr. ${selectedDoctor.first_name} ${selectedDoctor.last_name}`,
+            doctorId: selectedDoctor.doctor_id,
+            specialty: selectedDoctor.specialty_name || selectedDoctor.specialty?.name || 'General Medicine',
+            scheduledAt: new Date(scheduledAt).toISOString(),
+            fee: selectedDoctor.consultation_fee,
+          });
+        }
         setSuccess(true);
         setTimeout(() => {
           setSuccess(false);
-          setStep(1);
+          setStep(skipVisitTypeStep ? 2 : 1);
+          setVisitMode(locationState.visitMode === 'video' ? 'video' : 'in_person');
           setFormData({
             doctor_id: 0,
             facility_id: 0,
@@ -281,8 +445,9 @@ const AppointmentBooking: React.FC = () => {
     );
   }
 
-  const stepLabels = ['Select doctor', 'Date & time', 'Confirm'];
-  const stepShortLabels = ['Doctor', 'Date & time', 'Confirm'];
+  const stepLabels = ['Visit type', 'Select doctor', 'Date & time', 'Confirm'];
+  const stepShortLabels = ['Type', 'Doctor', 'Date & time', 'Confirm'];
+  const totalSteps = 4;
 
   return (
     <PortalPageShell className="max-w-4xl">
@@ -298,14 +463,14 @@ const AppointmentBooking: React.FC = () => {
             </button>
           }
           title="Book Appointment"
-          subtitle={`Step ${step} of 3 — ${stepLabels[step - 1]}`}
+          subtitle={`Step ${step} of ${totalSteps} — ${stepLabels[step - 1]}`}
           icon={<Calendar />}
           actions={
             <div
               className="flex w-full min-w-0 items-start gap-1 sm:min-w-[12rem] sm:gap-2 lg:min-w-[16rem] lg:max-w-xs"
-              aria-label={`Booking progress: step ${step} of 3`}
+              aria-label={`Booking progress: step ${step} of ${totalSteps}`}
             >
-              {[1, 2, 3].map((s) => (
+              {[1, 2, 3, 4].map((s) => (
                 <React.Fragment key={s}>
                   <div className="flex min-w-0 flex-1 flex-col items-center">
                     <div
@@ -323,7 +488,7 @@ const AppointmentBooking: React.FC = () => {
                       {stepShortLabels[s - 1]}
                     </span>
                   </div>
-                  {s < 3 && (
+                  {s < 4 && (
                     <div
                       className={`mt-4 h-0.5 min-w-[0.75rem] flex-1 sm:mt-[1.125rem] ${
                         step > s ? 'bg-sky-500' : 'bg-slate-700'
@@ -336,10 +501,91 @@ const AppointmentBooking: React.FC = () => {
           }
         />
 
-        {/* Step 1: Select Doctor */}
+        {/* Step 1: Visit type */}
         {step === 1 && (
+          <div className="content-panel p-6 transition-all duration-300 hover:shadow-lg">
+            <h2 className="mb-2 text-xl font-semibold text-gray-900">How would you like to visit?</h2>
+            <p className="mb-6 text-sm text-gray-600">Choose in-person or telemedicine before selecting a doctor.</p>
+            {locationState.preselectedDoctor && (
+              <p className="mb-4 rounded-lg border border-teal-500/25 bg-teal-500/10 px-3 py-2 text-sm text-teal-800">
+                Booking with{' '}
+                <span className="font-semibold">
+                  Dr. {locationState.preselectedDoctor.first_name}{' '}
+                  {locationState.preselectedDoctor.last_name}
+                </span>
+              </p>
+            )}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => setVisitMode('in_person')}
+                className={`rounded-xl border-2 p-5 text-left transition-all ${
+                  visitMode === 'in_person'
+                    ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200'
+                    : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
+                }`}
+              >
+                <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-blue-100">
+                  <MapPin className="h-6 w-6 text-blue-600" />
+                </div>
+                <h3 className="font-semibold text-gray-900">In-person</h3>
+                <p className="mt-1 text-sm text-gray-600">Visit the clinic or hospital for a face-to-face consultation.</p>
+              </button>
+              <button
+                type="button"
+                onClick={() => setVisitMode('video')}
+                className={`rounded-xl border-2 p-5 text-left transition-all ${
+                  visitMode === 'video'
+                    ? 'border-teal-500/50 bg-teal-500/15 ring-2 ring-teal-500/30'
+                    : 'border-gray-200 hover:border-teal-500/40 hover:bg-slate-800/40'
+                }`}
+              >
+                <div
+                  className={`mb-3 flex h-12 w-12 items-center justify-center rounded-xl ${
+                    visitMode === 'video' ? 'bg-teal-500/25' : 'bg-teal-500/10'
+                  }`}
+                >
+                  <Video className={`h-6 w-6 ${visitMode === 'video' ? 'text-teal-300' : 'text-teal-400'}`} />
+                </div>
+                <h3 className="font-semibold text-gray-900">Telemedicine</h3>
+                <p className="mt-1 text-sm text-gray-600">Video consultation from home on the same Wi‑Fi or network.</p>
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => void handleVisitTypeContinue()}
+              disabled={loading}
+              className="mt-6 w-full rounded-lg bg-blue-600 py-3 font-semibold text-white transition-all duration-200 hover:scale-105 hover:bg-blue-700 hover:shadow-lg disabled:opacity-50"
+            >
+              {loading ? 'Loading…' : 'Continue'}
+            </button>
+          </div>
+        )}
+
+        {/* Step 2: Select Doctor */}
+        {step === 2 && (
           <div className="content-panel hover:shadow-lg p-6 transition-all duration-300">
-            <h2 className="text-xl font-semibold mb-4">Select Doctor</h2>
+            <div className="mb-4 flex items-start gap-3">
+              {!skipVisitTypeStep && (
+                <button
+                  type="button"
+                  onClick={() => setStep(1)}
+                  className="shrink-0 rounded-lg p-1 text-blue-600 transition-all duration-200 hover:bg-blue-50 hover:text-blue-800"
+                  aria-label="Back"
+                  title="Back"
+                >
+                  <ArrowLeft className="h-5 w-5" />
+                </button>
+              )}
+              <div className="min-w-0">
+                <h2 className="text-xl font-semibold">Select Doctor</h2>
+                <p className="mt-1 text-sm text-gray-600">
+                  {visitMode === 'video'
+                    ? 'Doctors available for telemedicine'
+                    : 'In-person appointment'}
+                </p>
+              </div>
+            </div>
             <div className="mb-4 flex gap-4">
               <div className="flex-1">
                 <input
@@ -408,13 +654,13 @@ const AppointmentBooking: React.FC = () => {
           </div>
         )}
 
-        {/* Step 2: Date & Time */}
-        {step === 2 && selectedDoctor && (
+        {/* Step 3: Date & Time */}
+        {step === 3 && selectedDoctor && (
           <div className="content-panel hover:shadow-lg p-6 transition-all duration-300">
             <div className="flex items-start gap-3 mb-4">
               <button
                 type="button"
-                onClick={() => setStep(1)}
+                onClick={() => setStep(2)}
                 className="text-blue-600 hover:text-blue-800 p-1 rounded-lg hover:bg-blue-50 transition-all duration-200 shrink-0"
                 aria-label="Back"
                 title="Back"
@@ -492,7 +738,7 @@ const AppointmentBooking: React.FC = () => {
                 />
               </div>
               <button
-                onClick={() => setStep(3)}
+                onClick={() => setStep(4)}
                 disabled={!formData.appointment_date || !formData.appointment_time}
                 className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 hover:shadow-lg hover:scale-105 disabled:bg-gray-300 disabled:hover:scale-100 disabled:hover:shadow-none transition-all duration-200"
               >
@@ -502,13 +748,13 @@ const AppointmentBooking: React.FC = () => {
           </div>
         )}
 
-        {/* Step 3: Confirm */}
-        {step === 3 && selectedDoctor && (
+        {/* Step 4: Confirm */}
+        {step === 4 && selectedDoctor && (
           <div className="content-panel hover:shadow-lg p-6 transition-all duration-300">
             <div className="flex items-start gap-3 mb-4">
               <button
                 type="button"
-                onClick={() => setStep(2)}
+                onClick={() => setStep(3)}
                 className="text-blue-600 hover:text-blue-800 p-1 rounded-lg hover:bg-blue-50 transition-all duration-200 shrink-0"
                 aria-label="Back"
                 title="Back"
@@ -531,6 +777,10 @@ const AppointmentBooking: React.FC = () => {
                     {selectedDoctor.facility_city && `, ${selectedDoctor.facility_city}`}
                   </p>
                 )}
+              </div>
+              <div className="border border-gray-200 rounded-lg p-4">
+                <h3 className="font-semibold mb-2">Visit type</h3>
+                <p className="capitalize">{visitMode === 'video' ? 'Telemedicine' : 'In-person'}</p>
               </div>
               <div className="border border-gray-200 rounded-lg p-4">
                 <h3 className="font-semibold mb-2">Date & Time</h3>

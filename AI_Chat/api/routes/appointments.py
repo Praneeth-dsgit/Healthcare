@@ -244,6 +244,14 @@ def create_appointment():
         appointment_time = data.get('appointment_time')
         appointment_type = data.get('appointment_type', 'consultation')
         reason = data.get('reason')
+
+        if appointment_type == 'video':
+            from routes.telemedicine import doctor_supports_telemedicine, create_visit_for_appointment
+            if not doctor_supports_telemedicine(int(doctor_id)):
+                return jsonify({
+                    'success': False,
+                    'error': 'This doctor is not available for telemedicine',
+                }), 400
         
         # Insert appointment
         result = db.session.execute(
@@ -296,10 +304,52 @@ def create_appointment():
                 appointment['appointment_time'] = str(appointment['appointment_time'])
             if appointment.get('created_at'):
                 appointment['created_at'] = appointment['created_at'].isoformat() if hasattr(appointment['created_at'], 'isoformat') else str(appointment['created_at'])
+
+            visit_id = None
+            if appointment_type == 'video':
+                from routes.telemedicine import create_visit_for_appointment
+                fee_row = db.session.execute(
+                    db.text('SELECT consultation_fee FROM doctors WHERE doctor_id = :id'),
+                    {'id': doctor_id},
+                ).fetchone()
+                fee = float(fee_row[0]) if fee_row and fee_row[0] is not None else None
+                visit_id = create_visit_for_appointment(
+                    appointment_id,
+                    appointment_patient_id,
+                    doctor_id,
+                    appointment_date,
+                    appointment_time,
+                    fee,
+                )
+                db.session.commit()
+                appointment['telemedicine_visit_id'] = visit_id
+
+            try:
+                from services import engagement_orchestrator as eng
+                doctor_name = ' '.join(
+                    p for p in [
+                        appointment.get('doctor_first_name'),
+                        appointment.get('doctor_last_name'),
+                    ] if p
+                ).strip() or None
+                eng.create_event(
+                    appointment_patient_id,
+                    'appointment_confirmation',
+                    send_now=True,
+                    related_appointment_id=appointment_id,
+                    payload={
+                        'appointment_date': appointment.get('appointment_date'),
+                        'appointment_time': str(appointment.get('appointment_time') or '')[:8],
+                        'doctor_name': doctor_name,
+                    },
+                )
+            except Exception as eng_exc:
+                logger.warning('Appointment confirmation engagement skipped: %s', eng_exc)
             
             return jsonify({
                 'success': True,
-                'appointment': appointment
+                'appointment': appointment,
+                'visit_id': visit_id,
             }), 201
         else:
             return jsonify({

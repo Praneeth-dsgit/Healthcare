@@ -1190,6 +1190,42 @@ const PatientPortalChat = React.forwardRef<{ clearMessages: () => void }, {}>((_
                   <span>Book Appointment</span>
                   <Stethoscope size={14} className="shrink-0 text-teal-400" />
                 </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleQuickAction("What are my open care gaps and preventive care recommendations?");
+                    setShowQuickOptions(false);
+                  }}
+                  disabled={isLoading}
+                  className="flex w-full items-center justify-end gap-2 rounded-lg border border-slate-600/80 bg-slate-800/90 px-3 py-2 pr-4 text-right text-xs text-slate-200 transition-all duration-200 hover:border-amber-500/40 hover:bg-amber-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <span>My care gaps</span>
+                  <Calendar size={14} className="shrink-0 text-amber-400" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleQuickAction("Remind me about my current medications and adherence tips");
+                    setShowQuickOptions(false);
+                  }}
+                  disabled={isLoading}
+                  className="flex w-full items-center justify-end gap-2 rounded-lg border border-slate-600/80 bg-slate-800/90 px-3 py-2 pr-4 text-right text-xs text-slate-200 transition-all duration-200 hover:border-sky-500/40 hover:bg-sky-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <span>My medications</span>
+                  <Heart size={14} className="shrink-0 text-sky-400" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowQuickOptions(false);
+                    navigate('/portal/appointments/book');
+                  }}
+                  disabled={isLoading}
+                  className="flex w-full items-center justify-end gap-2 rounded-lg border border-slate-600/80 bg-slate-800/90 px-3 py-2 pr-4 text-right text-xs text-slate-200 transition-all duration-200 hover:border-emerald-500/40 hover:bg-emerald-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <span>Book preventive visit</span>
+                  <Stethoscope size={14} className="shrink-0 text-emerald-400" />
+                </button>
               </div>
             </div>
 

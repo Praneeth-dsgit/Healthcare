@@ -24,6 +24,7 @@ import {
 import { roleService } from '../../services/roleService';
 import DoctorProfileFormFields from './DoctorProfileFormFields';
 import SegmentTabs from '../ui/SegmentTabs';
+import SydneyLocationSelector from '../ui/SydneyLocationSelector';
 
 const ROLE_FILTER_TABS = [
   { id: '', label: 'All Users', icon: Users },
@@ -512,6 +513,7 @@ const AdminDashboard: React.FC = () => {
               </div>
             </div>
             <div className="flex items-center gap-3">
+              <SydneyLocationSelector compact showLabel={false} />
               <button
                 onClick={() => {
                   resetForm();

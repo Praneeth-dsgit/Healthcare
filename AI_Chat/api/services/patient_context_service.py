@@ -14,8 +14,9 @@ RECORD_TYPES_BY_CAPABILITY = {
 }
 
 ANALYZE_RECORD_HINTS = (
-    'analyze', 'interpret', 'report', 'findings', 'above', 'review',
-    'explain', 'what does', 'summarize', 'read the', 'this scan', 'this image',
+    'analyze', 'ananlyze', 'analyse', 'interpret', 'report', 'findings', 'above', 'review',
+    'explain', 'what does', 'summarize', 'read the', 'this scan', 'the scan', 'this image',
+    'scan', 'x-ray', 'xray', 'mri', 'ct', 'imaging', 'radiolog',
 )
 
 PRIMARY_RECORD_TYPE = {
@@ -173,15 +174,13 @@ def enrich_file_findings_from_stored_records(
         return existing_file_findings
     if not patient_info or capability not in PRIMARY_RECORD_TYPE:
         return None
-    if not _should_load_stored_record_content(user_message):
-        return None
 
     records = patient_info.get('medicalRecords') or []
 
+    # Staff explicitly attached record(s) — always load them for vision analysis.
     if record_ids:
         targets = _pick_records_by_ids(records, record_ids)
         if targets:
-            # Split the budget across the selected files so the prompt stays bounded.
             per_record = 15000 if len(targets) == 1 else max(2500, 15000 // len(targets))
             parts = [
                 findings
@@ -189,9 +188,25 @@ def enrich_file_findings_from_stored_records(
                 if (findings := _extract_findings_from_record_file(rec, capability, per_record))
             ]
             if parts:
+                logger.info(
+                    "Loaded %s attached record(s) for %s analysis via record_ids",
+                    len(parts),
+                    capability,
+                )
                 return "\n\n".join(parts)
+            logger.warning(
+                "Attached record_ids %s could not be extracted for %s",
+                record_ids,
+                capability,
+            )
             return None
-        # Selected records weren't in the loaded set; fall back to the primary record.
+        logger.warning(
+            "record_ids %s not found in patient medicalRecords; falling back to keyword heuristics",
+            record_ids,
+        )
+
+    if not _should_load_stored_record_content(user_message):
+        return None
 
     target = _pick_primary_record(records, capability)
     if not target:

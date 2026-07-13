@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Calendar, Clock, User, MapPin, Search, Edit, Pill } from 'lucide-react';
+import { Calendar, Clock, User, MapPin, Search, Edit, Pill, FolderOpen } from 'lucide-react';
 import { appointmentService, Appointment } from '../../services/appointmentService';
 import EditAppointmentModal from './EditAppointmentModal';
 import { getAppointmentStatusColor, getAppointmentStatusContainer } from '../../utils/appointmentStatusColors';
@@ -12,6 +12,7 @@ import SegmentTabs from '../ui/SegmentTabs';
 
 interface DoctorAppointmentsProps {
   onPrescribe?: (patientId: string, patientName: string) => void;
+  onViewRecords?: (patientId: string, patientName: string) => void;
 }
 
 const FILTER_TABS = [
@@ -21,7 +22,7 @@ const FILTER_TABS = [
   { id: 'all', label: 'All' },
 ];
 
-const DoctorAppointments: React.FC<DoctorAppointmentsProps> = ({ onPrescribe }) => {
+const DoctorAppointments: React.FC<DoctorAppointmentsProps> = ({ onPrescribe, onViewRecords }) => {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'upcoming' | 'today' | 'past'>('upcoming');
@@ -129,6 +130,13 @@ const DoctorAppointments: React.FC<DoctorAppointmentsProps> = ({ onPrescribe }) 
     }
   };
 
+  const handleViewRecords = (appointment: Appointment) => {
+    const patientName = getPatientName(appointment);
+    if (onViewRecords) {
+      onViewRecords(appointment.patient_id, patientName);
+    }
+  };
+
   const handleStatusChange = async (appointmentId: number, newStatus: string) => {
     setUpdatingStatus(appointmentId);
     try {
@@ -227,7 +235,9 @@ const DoctorAppointments: React.FC<DoctorAppointmentsProps> = ({ onPrescribe }) 
                           ? 'Cancelled'
                           : appointment.status.charAt(0).toUpperCase() + appointment.status.slice(1)}
                     </span>
-                    <span className="text-sm text-slate-400">{appointment.appointment_type}</span>
+                    <span className="text-sm text-slate-400">
+                      {appointment.appointment_type === 'video' ? 'Telemedicine' : appointment.appointment_type}
+                    </span>
                   </div>
 
                   <h3 className="mb-2 text-lg font-semibold text-slate-100">{getPatientName(appointment)}</h3>
@@ -273,6 +283,15 @@ const DoctorAppointments: React.FC<DoctorAppointmentsProps> = ({ onPrescribe }) 
                   >
                     <Edit size={16} />
                     <span>Edit</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleViewRecords(appointment)}
+                    className="flex items-center justify-center gap-2 rounded-lg border border-sky-500/40 bg-sky-500/15 px-4 py-2 text-sm font-medium text-sky-300 transition-colors hover:bg-sky-500/25"
+                  >
+                    <FolderOpen size={16} />
+                    <span>Records</span>
                   </button>
 
                   <button

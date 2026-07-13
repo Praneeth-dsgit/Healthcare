@@ -11,6 +11,16 @@ logger = logging.getLogger(__name__)
 
 def interpret_image_with_openai(image_bytes, image_format="png", capability="general"):
     """Interpret images based on selected capability with strict enforcement"""
+
+    # Radiology: prefer MedGemma 1.5 when configured (HF API or local)
+    if capability == 'radiology':
+        from config import RADIOLOGY_VISION_PROVIDER
+        if RADIOLOGY_VISION_PROVIDER == 'medgemma':
+            from services.medgemma_service import try_medgemma_radiology_analysis
+            medgemma_result = try_medgemma_radiology_analysis(image_bytes, image_format=image_format)
+            if medgemma_result:
+                return medgemma_result
+            logger.warning("MedGemma unavailable or failed — falling back to OpenAI GPT-4o for radiology")
     
     # Set appropriate prompt based on capability
     if capability == 'radiology':
