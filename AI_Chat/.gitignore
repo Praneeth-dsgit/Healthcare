@@ -7,10 +7,47 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Dependencies
 node_modules
 dist
 dist-ssr
 *.local
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+api/venv/
+venv/
+.venv/
+env/
+ENV/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Local model weights / HF caches (large)
+api/models/
+.cache/
+*.safetensors
+
+# Uploads and runtime artifacts
+api/uploads/
+api/logs/
+*.pdf
+!guide/**/*.pdf
+
+# Secrets / local config
+.env
+.env.*
+!.env.example
+api/.jwt_secret_dev
+api/.env
 
 # Editor directories and files
 .vscode/*
@@ -22,4 +59,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
-.env
+Thumbs.db
+
+# OS / tooling
+*.tmp
+*.temp
+*.bak

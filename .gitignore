@@ -1,0 +1,14 @@
+# Root ignore — keep repo free of runtime/vendor artifacts
+AI_Chat/api/venv/
+AI_Chat/api/models/
+AI_Chat/api/uploads/
+AI_Chat/api/**/__pycache__/
+AI_Chat/frontend/node_modules/
+AI_Chat/frontend/dist/
+**/.env
+**/.env.*
+!**/.env.example
+**/__pycache__/
+*.py[cod]
+.DS_Store
+Thumbs.db
